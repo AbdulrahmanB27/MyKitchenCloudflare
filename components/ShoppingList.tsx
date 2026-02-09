@@ -296,34 +296,29 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 
           {/* LIST VIEW: COMBINED */}
           {viewMode === 'combined' && (
-             <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
-                 <div className="p-4 bg-gray-50/50 dark:bg-white/5 border-b border-border-light dark:border-border-dark">
-                     <h3 className="text-lg font-bold text-text-main dark:text-white font-display">Combined Ingredients</h3>
-                 </div>
-                 <div className="p-4 space-y-1">
-                    {sortedCombinedItems.map(item => (
-                        <div 
-                            key={item.id} 
-                            onClick={() => toggleCombinedItem(item)}
-                            className="flex items-start gap-3 p-3 hover:bg-background-light dark:hover:bg-background-dark rounded-lg cursor-pointer group transition-colors border-b border-transparent hover:border-border-light dark:hover:border-border-dark last:border-0"
-                        >
-                            <div className="mt-1">
-                                <CustomCheckbox checked={item.isChecked} onChange={() => toggleCombinedItem(item)} />
-                            </div>
-                            <div className="flex-1 flex flex-col">
-                                <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-primary transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
-                                    {/* Format quantity nicely */}
-                                    {item.unit ? `${Number(item.qty.toFixed(2))} ${item.unit} ${item.text}` : `${item.text} (x${item.qty})`}
-                                </span>
-                                {item.sourceRecipeNames.size > 0 && (
-                                    <span className="text-xs text-text-muted dark:text-gray-500 mt-0.5">
-                                        From: {Array.from(item.sourceRecipeNames).join(', ')}
-                                    </span>
-                                )}
-                            </div>
+             <div className="space-y-2">
+                {sortedCombinedItems.map(item => (
+                    <div 
+                        key={item.id} 
+                        onClick={() => toggleCombinedItem(item)}
+                        className="flex items-start gap-3 p-4 bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark cursor-pointer group transition-all"
+                    >
+                        <div className="mt-1">
+                            <CustomCheckbox checked={item.isChecked} onChange={() => toggleCombinedItem(item)} />
                         </div>
-                    ))}
-                 </div>
+                        <div className="flex-1 flex flex-col">
+                            <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-primary transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
+                                {/* Format quantity nicely */}
+                                {item.unit ? `${Number(item.qty.toFixed(2))} ${item.unit} ${item.text}` : `${item.text} (x${item.qty})`}
+                            </span>
+                            {item.sourceRecipeNames.size > 0 && (
+                                <span className="text-xs text-text-muted dark:text-gray-500 mt-0.5">
+                                    From: {Array.from(item.sourceRecipeNames).join(', ')}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))}
              </div>
           )}
 
@@ -336,3 +331,4 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 };
 
 export default ShoppingList;
+    

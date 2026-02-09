@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
 import * as db from './services/db';
 import RecipeCard from './components/RecipeCard';
@@ -8,7 +8,7 @@ import RecipeForm from './components/RecipeForm';
 import ShoppingList from './components/ShoppingList';
 import MealPlanner from './components/MealPlanner';
 import Recommendations from './components/Recommendations';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -37,6 +37,46 @@ const App: React.FC = () => {
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+
+  // --- Import Logic ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const imported = JSON.parse(content);
+        
+        // Handle array of recipes or single recipe
+        const recipesToImport = Array.isArray(imported) ? imported : [imported];
+        
+        let count = 0;
+        for (const r of recipesToImport) {
+            // Basic validation
+            if (r.name && r.ingredients && r.instructions) {
+                await db.upsertRecipe(r);
+                count++;
+            }
+        }
+        await loadData();
+        alert(`Imported ${count} recipes.`);
+      } catch (err) {
+        console.error(err);
+        alert('Failed to import recipes. Invalid JSON.');
+      }
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
 
   // --- Effects ---
 
@@ -266,6 +306,14 @@ const App: React.FC = () => {
                     {!isSidebarCollapsed && "Recipes"}
                 </button>
                 <button 
+                    onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); }} 
+                    className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    title={isSidebarCollapsed ? "What can I make?" : ""}
+                >
+                    <span className="material-symbols-outlined">kitchen</span> 
+                    {!isSidebarCollapsed && "Recommendations"}
+                </button>
+                <button 
                     onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); }} 
                     className={`nav-btn ${currentView === 'planner' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title={isSidebarCollapsed ? "Planner" : ""}
@@ -280,14 +328,6 @@ const App: React.FC = () => {
                 >
                     <span className="material-symbols-outlined">shopping_cart</span> 
                     {!isSidebarCollapsed && "Shopping List"}
-                </button>
-                <button 
-                    onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); }} 
-                    className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isSidebarCollapsed ? "What can I make?" : ""}
-                >
-                    <span className="material-symbols-outlined">kitchen</span> 
-                    {!isSidebarCollapsed && "Recommendations"}
                 </button>
             </div>
             
@@ -379,6 +419,23 @@ const App: React.FC = () => {
                                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search shared recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
                              </div>
                              <div className="flex gap-2 items-center">
+                                 {/* Import Button */}
+                                 <button 
+                                    onClick={handleImportClick}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors"
+                                    title="Import JSON Recipe"
+                                 >
+                                     <Upload size={16} />
+                                     <span className="hidden sm:inline">Import</span>
+                                 </button>
+                                 <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileImport} 
+                                    className="hidden" 
+                                    accept=".json" 
+                                 />
+
                                  {/* Sort Dropdown */}
                                  <div className="relative group">
                                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Recipe, Ingredient } from '../types';
+import { Recipe, Ingredient, RecipeCategory } from '../types';
 import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X, ArrowUpDown } from 'lucide-react';
 
 interface RecommendationsProps {
@@ -31,6 +31,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
   const [ignoreSeasonings, setIgnoreSeasonings] = useState(true);
   const [showMissingOne, setShowMissingOne] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
+  const [filterCategory, setFilterCategory] = useState<RecipeCategory | 'All'>('All');
 
   // Helper: Normalize string
   const normalize = (s: string) => s.trim().toLowerCase();
@@ -41,10 +42,12 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
     return Array.from(COMMON_SEASONINGS).some(s => norm === s || norm === `${s}s`);
   };
 
-  // 1. Extract all unique ingredients from recipes
+  // 1. Extract all unique ingredients from recipes (filtered by category)
   const allIngredientNames = useMemo(() => {
     const set = new Set<string>();
-    recipes.forEach(r => {
+    const filteredRecipes = filterCategory === 'All' ? recipes : recipes.filter(r => r.category === filterCategory);
+    
+    filteredRecipes.forEach(r => {
         r.ingredients.forEach(i => {
             if (i.item) set.add(normalize(i.item));
         });
@@ -55,7 +58,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
         });
     });
     return Array.from(set).sort();
-  }, [recipes]);
+  }, [recipes, filterCategory]);
 
   // 2. Filter ingredients for the selection UI
   const visibleIngredients = useMemo(() => {
@@ -91,8 +94,9 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
     if (selectedIngredients.size === 0) return [];
 
     const results: { recipe: Recipe; missing: Ingredient[]; matchedCount: number; totalRequired: number }[] = [];
+    const filteredRecipes = filterCategory === 'All' ? recipes : recipes.filter(r => r.category === filterCategory);
 
-    recipes.forEach(recipe => {
+    filteredRecipes.forEach(recipe => {
         let allIngredients: Ingredient[] = [...recipe.ingredients];
         if (recipe.components) {
             recipe.components.forEach(c => allIngredients.push(...c.ingredients));
@@ -159,7 +163,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
         }
     });
 
-  }, [recipes, selectedIngredients, ignoreSeasonings, showMissingOne, sortBy]);
+  }, [recipes, selectedIngredients, ignoreSeasonings, showMissingOne, sortBy, filterCategory]);
 
   const toggleSelection = (name: string) => {
       const next = new Set(selectedIngredients);
@@ -191,53 +195,72 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
         <div className="bg-surface-light dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-border-light dark:border-border-dark space-y-4">
             
             {/* Controls Row */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                 <div className="relative flex-1 w-full md:max-w-md">
-                     <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
-                     <input 
-                        type="text" 
-                        value={ingredientSearch} 
-                        onChange={e => setIngredientSearch(e.target.value)} 
-                        placeholder="Search ingredients..." 
-                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary focus:outline-none text-text-main dark:text-white"
-                     />
-                 </div>
-                 
-                 <div className="flex flex-wrap gap-2 items-center">
-                     {/* Sort Dropdown */}
-                     <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                             <ArrowUpDown size={14} className="text-text-muted" />
-                         </div>
-                         <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as SortOption)}
-                            className="pl-8 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-main dark:text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
-                         >
-                             <option value="relevance">Sort: Relevance</option>
-                             <option value="time">Sort: Fastest</option>
-                             <option value="rating">Sort: Highest Rated</option>
-                             <option value="calories">Sort: Lowest Calories</option>
-                             <option value="name">Sort: Name (A-Z)</option>
-                         </select>
+            <div className="flex flex-col gap-4">
+                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                     <div className="relative flex-1 w-full md:max-w-md">
+                         <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
+                         <input 
+                            type="text" 
+                            value={ingredientSearch} 
+                            onChange={e => setIngredientSearch(e.target.value)} 
+                            placeholder="Search ingredients..." 
+                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary focus:outline-none text-text-main dark:text-white"
+                         />
                      </div>
+                     
+                     <div className="flex flex-wrap gap-2 items-center">
+                         {/* Sort Dropdown */}
+                         <div className="relative group">
+                             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                                 <ArrowUpDown size={14} className="text-text-muted" />
+                             </div>
+                             <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                                className="pl-8 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-main dark:text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
+                             >
+                                 <option value="relevance">Sort: Relevance</option>
+                                 <option value="time">Sort: Fastest</option>
+                                 <option value="rating">Sort: Highest Rated</option>
+                                 <option value="calories">Sort: Lowest Calories</option>
+                                 <option value="name">Sort: Name (A-Z)</option>
+                             </select>
+                         </div>
 
-                     <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
-                        <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                            {ignoreSeasonings && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
-                        </div>
-                        <input type="checkbox" className="hidden" checked={ignoreSeasonings} onChange={e => setIgnoreSeasonings(e.target.checked)} />
-                        <span className="text-xs font-bold text-text-main dark:text-gray-200">Ignore Staples</span>
-                    </label>
+                         <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
+                                {ignoreSeasonings && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                            </div>
+                            <input type="checkbox" className="hidden" checked={ignoreSeasonings} onChange={e => setIgnoreSeasonings(e.target.checked)} />
+                            <span className="text-xs font-bold text-text-main dark:text-gray-200">Ignore Staples</span>
+                        </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
-                        <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                            {showMissingOne && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
-                        </div>
-                        <input type="checkbox" className="hidden" checked={showMissingOne} onChange={e => setShowMissingOne(e.target.checked)} />
-                        <span className="text-xs font-bold text-text-main dark:text-gray-200">Missing 1</span>
-                    </label>
-                 </div>
+                        <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
+                                {showMissingOne && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                            </div>
+                            <input type="checkbox" className="hidden" checked={showMissingOne} onChange={e => setShowMissingOne(e.target.checked)} />
+                            <span className="text-xs font-bold text-text-main dark:text-gray-200">Missing 1</span>
+                        </label>
+                     </div>
+                </div>
+
+                {/* Category Filter for Recommendations */}
+                <div className="flex gap-2 pb-1 overflow-x-auto no-scrollbar">
+                     {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
+                         <button 
+                            key={cat} 
+                            onClick={() => setFilterCategory(cat as any)} 
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${
+                                filterCategory === cat 
+                                    ? 'bg-primary text-white border-primary' 
+                                    : 'bg-background-light dark:bg-background-dark text-text-muted border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5'
+                            }`}
+                         >
+                             {cat}
+                         </button>
+                     ))}
+                </div>
             </div>
             
             <div className="flex items-center justify-between border-t border-border-light dark:border-border-dark pt-4">

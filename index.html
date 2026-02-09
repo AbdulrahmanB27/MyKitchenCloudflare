@@ -73,6 +73,52 @@
       input[type=number] {
         -moz-appearance: textfield;
       }
+
+      @media print {
+        body {
+          background: white !important;
+          color: black !important;
+        }
+        
+        /* If a recipe detail is open, hide everything else */
+        body > *:not(.recipe-detail-view) {
+          display: none !important;
+        }
+
+        .recipe-detail-view {
+          display: block !important;
+          position: static !important;
+          overflow: visible !important;
+          height: auto !important;
+          background: white !important;
+          color: black !important;
+          width: 100% !important;
+          z-index: 9999;
+        }
+
+        .recipe-detail-view * {
+          visibility: visible !important;
+        }
+
+        /* Hide specific interactive elements in the recipe detail when printing */
+        .recipe-detail-view header,
+        .recipe-detail-view button,
+        .recipe-detail-view .no-print {
+          display: none !important;
+        }
+
+        /* Ensure proper scrolling/flow for the content */
+        .recipe-detail-view main {
+          overflow: visible !important;
+          height: auto !important;
+        }
+
+        /* Fix image aspect ratios if needed */
+        .bg-cover {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
     </style>
     <script type="importmap">
     {

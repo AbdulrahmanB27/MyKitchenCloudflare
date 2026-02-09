@@ -4,13 +4,19 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock } from 'lucide-react';
 
 interface RecipeDetailProps {
   recipeId: string;
   onClose: () => void;
   onEdit: (recipe: Recipe) => void;
   onRefreshList: () => void;
+}
+
+interface ActiveTimer {
+    elapsed: number;
+    target: number;
+    notified: boolean;
 }
 
 const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, onRefreshList }) => {
@@ -24,8 +30,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   // Review State
   const [isRatingOpen, setIsRatingOpen] = useState(false);
 
-  // Inline Timers State: Map of step.id -> seconds remaining
-  const [activeTimers, setActiveTimers] = useState<{ [key: string]: number }>({});
+  // Stopwatch Timers State: Map of step.id -> Timer Data
+  const [activeTimers, setActiveTimers] = useState<{ [key: string]: ActiveTimer }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -52,7 +58,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     }
   }, [recipe]);
 
-  // Timer Countdown Logic
+  // Stopwatch Logic
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveTimers(prev => {
@@ -60,16 +66,16 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         let hasChanges = false;
         
         Object.keys(next).forEach(key => {
-          if (next[key] > 0) {
-            next[key]--;
+            const timer = next[key];
+            timer.elapsed += 1;
             hasChanges = true;
-            
-            if (next[key] === 0) {
-              // Timer finished
-              audioRef.current?.play().catch(() => {});
-              if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+            // Check for notification trigger (once)
+            if (timer.target > 0 && timer.elapsed >= timer.target && !timer.notified) {
+                audioRef.current?.play().catch(() => {});
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                timer.notified = true;
             }
-          }
         });
         
         return hasChanges ? next : prev;
@@ -321,6 +327,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   const getInstructionText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
   const getInstructionTitle = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.title;
   const getInstructionTimer = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.timer;
+  const getInstructionTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
+  const getInstructionOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
   const getInstructionId = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.id;
 
 
@@ -346,7 +354,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
               delete next[stepId];
           } else {
               // Start timer
-              next[stepId] = minutes * 60;
+              next[stepId] = {
+                  elapsed: 0,
+                  target: minutes * 60,
+                  notified: false
+              };
           }
           return next;
       });
@@ -370,7 +382,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   let globalStepCounter = 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
+    <div className="recipe-detail-view fixed inset-0 z-50 bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
         
         {/* Sticky Header */}
         <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-border-light dark:border-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 md:px-6">
@@ -505,12 +517,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 </div>
                                 <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
                             </button>
-                             <button onClick={() => window.print()} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
-                                <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
-                                    <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">print</span>
-                                </div>
-                                <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Print</span>
-                            </button>
                             <button onClick={copyToClipboard} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
                                 <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
                                     <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">data_object</span>
@@ -615,7 +621,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         
                         {/* Video */}
                         {recipe.video?.url && (
-                             <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-border-light dark:border-border-dark">
+                             <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-border-light dark:border-border-dark no-print">
                                 <iframe src={recipe.video.url} className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                             </div>
                         )}
@@ -640,16 +646,25 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                 const text = getInstructionText(step);
                                                 const title = getInstructionTitle(step);
                                                 const timerDuration = getInstructionTimer(step);
+                                                const tip = getInstructionTip(step);
+                                                const optional = getInstructionOptional(step);
                                                 const stepId = getInstructionId(step) || `${gIdx}-${idx}`; // Fallback ID if string
                                                 globalStepCounter++;
                                                 
-                                                const timeRemaining = activeTimers[stepId];
-                                                const isActive = timeRemaining !== undefined;
+                                                const timerData = activeTimers[stepId];
+                                                const isRunning = timerData !== undefined;
+                                                const elapsed = timerData?.elapsed || 0;
+                                                const target = timerData?.target || 0;
+                                                const isOvertime = target > 0 && elapsed >= target;
 
                                                 return (
                                                     <div key={idx} className="flex gap-4 relative group">
                                                         <div className="flex-none z-10">
-                                                            <div className="flex items-center justify-center size-10 rounded-full bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-gray-600 text-gray-500 font-bold group-hover:border-primary group-hover:text-primary transition-colors shadow-sm">
+                                                            <div className={`flex items-center justify-center size-10 rounded-full border-2 font-bold transition-colors shadow-sm ${
+                                                                optional 
+                                                                    ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 text-blue-600' 
+                                                                    : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-gray-600 text-gray-500 group-hover:border-primary group-hover:text-primary'
+                                                            }`}>
                                                                 {globalStepCounter}
                                                             </div>
                                                         </div>
@@ -658,30 +673,44 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                             <div className="absolute left-[19px] top-10 bottom-[-32px] w-[2px] bg-border-light dark:bg-white/5"></div>
                                                         )}
                                                         <div className="flex flex-col gap-2 pt-1 pb-4 flex-1">
-                                                            {title && <h4 className="font-bold text-lg text-text-main dark:text-white">{title}</h4>}
+                                                            <div className="flex items-center gap-2">
+                                                                {title && <h4 className="font-bold text-lg text-text-main dark:text-white">{title}</h4>}
+                                                                {optional && (
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                                                        Optional
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <p className="text-lg text-text-main dark:text-gray-200 leading-relaxed font-medium group-hover:text-black dark:group-hover:text-white transition-colors">
                                                                 {text}
                                                             </p>
+                                                            {tip && (
+                                                                <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
+                                                                    <Lightbulb size={16} className="shrink-0 mt-0.5" />
+                                                                    <span>{tip}</span>
+                                                                </div>
+                                                            )}
                                                             {timerDuration !== undefined && timerDuration !== null && (
                                                                 <button 
                                                                     onClick={() => toggleTimer(stepId, timerDuration)}
-                                                                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold w-fit transition-all ${
-                                                                        isActive 
-                                                                            ? timeRemaining === 0 
-                                                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 animate-pulse'
-                                                                                : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
+                                                                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold w-fit transition-all no-print ${
+                                                                        isRunning 
+                                                                            ? isOvertime
+                                                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 animate-pulse'
+                                                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
                                                                             : 'bg-primary/10 text-primary hover:bg-primary/20'
                                                                     }`}
                                                                 >
-                                                                    {isActive ? (
+                                                                    {isRunning ? (
                                                                         <>
-                                                                            {timeRemaining === 0 ? <RotateCcw size={16} /> : <Square size={16} fill="currentColor" />}
-                                                                            {timeRemaining === 0 ? "Done! Reset?" : formatTime(timeRemaining)}
+                                                                            {isOvertime ? <Bell size={16} /> : <Square size={16} fill="currentColor" />}
+                                                                            <span>{formatTime(elapsed)}</span>
+                                                                            <span className="opacity-70 font-normal">/ {formatTime(target)}</span>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <Play size={16} fill="currentColor" />
-                                                                            Start Timer ({timerDuration}m)
+                                                                            <Clock size={16} />
+                                                                            Start Stopwatch (Target: {timerDuration}m)
                                                                         </>
                                                                     )}
                                                                 </button>

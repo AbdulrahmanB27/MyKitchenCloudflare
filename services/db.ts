@@ -104,11 +104,12 @@ export const getShoppingList = async (): Promise<ShoppingItem[]> => {
 
 export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
   try {
-    await fetch(`${API_BASE}/shopping`, {
+    const res = await fetch(`${API_BASE}/shopping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
+    if (!res.ok) throw new Error('API Error');
   } catch (err) {
     const items = await getShoppingList();
     const idx = items.findIndex(i => i.id === item.id);
@@ -120,7 +121,8 @@ export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
 
 export const deleteShoppingItem = async (id: string): Promise<void> => {
   try {
-      await fetch(`${API_BASE}/shopping?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/shopping?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('API Error');
   } catch (err) {
       const items = await getShoppingList();
       setLocal(LOCAL_KEYS.SHOPPING, items.filter(i => i.id !== id));
@@ -130,7 +132,8 @@ export const deleteShoppingItem = async (id: string): Promise<void> => {
 export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
   try {
       const param = onlyChecked ? 'checked' : 'true';
-      await fetch(`${API_BASE}/shopping?clearAll=${param}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/shopping?clearAll=${param}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('API Error');
   } catch (err) {
       if (onlyChecked) {
           const items = await getShoppingList();
@@ -155,11 +158,12 @@ export const getMealPlans = async (): Promise<MealPlan[]> => {
 
 export const upsertMealPlan = async (plan: MealPlan): Promise<void> => {
   try {
-    await fetch(`${API_BASE}/plans`, {
+    const res = await fetch(`${API_BASE}/plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plan)
     });
+    if (!res.ok) throw new Error('API Error');
   } catch (err) {
       const plans = await getMealPlans();
       const idx = plans.findIndex(p => p.id === plan.id);
@@ -171,7 +175,8 @@ export const upsertMealPlan = async (plan: MealPlan): Promise<void> => {
 
 export const deleteMealPlan = async (id: string): Promise<void> => {
   try {
-      await fetch(`${API_BASE}/plans?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/plans?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('API Error');
   } catch (err) {
       const plans = await getMealPlans();
       setLocal(LOCAL_KEYS.PLANS, plans.filter(p => p.id !== id));

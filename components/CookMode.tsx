@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
+import { Lightbulb } from 'lucide-react';
 
 interface CookModeProps {
   recipe: Recipe;
@@ -31,6 +32,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
   const getStepText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
   const getStepTitle = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.title;
   const getStepTimer = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.timer;
+  const getStepTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
+  const getStepOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
 
   // Combine main and component ingredients for flat list with headers
   const allIngredients = React.useMemo(() => {
@@ -57,7 +60,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
 
   // Combine instructions
   const allSteps = React.useMemo(() => {
-      const steps: { txt: string, title?: string | null, timer?: number | null, group: string }[] = [];
+      const steps: { txt: string, title?: string | null, timer?: number | null, tip?: string | null, optional?: boolean, group: string }[] = [];
 
       // 1. Main Instructions (optionally sectioned)
       recipe.instructions.forEach(inst => {
@@ -65,6 +68,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
               txt: getStepText(inst), 
               title: getStepTitle(inst),
               timer: getStepTimer(inst),
+              tip: getStepTip(inst),
+              optional: getStepOptional(inst),
               group: (typeof inst !== 'string' && inst.section) ? inst.section : 'Main' 
           });
       });
@@ -76,6 +81,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
                   txt: getStepText(inst), 
                   title: getStepTitle(inst),
                   timer: getStepTimer(inst),
+                  tip: getStepTip(inst),
+                  optional: getStepOptional(inst),
                   group: comp.label 
               });
           });
@@ -390,11 +397,29 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
                          {currentStepData.title && (
                              <h2 className="text-xl md:text-2xl font-bold text-text-muted">{currentStepData.title}</h2>
                          )}
-                         <h1 className="text-2xl md:text-3xl font-bold leading-tight">{currentStepData.txt}</h1>
+                         <h1 className="text-2xl md:text-3xl font-bold leading-tight flex flex-col items-center gap-2">
+                             {currentStepData.optional && (
+                                <span className="text-sm font-bold uppercase tracking-wider bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full">
+                                    Optional Step
+                                </span>
+                             )}
+                             {currentStepData.txt}
+                         </h1>
                          {currentStepData.group !== 'Main' && (
                              <span className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold uppercase">{currentStepData.group} Step</span>
                          )}
                      </div>
+
+                     {/* Step Tip/Warning */}
+                     {currentStepData.tip && (
+                         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-xl flex items-start gap-3 max-w-2xl mx-auto animate-in zoom-in duration-300">
+                             <Lightbulb className="text-yellow-600 dark:text-yellow-500 shrink-0" size={24} />
+                             <div>
+                                 <h4 className="font-bold text-yellow-700 dark:text-yellow-400 text-sm uppercase">Helpful Tip</h4>
+                                 <p className="text-yellow-800 dark:text-yellow-200 text-base leading-relaxed">{currentStepData.tip}</p>
+                             </div>
+                         </div>
+                     )}
 
                      {/* Mistakes Alert */}
                      {recipe.mistakes && recipe.mistakes.length > 0 && (

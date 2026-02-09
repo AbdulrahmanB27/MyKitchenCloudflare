@@ -15,6 +15,8 @@ export interface Instruction {
   title?: string;
   timer?: number; // In minutes
   section?: string; // e.g. "For the Sauce"
+  tip?: string; // Warning/Tip for the step
+  optional?: boolean; // If true, step is not mandatory
 }
 
 export interface Ingredient {

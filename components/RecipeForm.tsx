@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock, Upload, Image as ImageIcon, Lightbulb, HelpCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RecipeFormProps {
@@ -11,11 +11,15 @@ interface RecipeFormProps {
   onClose: () => void;
 }
 
-// Helper types for form management
+// Local form type allowing string input for amounts (e.g. "1/2")
+interface FormIngredient extends Omit<Ingredient, 'amount'> {
+    amount: string | number;
+}
+
 interface IngredientBlock {
     id: string;
     name: string;
-    ingredients: Ingredient[];
+    ingredients: FormIngredient[];
 }
 
 interface InstructionBlock {
@@ -67,10 +71,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
       
-      // 1. Main Ingredients (legacy or new flat structure)
+      // 1. Main Ingredients
       const mainIngs = initialData.ingredients || [];
       if (mainIngs.length > 0) {
-          // Group by section property
           const grouped = new Map<string, Ingredient[]>();
           const defaultSection = 'Main Ingredients';
           
@@ -85,7 +88,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           });
       }
 
-      // 2. Legacy Components (Merge into blocks)
+      // 2. Legacy Components
       if (initialData.components && initialData.components.length > 0) {
           initialData.components.forEach(comp => {
               ingBlocks.push({
@@ -96,9 +99,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           });
       }
 
-      // 3. Fallback: If no ingredients found at all, add one empty block
+      // 3. Fallback
       if (ingBlocks.length === 0) {
-           ingBlocks.push({ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: 0, unit: '', item: '' }] });
+           ingBlocks.push({ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] });
       }
 
       setIngredientBlocks(ingBlocks);
@@ -114,7 +117,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
            const defaultSection = 'Main Instructions';
            
            mainSteps.forEach(inst => {
-               const normalizedInst = typeof inst === 'string' ? { id: uuidv4(), text: inst } : inst;
+               // Fix for TS error: 'section' does not exist on type '{ id: any; text: never; }'
+               // We cast to unknown then Instruction | string to handle potential string data from DB/Legacy
+               const val = inst as unknown as Instruction | string;
+               const normalizedInst: Instruction = typeof val === 'string' ? { id: uuidv4(), text: val } : val;
+               
                const sec = normalizedInst.section || defaultSection;
                if (!grouped.has(sec)) grouped.set(sec, []);
                grouped.get(sec)!.push(normalizedInst);
@@ -125,14 +132,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
            });
       }
 
-      // 2. Legacy Components (Merge instructions)
+      // 2. Legacy Components
       if (initialData.components && initialData.components.length > 0) {
           initialData.components.forEach(comp => {
-              const steps = comp.instructions.map(i => typeof i === 'string' ? { id: uuidv4(), text: i } : i);
+              const steps = comp.instructions.map(i => {
+                  // Handle potential strings in legacy components
+                  const val = i as unknown as Instruction | string;
+                  return typeof val === 'string' ? { id: uuidv4(), text: val } : val;
+              });
               instBlocks.push({
                   id: uuidv4(),
                   name: comp.label,
-                  steps: steps
+                  steps: steps as Instruction[]
               });
           });
       }
@@ -146,10 +157,32 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
     } else {
         // New Recipe Defaults
-        setIngredientBlocks([{ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: 0, unit: '', item: '' }] }]);
+        setIngredientBlocks([{ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
         setInstructionBlocks([{ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] }]);
     }
   }, [initialData]);
+
+  // Fraction Parser
+  const parseAmount = (val: string | number): number => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const str = val.trim();
+    if (str.includes('/')) {
+        const parts = str.split(' ');
+        if (parts.length === 2) {
+            // Mixed fraction "1 1/2"
+            const whole = parseFloat(parts[0]);
+            const [num, den] = parts[1].split('/').map(Number);
+            return !isNaN(whole) && !isNaN(num) && !isNaN(den) && den !== 0 ? whole + (num / den) : 0;
+        } else {
+            // Simple fraction "1/2"
+            const [num, den] = str.split('/').map(Number);
+            return !isNaN(num) && !isNaN(den) && den !== 0 ? num / den : 0;
+        }
+    }
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,7 +192,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     ingredientBlocks.forEach(block => {
         block.ingredients.forEach(ing => {
             if (ing.item.trim()) {
-                flatIngredients.push({ ...ing, section: block.name || undefined });
+                flatIngredients.push({ 
+                    ...ing, 
+                    amount: parseAmount(ing.amount), 
+                    section: block.name || undefined 
+                });
             }
         });
     });
@@ -238,11 +275,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Value prop helper to properly render 0 or empty string
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
 
-  // --- Image Upload Handler ---
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
+  // --- Image Handling Helpers ---
+  const processImageFile = (file: File) => {
       const reader = new FileReader();
       reader.onload = (event) => {
           const img = new Image();
@@ -280,9 +314,37 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       reader.readAsDataURL(file);
   };
 
+  // --- Image Upload Handler ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) processImageFile(file);
+  };
+
+  // --- Paste Listener for Images ---
+  useEffect(() => {
+      const handlePaste = (e: ClipboardEvent) => {
+          if (e.clipboardData && e.clipboardData.items) {
+              const items = e.clipboardData.items;
+              for (let i = 0; i < items.length; i++) {
+                  if (items[i].type.indexOf('image') !== -1) {
+                      const file = items[i].getAsFile();
+                      if (file) {
+                          processImageFile(file);
+                          e.preventDefault(); // Prevent default paste (e.g. into text inputs if focused)
+                          return;
+                      }
+                  }
+              }
+          }
+      };
+
+      window.addEventListener('paste', handlePaste);
+      return () => window.removeEventListener('paste', handlePaste);
+  }, []);
+
   // --- Ingredient Block Logic ---
   const addIngredientBlock = () => {
-      setIngredientBlocks(prev => [...prev, { id: uuidv4(), name: 'New Group', ingredients: [{ id: uuidv4(), amount: 0, unit: '', item: '' }] }]);
+      setIngredientBlocks(prev => [...prev, { id: uuidv4(), name: 'New Group', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
   };
   const removeIngredientBlock = (blockId: string) => {
       setIngredientBlocks(prev => prev.filter(b => b.id !== blockId));
@@ -291,9 +353,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       setIngredientBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name } : b));
   };
   const addIngredientToBlock = (blockId: string) => {
-      setIngredientBlocks(prev => prev.map(b => b.id === blockId ? { ...b, ingredients: [...b.ingredients, { id: uuidv4(), amount: 0, unit: '', item: '' }] } : b));
+      setIngredientBlocks(prev => prev.map(b => b.id === blockId ? { ...b, ingredients: [...b.ingredients, { id: uuidv4(), amount: '', unit: '', item: '' }] } : b));
   };
-  const updateIngredientInBlock = (blockId: string, ingId: string, field: keyof Ingredient, value: any) => {
+  const updateIngredientInBlock = (blockId: string, ingId: string, field: keyof FormIngredient, value: any) => {
       setIngredientBlocks(prev => prev.map(b => {
           if (b.id !== blockId) return b;
           return {
@@ -303,15 +365,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       }));
   };
   
-  const handleIngredientAmountChange = (blockId: string, ingId: string, valueStr: string) => {
-      if (valueStr === '') {
-          updateIngredientInBlock(blockId, ingId, 'amount', '' as any);
-      } else {
-          const num = parseFloat(valueStr);
-          if (!isNaN(num)) updateIngredientInBlock(blockId, ingId, 'amount', num);
-      }
-  };
-
   const removeIngredientFromBlock = (blockId: string, ingId: string) => {
       setIngredientBlocks(prev => prev.map(b => {
           if (b.id !== blockId) return b;
@@ -358,6 +411,30 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               })
           };
       }));
+  };
+  const toggleStepTip = (blockId: string, stepId: string) => {
+    setInstructionBlocks(prev => prev.map(b => {
+        if (b.id !== blockId) return b;
+        return {
+            ...b,
+            steps: b.steps.map(s => {
+                if (s.id !== stepId) return s;
+                return { ...s, tip: s.tip !== undefined ? undefined : '' };
+            })
+        };
+    }));
+  };
+  const toggleStepOptional = (blockId: string, stepId: string) => {
+    setInstructionBlocks(prev => prev.map(b => {
+        if (b.id !== blockId) return b;
+        return {
+            ...b,
+            steps: b.steps.map(s => {
+                if (s.id !== stepId) return s;
+                return { ...s, optional: !s.optional };
+            })
+        };
+    }));
   };
 
 
@@ -467,7 +544,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                              <div className="w-full border-t border-border-light dark:border-border-dark"></div>
                          </div>
                          <div className="relative flex justify-center text-xs uppercase">
-                             <span className="bg-card-light dark:bg-card-dark px-2 text-text-muted">Or upload</span>
+                             <span className="bg-card-light dark:bg-card-dark px-2 text-text-muted">Or upload / paste</span>
                          </div>
                      </div>
 
@@ -565,12 +642,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  </div>
                                  <div className="col-span-2 min-w-0">
                                      <input 
-                                        type="number" 
-                                        step="any" 
-                                        placeholder="1" 
-                                        value={getNumValue(ing.amount)} 
-                                        onChange={e => handleIngredientAmountChange(block.id, ing.id, e.target.value)}
-                                        className={`input p-2 text-sm w-full ${!ing.amount && ing.amount !== 0 ? 'border-red-300' : ''}`}
+                                        type="text" 
+                                        placeholder="1 or 1/2" 
+                                        value={ing.amount} 
+                                        onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)}
+                                        className={`input p-2 text-sm w-full`}
                                      />
                                  </div>
                                  <div className="col-span-3 min-w-0">
@@ -651,6 +727,24 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                 <span className="text-xs text-text-muted">m</span>
                                             </div>
                                          )}
+
+                                         <button 
+                                            type="button"
+                                            onClick={() => toggleStepTip(block.id, step.id)}
+                                            className={`p-1.5 rounded-md transition-colors ${step.tip !== undefined ? 'bg-yellow-500 text-white' : 'text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                                            title="Toggle Tip/Warning"
+                                         >
+                                             <Lightbulb size={16} />
+                                         </button>
+
+                                         <button 
+                                            type="button"
+                                            onClick={() => toggleStepOptional(block.id, step.id)}
+                                            className={`p-1.5 rounded-md transition-colors ${step.optional ? 'bg-blue-500 text-white' : 'text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                                            title="Toggle Optional Step"
+                                         >
+                                             <HelpCircle size={16} />
+                                         </button>
                                      </div>
                                      <textarea 
                                         value={step.text || ''} 
@@ -659,6 +753,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                         rows={2} 
                                         className="input text-sm resize-y" 
                                      />
+                                     {step.tip !== undefined && (
+                                         <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+                                            <div className="flex-1 relative">
+                                                <Lightbulb size={14} className="absolute left-2.5 top-2.5 text-yellow-600 dark:text-yellow-500" />
+                                                <input 
+                                                    type="text" 
+                                                    value={step.tip || ''} 
+                                                    onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)}
+                                                    placeholder="Add a helpful tip or warning..." 
+                                                    className="w-full pl-8 pr-3 py-1.5 text-sm rounded bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 text-yellow-800 dark:text-yellow-200 focus:ring-1 focus:ring-yellow-500 outline-none"
+                                                />
+                                            </div>
+                                         </div>
+                                     )}
                                  </div>
                                  <div className="flex flex-col justify-center">
                                      <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>

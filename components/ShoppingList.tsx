@@ -193,11 +193,11 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold font-display">Shopping List</h1>
-          <button onClick={onOpenMenu} className="text-text-main dark:text-white">
+        <div className="md:hidden flex items-center gap-4 mb-6">
+          <button onClick={onOpenMenu} className="text-text-main dark:text-white p-1 -ml-1">
             <span className="material-symbols-outlined">menu</span>
           </button>
+          <h1 className="text-2xl font-bold font-display">Shopping List</h1>
         </div>
 
         {/* Shopping List Controls */}

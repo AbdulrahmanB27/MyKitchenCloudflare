@@ -352,17 +352,29 @@ const App: React.FC = () => {
 
         {currentView === 'recipes' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Mobile Header */}
-                <div className="md:hidden p-4 flex justify-between bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
-                    <h1 className="font-bold">Shared Library</h1>
-                    <button onClick={() => setIsMobileMenuOpen(true)}><span className="material-symbols-outlined">menu</span></button>
+                {/* Mobile Header with Search */}
+                <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
+                        <span className="material-symbols-outlined">menu</span>
+                    </button>
+                    <div className="relative flex-1">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+                         <input 
+                            type="text" 
+                            value={searchQuery} 
+                            onChange={e => setSearchQuery(e.target.value)} 
+                            placeholder="Search recipes..." 
+                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" 
+                         />
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8">
                      {/* Toolbar */}
                      <div className="max-w-7xl mx-auto space-y-6">
                          <div className="flex flex-col md:flex-row gap-4 justify-between">
-                             <div className="relative flex-1 max-w-lg">
+                             {/* Desktop Search */}
+                             <div className="relative flex-1 max-w-lg hidden md:block">
                                  <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
                                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search shared recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
                              </div>

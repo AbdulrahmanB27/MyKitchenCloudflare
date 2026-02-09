@@ -381,7 +381,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Basics</h3>
              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-4">
+                 <div className="space-y-4">
                   <div>
                     <label className="label">Name *</label>
                     <input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className="input" placeholder="Recipe Title" />
@@ -680,7 +680,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           {/* Section 4: Meta */}
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Meta & Source</h3>
-             <div className="grid md:grid-cols-2 gap-4">
+             <div className={`grid gap-4 ${initialData ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+                 {initialData && (
                  <div className="grid grid-cols-2 gap-2">
                      <label className="flex items-center gap-2 cursor-pointer p-3 border border-border-light dark:border-border-dark rounded-lg">
                         <input type="checkbox" checked={formData.favorite || false} onChange={e => handleChange('favorite', e.target.checked)} />
@@ -691,6 +692,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                         <span className="text-sm font-bold text-text-light dark:text-white">Archived</span>
                      </label>
                  </div>
+                 )}
                  <div className="grid grid-cols-3 gap-2">
                      <input type="text" placeholder="Source Name" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className="input text-sm" />
                      <input type="text" placeholder="URL" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className="input text-sm" />

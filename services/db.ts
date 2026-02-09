@@ -39,11 +39,15 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     return await res.json();
   } catch (err) {
     console.warn("Backend unavailable, using local data.");
-    // If local is empty, try to seed with config samples for a better first-run experience
+    
+    // Check if we have already seeded data to prevent re-seeding after user deletion
+    const hasSeeded = localStorage.getItem('has_seeded_initial_data');
     let local = getLocal<Recipe[]>(LOCAL_KEYS.RECIPES, []);
-    if (local.length === 0 && config.sampleRecipes) {
+
+    if (local.length === 0 && !hasSeeded && config.sampleRecipes) {
         local = config.sampleRecipes as Recipe[];
         setLocal(LOCAL_KEYS.RECIPES, local);
+        localStorage.setItem('has_seeded_initial_data', 'true');
     }
     return local;
   }

@@ -1,0 +1,10 @@
+{
+  "name": "my-meal-prep-recipes",
+  "assets": {
+    "directory": "./dist"
+  },
+  "compatibility_date": "2025-02-04",
+  "observability": {
+    "enabled": true
+  }
+}

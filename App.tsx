@@ -8,7 +8,7 @@ import RecipeForm from './components/RecipeForm';
 import ShoppingList from './components/ShoppingList';
 import MealPlanner from './components/MealPlanner';
 import Recommendations from './components/Recommendations';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [pinnedTags, setPinnedTags] = useState<string[]>(['Dinner', 'Healthy', 'Quick']); // Defaults
   const [settings, setSettings] = useState<AppSettings>({ theme: 'system' });
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // View State
   const [currentView, setCurrentView] = useState<'recipes' | 'shopping' | 'planner' | 'settings' | 'recommendations'>('recipes');
@@ -68,6 +69,20 @@ const App: React.FC = () => {
         }
     };
     init();
+  }, []);
+
+  // Monitor Online Status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const applyTheme = (theme: 'light' | 'dark' | 'system') => {
@@ -214,8 +229,16 @@ const App: React.FC = () => {
             {!isSidebarCollapsed ? (
                 <div>
                     <h1 className="text-xl font-bold dark:text-white whitespace-nowrap">MyKitchen</h1>
-                    <p className="text-xs text-primary whitespace-nowrap flex items-center gap-1">
-                        <Cloud size={10} /> Cloud Library
+                    <p className={`text-xs whitespace-nowrap flex items-center gap-1 ${isOnline ? 'text-primary' : 'text-gray-500'}`}>
+                        {isOnline ? (
+                            <>
+                                <Cloud size={10} /> Online & Synced
+                            </>
+                        ) : (
+                            <>
+                                <CloudOff size={10} /> Offline Mode
+                            </>
+                        )}
                     </p>
                 </div>
             ) : (

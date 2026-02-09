@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock } from 'lucide-react';
+import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock, Upload, Image as ImageIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RecipeFormProps {
@@ -59,10 +59,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
-      setRawTags(initialData.tags.join(', '));
-      setRawTips(initialData.tips?.join('\n') || '');
-      setRawMistakes(initialData.mistakes?.join('\n') || '');
-      setRawSubs(initialData.substitutions?.join('\n') || '');
+      setRawTags((initialData.tags || []).join(', '));
+      setRawTips((initialData.tips || []).join('\n'));
+      setRawMistakes((initialData.mistakes || []).join('\n'));
+      setRawSubs((initialData.substitutions || []).join('\n'));
       
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
@@ -83,13 +83,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           grouped.forEach((ings, sec) => {
               ingBlocks.push({ id: uuidv4(), name: sec === defaultSection ? '' : sec, ingredients: ings });
           });
-      } else {
-          // Start with one empty block if nothing exists
-           ingBlocks.push({ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: 0, unit: '', item: '' }] });
       }
 
       // 2. Legacy Components (Merge into blocks)
-      if (initialData.components) {
+      if (initialData.components && initialData.components.length > 0) {
           initialData.components.forEach(comp => {
               ingBlocks.push({
                   id: uuidv4(),
@@ -98,6 +95,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               });
           });
       }
+
+      // 3. Fallback: If no ingredients found at all, add one empty block
+      if (ingBlocks.length === 0) {
+           ingBlocks.push({ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: 0, unit: '', item: '' }] });
+      }
+
       setIngredientBlocks(ingBlocks);
 
 
@@ -120,12 +123,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
            grouped.forEach((steps, sec) => {
                instBlocks.push({ id: uuidv4(), name: sec === defaultSection ? '' : sec, steps });
            });
-      } else {
-          instBlocks.push({ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] });
       }
 
       // 2. Legacy Components (Merge instructions)
-      if (initialData.components) {
+      if (initialData.components && initialData.components.length > 0) {
           initialData.components.forEach(comp => {
               const steps = comp.instructions.map(i => typeof i === 'string' ? { id: uuidv4(), text: i } : i);
               instBlocks.push({
@@ -135,6 +136,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               });
           });
       }
+
+      // 3. Fallback
+      if (instBlocks.length === 0) {
+          instBlocks.push({ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] });
+      }
+
       setInstructionBlocks(instBlocks);
 
     } else {
@@ -231,6 +238,47 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Value prop helper to properly render 0 or empty string
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
 
+  // --- Image Upload Handler ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              // Max dimensions to keep base64 string size reasonable
+              const MAX_SIZE = 800;
+
+              if (width > height) {
+                  if (width > MAX_SIZE) {
+                      height *= MAX_SIZE / width;
+                      width = MAX_SIZE;
+                  }
+              } else {
+                  if (height > MAX_SIZE) {
+                      width *= MAX_SIZE / height;
+                      height = MAX_SIZE;
+                  }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  // Use JPEG with 0.7 quality for good compression
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                  handleChange('image', dataUrl);
+              }
+          };
+          img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+  };
 
   // --- Ingredient Block Logic ---
   const addIngredientBlock = () => {
@@ -336,12 +384,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 <div className="space-y-4">
                   <div>
                     <label className="label">Name *</label>
-                    <input required type="text" value={formData.name} onChange={e => handleChange('name', e.target.value)} className="input" placeholder="Recipe Title" />
+                    <input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className="input" placeholder="Recipe Title" />
                   </div>
                   <div>
                     <label className="label">Course</label>
                     <select 
-                        value={formData.category} 
+                        value={formData.category || 'Entrees'} 
                         onChange={e => handleChange('category', e.target.value)} 
                         className="input"
                     >
@@ -353,7 +401,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 </div>
                 <div>
                    <label className="label">Description</label>
-                   <textarea value={formData.description} onChange={e => handleChange('description', e.target.value)} rows={4} className="input resize-none" placeholder="Short description..." />
+                   <textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className="input resize-none" placeholder="Short description..." />
                 </div>
              </div>
              
@@ -396,16 +444,80 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 <input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick, Chicken" />
              </div>
              
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Image URL</label>
-                    <input type="url" value={formData.image} onChange={e => handleChange('image', e.target.value)} className="input" />
-                  </div>
-                  <div>
-                    <label className="label">Video URL</label>
-                    <input type="url" value={formData.video?.url} onChange={e => updateNested('video', 'url', e.target.value)} className="input" placeholder="YouTube/Vimeo" />
-                  </div>
-             </div>
+             {/* Media Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-2">
+                <div className="space-y-3">
+                     <label className="label">Image Source</label>
+                     
+                     {/* URL Input */}
+                     <div className="relative">
+                         <input 
+                            type="text" 
+                            value={formData.image?.startsWith('data:') ? '' : (formData.image || '')} 
+                            onChange={e => handleChange('image', e.target.value)} 
+                            className="input !pl-10" 
+                            placeholder="https://..." 
+                            disabled={!!formData.image?.startsWith('data:')}
+                         />
+                         <ImageIcon size={16} className="absolute left-3 top-3 text-text-muted" />
+                     </div>
+
+                     <div className="relative">
+                         <div className="absolute inset-0 flex items-center">
+                             <div className="w-full border-t border-border-light dark:border-border-dark"></div>
+                         </div>
+                         <div className="relative flex justify-center text-xs uppercase">
+                             <span className="bg-card-light dark:bg-card-dark px-2 text-text-muted">Or upload</span>
+                         </div>
+                     </div>
+
+                     {/* Upload Button */}
+                     <label className="flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed border-border-light dark:border-border-dark rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                         <Upload size={18} className="text-text-muted group-hover:text-primary transition-colors" />
+                         <span className="text-sm font-medium text-text-muted group-hover:text-primary transition-colors">Choose File</span>
+                     </label>
+                </div>
+
+                <div className="space-y-3">
+                     <label className="label">Preview & Video</label>
+                     <div className="flex gap-4">
+                         {/* Image Preview Box */}
+                         <div className="relative w-1/2 aspect-video bg-gray-100 dark:bg-white/5 rounded-lg border border-border-light dark:border-border-dark overflow-hidden flex items-center justify-center group">
+                             {formData.image ? (
+                                 <>
+                                     <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                                     <button 
+                                        type="button" 
+                                        onClick={() => handleChange('image', '')}
+                                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100"
+                                        title="Remove Image"
+                                     >
+                                        <X size={14} />
+                                     </button>
+                                 </>
+                             ) : (
+                                 <div className="flex flex-col items-center gap-1 text-text-muted/40">
+                                     <ImageIcon size={24} />
+                                     <span className="text-[10px] font-bold uppercase">No Image</span>
+                                 </div>
+                             )}
+                         </div>
+                         
+                         {/* Video URL Input */}
+                         <div className="flex-1">
+                             <label className="text-xs font-bold text-text-muted mb-1 block">Video URL</label>
+                             <input 
+                                type="url" 
+                                value={formData.video?.url || ''} 
+                                onChange={e => updateNested('video', 'url', e.target.value)} 
+                                className="input text-sm" 
+                                placeholder="YouTube..." 
+                             />
+                         </div>
+                     </div>
+                </div>
+            </div>
              
              {/* Nutrition */}
              <div className="mt-4 pt-4 border-t border-border-light dark:border-border-dark">

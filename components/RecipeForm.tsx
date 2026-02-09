@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock, Upload, Image as ImageIcon, Lightbulb, HelpCircle } from 'lucide-react';
+import { X, Plus, Save, Trash2, ArrowUp, ArrowDown, Clock, Upload, Image as ImageIcon, Lightbulb, HelpCircle, RefreshCw } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RecipeFormProps {
@@ -39,9 +39,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     cookTime: 0,
     servings: 1,
     video: { url: '', note: '' },
-    tips: [],
-    mistakes: [],
-    substitutions: [],
     storageNotes: '',
     source: { name: '', url: '', author: '' },
     nutrition: { calories: undefined, protein: undefined, carbs: undefined, fat: undefined },
@@ -52,9 +49,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   // Text Area State for Array fields
   const [rawTags, setRawTags] = useState('');
-  const [rawTips, setRawTips] = useState('');
-  const [rawMistakes, setRawMistakes] = useState('');
-  const [rawSubs, setRawSubs] = useState('');
 
   // Structured State (Blocks)
   const [ingredientBlocks, setIngredientBlocks] = useState<IngredientBlock[]>([]);
@@ -64,9 +58,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (initialData) {
       setFormData(initialData);
       setRawTags((initialData.tags || []).join(', '));
-      setRawTips((initialData.tips || []).join('\n'));
-      setRawMistakes((initialData.mistakes || []).join('\n'));
-      setRawSubs((initialData.substitutions || []).join('\n'));
       
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
@@ -117,8 +108,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
            const defaultSection = 'Main Instructions';
            
            mainSteps.forEach(inst => {
-               // Fix for TS error: 'section' does not exist on type '{ id: any; text: never; }'
-               // We cast to unknown then Instruction | string to handle potential string data from DB/Legacy
                const val = inst as unknown as Instruction | string;
                const normalizedInst: Instruction = typeof val === 'string' ? { id: uuidv4(), text: val } : val;
                
@@ -136,7 +125,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       if (initialData.components && initialData.components.length > 0) {
           initialData.components.forEach(comp => {
               const steps = comp.instructions.map(i => {
-                  // Handle potential strings in legacy components
                   const val = i as unknown as Instruction | string;
                   return typeof val === 'string' ? { id: uuidv4(), text: val } : val;
               });
@@ -170,12 +158,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (str.includes('/')) {
         const parts = str.split(' ');
         if (parts.length === 2) {
-            // Mixed fraction "1 1/2"
             const whole = parseFloat(parts[0]);
             const [num, den] = parts[1].split('/').map(Number);
             return !isNaN(whole) && !isNaN(num) && !isNaN(den) && den !== 0 ? whole + (num / den) : 0;
         } else {
-            // Simple fraction "1/2"
             const [num, den] = str.split('/').map(Number);
             return !isNaN(num) && !isNaN(den) && den !== 0 ? num / den : 0;
         }
@@ -187,7 +173,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Flatten Blocks back to single arrays with 'section' property
+    // Flatten Blocks
     const flatIngredients: Ingredient[] = [];
     ingredientBlocks.forEach(block => {
         block.ingredients.forEach(ing => {
@@ -215,10 +201,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
     const recipe: Recipe = {
       ...formData as Recipe,
-      // Ensure numeric fields are actually numbers
       prepTime: parseNum(formData.prepTime),
       cookTime: parseNum(formData.cookTime),
-      servings: parseNum(formData.servings) || 1, // Default to 1 if 0
+      servings: parseNum(formData.servings) || 1, 
       nutrition: {
           calories: parseOptionalNum(formData.nutrition?.calories),
           protein: parseOptionalNum(formData.nutrition?.protein),
@@ -229,10 +214,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       tags: rawTags.split(',').map(t => t.trim()).filter(Boolean),
       ingredients: flatIngredients,
       instructions: flatInstructions,
-      components: [], // Deprecated, merged into main lists
-      tips: rawTips.split('\n').filter(Boolean),
-      mistakes: rawMistakes.split('\n').filter(Boolean),
-      substitutions: rawSubs.split('\n').filter(Boolean),
+      components: [], 
       createdAt: initialData?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -244,7 +226,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Helper for numeric inputs to allow "empty" state while typing
   const handleNumberChange = (field: keyof Recipe, valueStr: string) => {
     if (valueStr === '') {
         handleChange(field, '' as any);
@@ -272,7 +253,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       if (!isNaN(num)) updateNested(parent, field, num);
   }
 
-  // Value prop helper to properly render 0 or empty string
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
 
   // --- Image Handling Helpers ---
@@ -284,7 +264,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               const canvas = document.createElement('canvas');
               let width = img.width;
               let height = img.height;
-              // Max dimensions to keep base64 string size reasonable
               const MAX_SIZE = 800;
 
               if (width > height) {
@@ -304,7 +283,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               const ctx = canvas.getContext('2d');
               if (ctx) {
                   ctx.drawImage(img, 0, 0, width, height);
-                  // Use JPEG with 0.7 quality for good compression
                   const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                   handleChange('image', dataUrl);
               }
@@ -314,13 +292,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       reader.readAsDataURL(file);
   };
 
-  // --- Image Upload Handler ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) processImageFile(file);
   };
 
-  // --- Paste Listener for Images ---
   useEffect(() => {
       const handlePaste = (e: ClipboardEvent) => {
           if (e.clipboardData && e.clipboardData.items) {
@@ -330,7 +306,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                       const file = items[i].getAsFile();
                       if (file) {
                           processImageFile(file);
-                          e.preventDefault(); // Prevent default paste (e.g. into text inputs if focused)
+                          e.preventDefault(); 
                           return;
                       }
                   }
@@ -355,7 +331,38 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const addIngredientToBlock = (blockId: string) => {
       setIngredientBlocks(prev => prev.map(b => b.id === blockId ? { ...b, ingredients: [...b.ingredients, { id: uuidv4(), amount: '', unit: '', item: '' }] } : b));
   };
+
+  const normalizeUnit = (val: string) => {
+      const lower = val.toLowerCase().trim();
+      const map: Record<string, string> = {
+          'tablespoon': 'tbsp', 'tablespoons': 'tbsp', 'tbs': 'tbsp', 'tb': 'tbsp',
+          'teaspoon': 'tsp', 'teaspoons': 'tsp', 'tsp': 'tsp', 't': 'tsp',
+          'cup': 'cup', 'cups': 'cup', 'c': 'cup',
+          'pint': 'pt', 'pints': 'pt',
+          'quart': 'qt', 'quarts': 'qt',
+          'gallon': 'gal', 'gallons': 'gal',
+          'ounce': 'oz', 'ounces': 'oz',
+          'pound': 'lbs', 'pounds': 'lbs', 'lb': 'lbs', 'lbs': 'lbs',
+          'gram': 'g', 'grams': 'g',
+          'kilogram': 'kg', 'kilograms': 'kg',
+          'milliliter': 'ml', 'milliliters': 'ml',
+          'liter': 'l', 'liters': 'l'
+      };
+      return map[lower] || lower;
+  };
+
+  const handleUnitBlur = (blockId: string, ingId: string, value: string) => {
+      const normalized = normalizeUnit(value);
+      if (normalized !== value) {
+          updateIngredientInBlock(blockId, ingId, 'unit', normalized);
+      }
+  };
+
   const updateIngredientInBlock = (blockId: string, ingId: string, field: keyof FormIngredient, value: any) => {
+      if (field === 'unit' && typeof value === 'string') {
+          value = value.toLowerCase();
+      }
+
       setIngredientBlocks(prev => prev.map(b => {
           if (b.id !== blockId) return b;
           return {
@@ -525,8 +532,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-2">
                 <div className="space-y-3">
                      <label className="label">Image Source</label>
-                     
-                     {/* URL Input */}
                      <div className="relative">
                          <input 
                             type="text" 
@@ -538,7 +543,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          />
                          <ImageIcon size={16} className="absolute left-3 top-3 text-text-muted" />
                      </div>
-
                      <div className="relative">
                          <div className="absolute inset-0 flex items-center">
                              <div className="w-full border-t border-border-light dark:border-border-dark"></div>
@@ -547,8 +551,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                              <span className="bg-card-light dark:bg-card-dark px-2 text-text-muted">Or upload / paste</span>
                          </div>
                      </div>
-
-                     {/* Upload Button */}
                      <label className="flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed border-border-light dark:border-border-dark rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                          <Upload size={18} className="text-text-muted group-hover:text-primary transition-colors" />
@@ -559,7 +561,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 <div className="space-y-3">
                      <label className="label">Preview & Video</label>
                      <div className="flex gap-4">
-                         {/* Image Preview Box */}
                          <div className="relative w-1/2 aspect-video bg-gray-100 dark:bg-white/5 rounded-lg border border-border-light dark:border-border-dark overflow-hidden flex items-center justify-center group">
                              {formData.image ? (
                                  <>
@@ -580,8 +581,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  </div>
                              )}
                          </div>
-                         
-                         {/* Video URL Input */}
                          <div className="flex-1">
                              <label className="text-xs font-bold text-text-muted mb-1 block">Video URL</label>
                              <input 
@@ -631,8 +630,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="grid grid-cols-12 gap-2 items-start">
-                                 <div className="col-span-6 flex gap-2">
+                             <div key={ing.id} className="grid grid-cols-12 gap-2 items-start group/ing">
+                                 <div className="col-span-12 md:col-span-6 flex gap-2">
                                      <div className="flex-1 min-w-0">
                                          <input type="text" placeholder="Item" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className="input p-2 text-sm w-full" />
                                      </div>
@@ -640,7 +639,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                          <input type="text" placeholder="Notes" value={ing.notes || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'notes', e.target.value)} className="input p-2 text-sm w-full" />
                                      </div>
                                  </div>
-                                 <div className="col-span-2 min-w-0">
+                                 <div className="col-span-5 md:col-span-2 min-w-0">
                                      <input 
                                         type="text" 
                                         placeholder="1 or 1/2" 
@@ -649,11 +648,30 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                         className={`input p-2 text-sm w-full`}
                                      />
                                  </div>
-                                 <div className="col-span-3 min-w-0">
-                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="input p-2 text-sm w-full" />
+                                 <div className="col-span-5 md:col-span-3 min-w-0">
+                                     <input 
+                                        type="text" 
+                                        placeholder="Unit" 
+                                        value={ing.unit || ''} 
+                                        onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} 
+                                        onBlur={e => handleUnitBlur(block.id, ing.id, e.target.value)}
+                                        className="input p-2 text-sm w-full" 
+                                     />
                                  </div>
-                                 <div className="col-span-1 flex justify-center pt-2">
+                                 <div className="col-span-2 md:col-span-1 flex justify-center pt-2">
                                      <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 hover:text-red-600"><Trash2 size={18} /></button>
+                                 </div>
+                                 
+                                 {/* Substitution Input */}
+                                 <div className="col-span-12 flex items-center gap-2 pl-2">
+                                     <RefreshCw size={14} className="text-text-muted" />
+                                     <input 
+                                        type="text" 
+                                        placeholder="Substitution (optional)" 
+                                        value={ing.substitution || ''} 
+                                        onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)}
+                                        className="bg-transparent text-sm text-text-muted placeholder:text-text-muted/50 w-full focus:outline-none focus:text-primary transition-colors"
+                                     />
                                  </div>
                              </div>
                          ))}
@@ -783,6 +801,22 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5 transition-colors">
                  + Add Instruction Section
              </button>
+          </section>
+
+          {/* Section 3.5: Details */}
+          <section className="space-y-4">
+              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Notes & Details</h3>
+              
+              <div>
+                  <label className="label">Storage & Reheating</label>
+                  <textarea 
+                      value={formData.storageNotes || ''} 
+                      onChange={e => handleChange('storageNotes', e.target.value)} 
+                      rows={2} 
+                      className="input resize-y" 
+                      placeholder="e.g. Keeps for 3 days. Reheat in oven." 
+                  />
+              </div>
           </section>
 
           {/* Section 4: Meta */}

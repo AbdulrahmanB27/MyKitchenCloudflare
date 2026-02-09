@@ -1,4 +1,5 @@
 
+
 export interface Nutrition {
   calories?: number;
   protein?: number;
@@ -25,6 +26,7 @@ export interface Ingredient {
   unit: string;
   item: string;
   notes?: string;
+  substitution?: string;
   section?: string; // e.g. "For the Sauce"
 }
 
@@ -73,11 +75,6 @@ export interface Recipe {
 
   // Media
   video?: VideoInfo;
-
-  // Learning & Improvement
-  tips: string[];
-  mistakes: string[];
-  substitutions: string[];
 
   // Meal Prep
   storageNotes?: string;

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
 import * as db from './services/db';
@@ -422,11 +421,10 @@ const App: React.FC = () => {
                                  {/* Import Button */}
                                  <button 
                                     onClick={handleImportClick}
-                                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors"
+                                    className="p-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-muted hover:text-text-main dark:hover:text-white transition-colors"
                                     title="Import JSON Recipe"
                                  >
-                                     <Upload size={16} />
-                                     <span className="hidden sm:inline">Import</span>
+                                     <Upload size={20} />
                                  </button>
                                  <input 
                                     type="file" 

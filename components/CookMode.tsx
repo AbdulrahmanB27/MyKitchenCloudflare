@@ -1,18 +1,30 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { Lightbulb } from 'lucide-react';
+import { Lightbulb, Edit, Save } from 'lucide-react';
 
 interface CookModeProps {
   recipe: Recipe;
   onClose: () => void;
 }
 
+const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+  <div
+    onClick={(e) => { e.stopPropagation(); onChange(); }}
+    className={`w-5 h-5 rounded-[6px] border-[2px] flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+        checked
+            ? 'bg-primary border-primary'
+            : 'border-gray-400 dark:border-gray-500 hover:border-primary bg-transparent'
+    }`}
+  >
+    <span className={`material-symbols-outlined text-white text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
+  </div>
+);
+
 const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Sidebar Tabs State
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'swaps' | 'tips'>('ingredients');
+  const [activeTab, setActiveTab] = useState<'steps' | 'ingredients' | 'swaps' | 'tips'>('ingredients');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   
@@ -25,6 +37,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
   // Manual User Timers (Separate from main step timer)
   const [manualTimers, setManualTimers] = useState<{id: number, label: string, timeLeft: number, running: boolean}[]>([]);
 
+  // User Notes/Mistakes (Stored locally)
+  const [userNotes, setUserNotes] = useState<Record<string, string>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -34,6 +51,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
   const getStepTimer = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.timer;
   const getStepTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
   const getStepOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
+  const getStepId = (inst: string | Instruction, index: number) => typeof inst === 'string' ? `step-${index}` : inst.id;
 
   // Combine main and component ingredients for flat list with headers
   const allIngredients = React.useMemo(() => {
@@ -42,17 +60,17 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
           return `${ing.amount || ''} ${ing.unit || ''} ${ing.item} ${ing.notes ? `(${ing.notes})` : ''}`.trim();
       };
 
-      const list: { txt: string, id: string, group: string }[] = [];
+      const list: { txt: string, id: string, group: string, sub?: string }[] = [];
 
       // 1. Main Ingredients (optionally sectioned)
       recipe.ingredients.forEach((ing, i) => {
-          list.push({ txt: formatIng(ing), id: `main-${i}`, group: ing.section || 'Main' });
+          list.push({ txt: formatIng(ing), id: `main-${i}`, group: ing.section || 'Main', sub: ing.substitution });
       });
 
       // 2. Legacy Components
       recipe.components?.forEach((comp, ci) => {
           comp.ingredients.forEach((ing, i) => {
-              list.push({ txt: formatIng(ing), id: `comp-${ci}-${i}`, group: comp.label });
+              list.push({ txt: formatIng(ing), id: `comp-${ci}-${i}`, group: comp.label, sub: ing.substitution });
           });
       });
       return list;
@@ -60,11 +78,20 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
 
   // Combine instructions
   const allSteps = React.useMemo(() => {
-      const steps: { txt: string, title?: string | null, timer?: number | null, tip?: string | null, optional?: boolean, group: string }[] = [];
+      const steps: { 
+          id: string,
+          txt: string, 
+          title?: string | null, 
+          timer?: number | null, 
+          tip?: string | null, 
+          optional?: boolean, 
+          group: string 
+      }[] = [];
 
       // 1. Main Instructions (optionally sectioned)
-      recipe.instructions.forEach(inst => {
+      recipe.instructions.forEach((inst, i) => {
           steps.push({ 
+              id: getStepId(inst, i),
               txt: getStepText(inst), 
               title: getStepTitle(inst),
               timer: getStepTimer(inst),
@@ -75,9 +102,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
       });
       
       // 2. Legacy Components
-      recipe.components?.forEach(comp => {
-          comp.instructions.forEach(inst => {
+      recipe.components?.forEach((comp, ci) => {
+          comp.instructions.forEach((inst, i) => {
+              const baseId = `comp-${ci}-${i}`; // Fallback if no ID on instruction object
               steps.push({ 
+                  id: typeof inst === 'object' ? inst.id : baseId,
                   txt: getStepText(inst), 
                   title: getStepTitle(inst),
                   timer: getStepTimer(inst),
@@ -97,11 +126,19 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
     if ('wakeLock' in navigator) {
         navigator.wakeLock.request('screen').then(setWakeLock).catch(console.warn);
     }
+    // Load user notes
+    const savedNotes = localStorage.getItem(`user_mistakes_${recipe.id}`);
+    if (savedNotes) {
+        setUserNotes(JSON.parse(savedNotes));
+    }
+
     return () => { if(wakeLock) wakeLock.release(); };
-  }, []);
+  }, [recipe.id]);
 
   // Parse Step Timer to Suggest Reminder
   useEffect(() => {
+    if (currentStep >= allSteps.length) return; // End screen
+
     const step = allSteps[currentStep];
     const stepText = step?.txt || '';
     
@@ -158,12 +195,23 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
 
   // --- Handlers ---
 
+  const saveNote = (stepId: string) => {
+      const updated = { ...userNotes, [stepId]: noteDraft };
+      if (!noteDraft.trim()) delete updated[stepId]; // Remove empty
+      setUserNotes(updated);
+      localStorage.setItem(`user_mistakes_${recipe.id}`, JSON.stringify(updated));
+      setEditingNoteId(null);
+  };
+
+  const startEditingNote = (stepId: string) => {
+      setNoteDraft(userNotes[stepId] || '');
+      setEditingNoteId(stepId);
+  };
+
   const notifyUser = () => {
-      // Audio Cue
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'); // Simple beep
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
       audio.play().catch(e => console.log('Audio play failed', e));
 
-      // Browser Notification
       if (Notification.permission === 'granted') {
           new Notification('Timer Done!', { body: `Step ${currentStep + 1} reminder reached.` });
       } else if (Notification.permission !== 'denied') {
@@ -171,9 +219,6 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
               if (perm === 'granted') new Notification('Timer Done!', { body: `Step ${currentStep + 1} reminder reached.` });
           });
       }
-      
-      // Visual Alert if in app
-      // (Could add a modal, but the audio + state change is usually enough)
   };
 
   const requestNotificationPermission = () => {
@@ -186,18 +231,6 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const addManualTimer = () => {
-      const min = prompt("Enter minutes for timer:", "5");
-      if (min) {
-          setManualTimers(prev => [...prev, {
-              id: Date.now(),
-              label: `Step ${currentStep + 1}`,
-              timeLeft: parseInt(min) * 60,
-              running: true
-          }]);
-      }
   };
 
   const setCustomReminder = () => {
@@ -213,9 +246,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
   const addReminderTime = (secondsToAdd: number) => {
       if (reminderThreshold) {
           setReminderThreshold(reminderThreshold + secondsToAdd);
-          setHasAlerted(false); // Reset if we add time after it rang
+          setHasAlerted(false);
       } else {
-          // If no reminder set, start one relative to now
           setReminderThreshold(stopwatchTime + secondsToAdd);
           setHasAlerted(false);
       }
@@ -237,10 +269,21 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
       return () => document.removeEventListener('fullscreenchange', h);
   }, []);
 
+  const toggleIngredient = (id: string) => {
+    const next = new Set(checkedIngredients);
+    if(next.has(id)) next.delete(id); else next.add(id);
+    setCheckedIngredients(next);
+  };
+
   // --- Render ---
 
-  const currentStepData = allSteps[currentStep];
-  const progress = ((currentStep + 1) / allSteps.length) * 100;
+  const isFinished = currentStep >= allSteps.length;
+  const currentStepData = !isFinished ? allSteps[currentStep] : null;
+  const progress = isFinished ? 100 : ((currentStep + 1) / allSteps.length) * 100;
+
+  // Filter lists for sidebar
+  const swapsList = allIngredients.filter(i => !!i.sub);
+  const tipsList = allSteps.filter(s => !!s.tip).map(s => s.tip!);
 
   return (
     <div className="fixed inset-0 z-[60] bg-background-light dark:bg-[#112116] text-text-main dark:text-white font-display overflow-hidden flex flex-col">
@@ -252,9 +295,15 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
             <div>
                 <h2 className="text-sm font-bold opacity-60 uppercase tracking-wider">{recipe.name}</h2>
                 <div className="flex items-center gap-2 text-xs">
-                    <span className="font-bold">{currentStepData.group}</span>
-                    <span>•</span>
-                    <span>Step {currentStep + 1} of {allSteps.length}</span>
+                    {isFinished ? (
+                         <span className="font-bold text-primary">Complete</span>
+                    ) : (
+                        <>
+                            <span className="font-bold">{currentStepData?.group}</span>
+                            <span>•</span>
+                            <span>Step {currentStep + 1} of {allSteps.length}</span>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
@@ -272,53 +321,69 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
         
         {/* Sidebar (Tabs) */}
         <aside className={`absolute lg:static inset-y-0 left-0 z-20 w-80 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark flex flex-col transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-            <div className="flex border-b border-border-light dark:border-border-dark">
-                <button onClick={() => setActiveTab('ingredients')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Ingredients</button>
-                <button onClick={() => setActiveTab('swaps')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${activeTab === 'swaps' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Swaps</button>
-                <button onClick={() => setActiveTab('tips')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${activeTab === 'tips' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Tips</button>
+            <div className="flex border-b border-border-light dark:border-border-dark overflow-x-auto no-scrollbar">
+                <button onClick={() => setActiveTab('ingredients')} className={`flex-1 min-w-[80px] py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Ingredients</button>
+                <button onClick={() => setActiveTab('steps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'steps' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Steps</button>
+                <button onClick={() => setActiveTab('swaps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'swaps' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Swaps</button>
+                <button onClick={() => setActiveTab('tips')} className={`flex-1 min-w-[50px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tips' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Tips</button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                {activeTab === 'steps' && (
+                    <div className="space-y-2">
+                        {allSteps.map((step, index) => (
+                             <button 
+                                key={index} 
+                                onClick={() => { setCurrentStep(index); setIsSidebarOpen(false); }}
+                                className={`w-full text-left p-3 rounded-lg text-sm transition-colors flex gap-3 group ${index === currentStep && !isFinished ? 'bg-primary/10 text-primary border border-primary/20' : 'hover:bg-gray-100 dark:hover:bg-white/5 border border-transparent'}`}
+                            >
+                                <span className={`flex-none size-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${index === currentStep && !isFinished ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 group-hover:bg-gray-300 dark:group-hover:bg-gray-600'}`}>
+                                    {index + 1}
+                                </span>
+                                <div className="flex-1">
+                                    {step.group !== 'Main' && <span className="text-[10px] uppercase text-text-muted font-bold block mb-0.5">{step.group}</span>}
+                                    {step.title && <span className="block text-xs font-bold uppercase opacity-80 mb-0.5">{step.title}</span>}
+                                    <span className={`line-clamp-2 leading-relaxed ${index === currentStep && !isFinished ? 'font-medium' : 'text-text-main dark:text-gray-300'}`}>
+                                        {step.txt}
+                                    </span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {activeTab === 'ingredients' && (
                     <div className="space-y-4">
                         {allIngredients.map((ing) => (
-                            <label key={ing.id} className="flex gap-3 items-start group cursor-pointer">
-                                <input type="checkbox" checked={checkedIngredients.has(ing.id)} onChange={() => {
-                                    const next = new Set(checkedIngredients);
-                                    if(next.has(ing.id)) next.delete(ing.id); else next.add(ing.id);
-                                    setCheckedIngredients(next);
-                                }} className="mt-1 rounded text-primary focus:ring-primary bg-transparent border-gray-300 dark:border-gray-600" />
+                            <div key={ing.id} className="flex gap-3 items-start group cursor-pointer" onClick={() => toggleIngredient(ing.id)}>
+                                <CustomCheckbox checked={checkedIngredients.has(ing.id)} onChange={() => toggleIngredient(ing.id)} />
                                 <div>
                                     <span className={`text-sm block ${checkedIngredients.has(ing.id) ? 'line-through opacity-50' : ''}`}>{ing.txt}</span>
                                     {ing.group !== 'Main' && <span className="text-[10px] uppercase text-text-muted font-bold">{ing.group}</span>}
                                 </div>
-                            </label>
+                            </div>
                         ))}
                     </div>
                 )}
                 {activeTab === 'swaps' && (
-                    <ul className="space-y-2">
-                        {recipe.substitutions?.map((s, i) => (
-                            <li key={i} className="text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg text-green-900 dark:text-green-100">{s}</li>
+                    <div className="space-y-3">
+                        {swapsList.map((ing, i) => (
+                            <div key={i} className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                <p className="text-xs font-bold text-green-800 dark:text-green-300 uppercase mb-1">{ing.txt.split(' ').slice(2).join(' ')}</p>
+                                <p className="text-sm text-green-900 dark:text-green-100">{ing.sub}</p>
+                            </div>
                         ))}
-                        {(!recipe.substitutions || recipe.substitutions.length === 0) && <p className="text-sm text-text-muted">No substitutions listed.</p>}
-                    </ul>
+                        {swapsList.length === 0 && <p className="text-sm text-text-muted">No substitutions available.</p>}
+                    </div>
                 )}
                 {activeTab === 'tips' && (
                     <div className="space-y-4">
-                        {recipe.tips?.length > 0 && (
-                            <div>
-                                <h4 className="font-bold text-yellow-600 text-xs uppercase mb-2">Tips</h4>
-                                <ul className="space-y-2">{recipe.tips.map((t, i) => <li key={i} className="text-sm">{t}</li>)}</ul>
+                        {tipsList.map((tip, i) => (
+                            <div key={i} className="flex gap-2">
+                                <Lightbulb size={16} className="text-yellow-600 shrink-0 mt-0.5" />
+                                <p className="text-sm">{tip}</p>
                             </div>
-                        )}
-                        {recipe.mistakes?.length > 0 && (
-                            <div>
-                                <h4 className="font-bold text-red-600 text-xs uppercase mb-2">Avoid Mistakes</h4>
-                                <ul className="space-y-2">{recipe.mistakes.map((t, i) => <li key={i} className="text-sm text-red-400">{t}</li>)}</ul>
-                            </div>
-                        )}
-                         {(!recipe.tips?.length && !recipe.mistakes?.length) && <p className="text-sm text-text-muted">No tips listed.</p>}
+                        ))}
+                        {tipsList.length === 0 && <p className="text-sm text-text-muted">No tips for specific steps.</p>}
                     </div>
                 )}
             </div>
@@ -330,11 +395,16 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
                     <div className="space-y-2">
                         {manualTimers.map(t => (
                             <div key={t.id} className="flex items-center justify-between bg-surface-light dark:bg-surface-dark p-2 rounded border border-border-light dark:border-border-dark">
-                                <div>
-                                    <span className="text-xs block text-text-muted">{t.label}</span>
-                                    <span className="font-mono font-bold text-primary">{formatTime(t.timeLeft)}</span>
-                                </div>
-                                <button onClick={() => removeTimer(t.id)} className="text-red-500 hover:bg-red-50 rounded p-1"><span className="material-symbols-outlined text-lg">close</span></button>
+                                <span className="text-sm font-medium text-text-main dark:text-white flex-1">{t.label}</span>
+                                <span className={`font-mono text-sm font-bold mr-2 ${t.timeLeft === 0 ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
+                                    {formatTime(t.timeLeft)}
+                                </span>
+                                <button 
+                                    onClick={() => removeTimer(t.id)} 
+                                    className="text-text-muted hover:text-red-500 p-1"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">close</span>
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -342,121 +412,133 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose }) => {
             )}
         </aside>
 
-        {/* Main Step Area */}
-        <section className="flex-1 flex flex-col relative h-full bg-background-light dark:bg-[#112116] overflow-hidden" onClick={() => setIsSidebarOpen(false)}>
-            <div className="absolute top-0 left-0 right-0 h-1 bg-border-light dark:bg-border-dark"><div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }}></div></div>
-
-            <div className="flex-1 overflow-y-auto p-6 md:p-12 flex flex-col items-center">
-                 <div className="w-full max-w-3xl space-y-8">
-                     
-                     {/* Timer Widget */}
-                     <div className="flex flex-col items-center gap-4 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl p-6 shadow-sm w-full max-w-md mx-auto transition-colors">
-                         <div className="flex items-center justify-between w-full">
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold uppercase text-text-muted">Stopwatch</span>
-                                <span className="text-4xl font-mono font-bold text-text-main dark:text-white tabular-nums">
-                                    {formatTime(stopwatchTime)}
-                                </span>
-                            </div>
-                            <button onClick={() => { if(!isTimerRunning) requestNotificationPermission(); setIsTimerRunning(!isTimerRunning); }} className={`size-14 rounded-full flex items-center justify-center text-white shadow-md transition-transform active:scale-95 ${isTimerRunning ? 'bg-yellow-500' : 'bg-primary'}`}>
-                                 <span className="material-symbols-outlined text-3xl">{isTimerRunning ? 'pause' : 'play_arrow'}</span>
-                            </button>
+        {/* Main Step Content */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-12 flex flex-col items-center" onClick={() => setIsSidebarOpen(false)}>
+            <div className="w-full max-w-3xl flex-1 flex flex-col justify-center min-h-[50vh]">
+                {isFinished ? (
+                     <div className="text-center space-y-6 animate-in zoom-in duration-300">
+                         <div className="inline-flex items-center justify-center p-6 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full mb-4">
+                             <span className="material-symbols-outlined text-6xl">check_circle</span>
                          </div>
-                         
-                         {/* Reminder Controls */}
-                         <div className="w-full flex flex-wrap gap-2 items-center justify-between border-t border-border-light dark:border-border-dark pt-4">
-                             {reminderThreshold ? (
-                                 <div className="flex items-center gap-3">
-                                     <div className={`text-sm font-bold ${hasAlerted ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
-                                         {hasAlerted ? 'TIME UP!' : `Alert at ${formatTime(reminderThreshold)}`}
+                         <h1 className="text-3xl md:text-4xl font-bold">All Done!</h1>
+                         <p className="text-lg text-text-muted max-w-md mx-auto">You've completed this recipe. Bon appétit!</p>
+                         <button onClick={onClose} className="px-8 py-3 bg-primary text-white rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-lg shadow-primary/30">
+                             Exit Cook Mode
+                         </button>
+                    </div>
+                ) : (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300" key={currentStep}>
+                         {/* Step Text */}
+                         <div className="space-y-4">
+                             {currentStepData?.group !== 'Main' && (
+                                 <span className="inline-block px-3 py-1 bg-surface-light dark:bg-white/10 rounded-full text-xs font-bold uppercase tracking-wider text-text-muted border border-border-light dark:border-gray-600">
+                                     {currentStepData?.group}
+                                 </span>
+                             )}
+                             {currentStepData?.title && (
+                                 <h2 className="text-2xl font-bold text-primary">{currentStepData.title}</h2>
+                             )}
+                             <p className="text-2xl md:text-4xl font-medium leading-relaxed md:leading-snug">
+                                 {currentStepData?.txt}
+                             </p>
+                         </div>
+
+                         {/* Tools & Timers */}
+                         <div className="flex flex-wrap gap-4">
+                             {/* Active Step Timer */}
+                             {(reminderThreshold || stopwatchTime > 0) && (
+                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-light dark:bg-white/5 border border-border-light dark:border-gray-700 shadow-sm">
+                                     <div className={`text-3xl font-mono font-bold ${hasAlerted ? 'text-red-500 animate-pulse' : 'text-text-main dark:text-white'}`}>
+                                         {formatTime(stopwatchTime)}
                                      </div>
-                                     <button onClick={() => setReminderThreshold(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded"><span className="material-symbols-outlined text-sm">close</span></button>
+                                     <div className="flex flex-col gap-1">
+                                         {!isTimerRunning ? (
+                                             <button onClick={() => setIsTimerRunning(true)} className="px-3 py-1 bg-primary text-white text-xs font-bold rounded hover:bg-green-600">Start</button>
+                                         ) : (
+                                             <button onClick={() => setIsTimerRunning(false)} className="px-3 py-1 bg-yellow-500 text-white text-xs font-bold rounded hover:bg-yellow-600">Pause</button>
+                                         )}
+                                         <button onClick={() => setStopwatchTime(0)} className="text-xs text-text-muted hover:text-text-main">Reset</button>
+                                     </div>
+                                     {reminderThreshold && (
+                                         <div className="border-l border-gray-200 dark:border-gray-600 pl-4 flex flex-col">
+                                             <span className="text-[10px] uppercase font-bold text-text-muted">Target</span>
+                                             <span className="font-mono font-bold">{formatTime(reminderThreshold)}</span>
+                                         </div>
+                                     )}
+                                     <div className="flex flex-col gap-1 border-l border-gray-200 dark:border-gray-600 pl-4">
+                                         <button onClick={() => addReminderTime(60)} className="text-xs font-bold text-primary">+1m</button>
+                                         <button onClick={setCustomReminder} className="text-xs font-bold text-text-muted">Set</button>
+                                     </div>
+                                 </div>
+                             )}
+
+                             {/* Step Tip */}
+                             {currentStepData?.tip && (
+                                 <div className="flex items-start gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-xl max-w-md">
+                                     <Lightbulb className="text-yellow-600 shrink-0" />
+                                     <p className="text-sm text-yellow-900 dark:text-yellow-100">{currentStepData.tip}</p>
+                                 </div>
+                             )}
+                         </div>
+
+                         {/* Notes Section */}
+                         <div className="mt-8 pt-6 border-t border-border-light dark:border-border-dark">
+                             {editingNoteId === currentStepData?.id ? (
+                                 <div className="flex gap-2 items-start animate-in fade-in slide-in-from-bottom-2">
+                                     <textarea 
+                                        className="flex-1 p-3 rounded-lg bg-surface-light dark:bg-white/5 border border-border-light dark:border-gray-600 focus:ring-2 focus:ring-primary outline-none resize-none"
+                                        rows={3}
+                                        placeholder="Add a note about this step..."
+                                        value={noteDraft}
+                                        onChange={(e) => setNoteDraft(e.target.value)}
+                                        autoFocus
+                                     />
+                                     <button onClick={() => saveNote(currentStepData!.id)} className="p-2 bg-primary text-white rounded-lg hover:bg-green-600">
+                                         <Save size={20} />
+                                     </button>
                                  </div>
                              ) : (
-                                 <button onClick={setCustomReminder} className="text-xs font-bold text-text-muted hover:text-primary flex items-center gap-1">
-                                     <span className="material-symbols-outlined text-sm">notifications</span> Set Reminder
+                                 <button 
+                                    onClick={() => startEditingNote(currentStepData!.id)}
+                                    className={`flex items-center gap-2 text-sm font-medium transition-colors ${userNotes[currentStepData!.id] ? 'text-text-main dark:text-white bg-surface-light dark:bg-white/5 p-3 rounded-lg border border-border-light dark:border-gray-700 w-full text-left' : 'text-text-muted hover:text-primary'}`}
+                                 >
+                                     <Edit size={16} />
+                                     {userNotes[currentStepData!.id] || "Add a private note to this step..."}
                                  </button>
                              )}
-                             
-                             {/* Add Time Controls */}
-                             <div className="flex gap-2">
-                                 <button onClick={() => addReminderTime(60)} className="px-2 py-1 bg-gray-100 dark:bg-white/5 rounded text-xs font-bold hover:bg-gray-200 dark:hover:bg-white/10">+1m</button>
-                                 <button onClick={() => addReminderTime(300)} className="px-2 py-1 bg-gray-100 dark:bg-white/5 rounded text-xs font-bold hover:bg-gray-200 dark:hover:bg-white/10">+5m</button>
-                             </div>
                          </div>
-                         
-                         {(stopwatchTime > 0) && (
-                            <button onClick={() => { setIsTimerRunning(false); setStopwatchTime(0); setHasAlerted(false); }} className="text-xs text-text-muted hover:text-text-main flex items-center gap-1 mt-2">
-                                <span className="material-symbols-outlined text-sm">restart_alt</span> Reset
-                            </button>
-                         )}
-                     </div>
+                    </div>
+                )}
+            </div>
+        </div>
 
-                     {/* Step Content */}
-                     <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                         {currentStepData.title && (
-                             <h2 className="text-xl md:text-2xl font-bold text-text-muted">{currentStepData.title}</h2>
-                         )}
-                         <h1 className="text-2xl md:text-3xl font-bold leading-tight flex flex-col items-center gap-2">
-                             {currentStepData.optional && (
-                                <span className="text-sm font-bold uppercase tracking-wider bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full">
-                                    Optional Step
-                                </span>
-                             )}
-                             {currentStepData.txt}
-                         </h1>
-                         {currentStepData.group !== 'Main' && (
-                             <span className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold uppercase">{currentStepData.group} Step</span>
-                         )}
-                     </div>
-
-                     {/* Step Tip/Warning */}
-                     {currentStepData.tip && (
-                         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-xl flex items-start gap-3 max-w-2xl mx-auto animate-in zoom-in duration-300">
-                             <Lightbulb className="text-yellow-600 dark:text-yellow-500 shrink-0" size={24} />
-                             <div>
-                                 <h4 className="font-bold text-yellow-700 dark:text-yellow-400 text-sm uppercase">Helpful Tip</h4>
-                                 <p className="text-yellow-800 dark:text-yellow-200 text-base leading-relaxed">{currentStepData.tip}</p>
-                             </div>
-                         </div>
-                     )}
-
-                     {/* Mistakes Alert */}
-                     {recipe.mistakes && recipe.mistakes.length > 0 && (
-                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 p-4 rounded-xl flex items-start gap-3 max-w-2xl mx-auto">
-                             <span className="material-symbols-outlined text-red-500">warning</span>
-                             <div>
-                                 <h4 className="font-bold text-red-700 dark:text-red-400 text-sm uppercase">Watch Out</h4>
-                                 <ul className="text-red-800 dark:text-red-200 text-sm list-disc list-inside">{recipe.mistakes.map((m, i) => <li key={i}>{m}</li>)}</ul>
-                             </div>
-                         </div>
-                     )}
-                 </div>
+        {/* Footer Navigation */}
+        <footer className="flex-none p-4 md:p-6 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex justify-between items-center z-20">
+            <button 
+                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                disabled={currentStep === 0}
+                className="px-6 py-3 rounded-xl font-bold text-text-muted disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2"
+            >
+                <span className="material-symbols-outlined">arrow_back</span>
+                <span className="hidden md:inline">Previous</span>
+            </button>
+            
+            <div className="flex flex-col items-center">
+                <div className="w-32 md:w-64 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                </div>
             </div>
 
-            {/* Nav Footer */}
-            <div className="p-4 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex gap-4 justify-between max-w-5xl mx-auto w-full">
-                 <button onClick={() => setCurrentStep(Math.max(0, currentStep - 1))} disabled={currentStep === 0} className="px-6 py-4 rounded-xl font-bold text-text-muted hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center gap-2">
-                     <span className="material-symbols-outlined">arrow_back</span> Prev
-                 </button>
-                 {currentStep < allSteps.length - 1 ? (
-                     <button onClick={() => setCurrentStep(currentStep + 1)} className="flex-1 bg-primary hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-                         Next Step <span className="material-symbols-outlined">arrow_forward</span>
-                     </button>
-                 ) : (
-                     <button onClick={onClose} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2">
-                         Finish Cooking <span className="material-symbols-outlined">check</span>
-                     </button>
-                 )}
-            </div>
+            <button 
+                onClick={() => isFinished ? onClose() : setCurrentStep(Math.min(allSteps.length, currentStep + 1))}
+                className={`px-6 py-3 rounded-xl font-bold text-white transition-all shadow-lg flex items-center gap-2 ${isFinished ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:bg-green-600 hover:scale-105'}`}
+            >
+                <span className="hidden md:inline">{isFinished ? 'Finish' : 'Next Step'}</span>
+                <span className="material-symbols-outlined">{isFinished ? 'check' : 'arrow_forward'}</span>
+            </button>
+        </footer>
 
-        </section>
       </main>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 2px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #333; }
-      `}</style>
     </div>
   );
 };

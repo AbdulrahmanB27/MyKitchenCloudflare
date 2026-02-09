@@ -289,6 +289,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
               <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatNumber(ing.amount)} {ing.unit}</span>
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
+              {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
           </span>
       );
   };
@@ -727,20 +728,22 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     </div>
                 </div>
                 
-                {/* Storage & Info Block (Moved to Bottom) */}
-                <div className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-5 shadow-sm mt-4">
-                    <div className="flex flex-col sm:flex-row gap-6">
-                        <div className="flex-1 flex flex-col gap-3">
-                            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-1">
-                                <span className="material-symbols-outlined">inventory_2</span>
-                                <h3 className="font-bold text-lg font-display">Storage & Reheating</h3>
+                {/* Storage & Info Block (Moved to Bottom) - Conditioned */}
+                {recipe.storageNotes && (
+                    <div className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-5 shadow-sm mt-4">
+                        <div className="flex flex-col sm:flex-row gap-6">
+                            <div className="flex-1 flex flex-col gap-3">
+                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-1">
+                                    <span className="material-symbols-outlined">inventory_2</span>
+                                    <h3 className="font-bold text-lg font-display">Storage & Reheating</h3>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                    {recipe.storageNotes}
+                                </p>
                             </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">
-                                {recipe.storageNotes || "No storage instructions provided. Generally keeps for 3-4 days in the fridge."}
-                            </p>
                         </div>
                     </div>
-                </div>
+                )}
                 
                 <div className="h-10"></div>
             </div>

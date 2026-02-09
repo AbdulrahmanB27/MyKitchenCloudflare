@@ -1,4 +1,5 @@
 
+
 import { Recipe } from './types';
 
 export const config = {
@@ -16,32 +17,20 @@ export const config = {
       "image": "https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=800&q=80",
       "ingredients": [
         { "id": "1", "amount": 400, "unit": "g", "item": "Spaghetti" },
-        { "id": "2", "amount": 150, "unit": "g", "item": "Guanciale", "notes": "or Pancetta, cubed" },
+        { "id": "2", "amount": 150, "unit": "g", "item": "Guanciale", "notes": "or Pancetta, cubed", "substitution": "Bacon" },
         { "id": "3", "amount": 4, "unit": "large", "item": "Eggs" },
-        { "id": "4", "amount": 100, "unit": "g", "item": "Pecorino Romano", "notes": "grated" },
+        { "id": "4", "amount": 100, "unit": "g", "item": "Pecorino Romano", "notes": "grated", "substitution": "Parmesan" },
         { "id": "5", "amount": 1, "unit": "tbsp", "item": "Black Pepper", "notes": "freshly cracked" }
       ],
       "instructions": [
-        { "id": "1", "text": "Boil water for pasta. Salt heavily." },
+        { "id": "1", "text": "Boil water for pasta. Salt heavily.", "tip": "Use the pasta water! The starch is crucial for the emulsion." },
         { "id": "2", "title": "Crisp the Pork", "text": "Cook guanciale in a skillet over medium heat until crispy (approx 5-8 mins). Remove from heat but keep fat.", "timer": 8 },
         { "id": "3", "title": "Prepare Sauce Base", "text": "Whisk eggs and cheese in a bowl until a paste forms. Add plenty of pepper." },
         { "id": "4", "text": "Cook pasta until al dente. Reserve 1 cup of pasta water." },
-        { "id": "5", "text": "Add hot pasta to the guanciale pan (heat OFF). Toss to coat in fat." },
+        { "id": "5", "text": "Add hot pasta to the guanciale pan (heat OFF). Toss to coat in fat.", "tip": "Do not add eggs while the pan is on high heat, or you will make scrambled eggs." },
         { "id": "6", "title": "Emulsify", "text": "Pour egg mixture over pasta while tossing vigorously to emulsify. Add pasta water as needed for creaminess." }
       ],
       "components": [],
-      "tips": [
-        "Use the pasta water! The starch is crucial for the emulsion.",
-        "Do not add eggs while the pan is on high heat, or you will make scrambled eggs."
-      ],
-      "mistakes": [
-        "Adding cream (it drowns out the delicate egg/cheese flavor).",
-        "Scrambling the eggs by getting the pan too hot."
-      ],
-      "substitutions": [
-        "Bacon instead of Guanciale (smokier flavor).",
-        "Parmesan instead of Pecorino (saltier, less funky)."
-      ],
       "video": {
         "url": "https://www.youtube.com/embed/3AAdKl1UYZs",
         "note": "Watch the tossing technique at 3:00"
@@ -66,7 +55,7 @@ export const config = {
       "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80",
       "ingredients": [
         { "id": "1", "amount": 1.5, "unit": "lbs", "item": "Chicken Breast" },
-        { "id": "2", "amount": 2, "unit": "cups", "item": "Rice", "notes": "uncooked" },
+        { "id": "2", "amount": 2, "unit": "cups", "item": "Rice", "notes": "uncooked", "substitution": "Quinoa or Cauliflower Rice" },
         { "id": "3", "amount": 1, "unit": "can", "item": "Black Beans", "notes": "drained" },
         { "id": "4", "amount": 1, "unit": "can", "item": "Corn", "notes": "drained" },
         { "id": "5", "amount": 1, "unit": "head", "item": "Romaine Lettuce", "notes": "chopped" }
@@ -75,7 +64,7 @@ export const config = {
         { "id": "1", "text": "Cook rice according to package instructions." },
         { "id": "2", "text": "Marinate chicken with the spice blend." },
         { "id": "3", "title": "Cook Chicken", "text": "Grill or pan-fry chicken until 165°F internal temp.", "timer": 12 },
-        { "id": "4", "text": "Assemble bowls: Rice base, topped with chicken, beans, and corn." },
+        { "id": "4", "text": "Assemble bowls: Rice base, topped with chicken, beans, and corn.", "tip": "Wait for rice to cool before packing to avoid condensation." },
         { "id": "5", "text": "Keep lettuce separate until eating." }
       ],
       "components": [
@@ -100,9 +89,6 @@ export const config = {
           "instructions": [{ "id": "d1", "text": "Blend all ingredients until smooth." }]
         }
       ],
-      "tips": ["Wait for rice to cool before packing to avoid condensation."],
-      "mistakes": ["Dressing the salad too early (makes it soggy)."],
-      "substitutions": ["Quinoa or Cauliflower rice for lower carbs."],
       "storageNotes": "Keeps in fridge for 4-5 days. Freezes well (without lettuce).",
       "favorite": true,
       "reviews": [

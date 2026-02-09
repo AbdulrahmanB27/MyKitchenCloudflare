@@ -1,0 +1,22 @@
+
+{
+  "name": "My Meal Prep Recipes",
+  "short_name": "MyKitchen",
+  "description": "Offline-first recipe manager for meal prep.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1b12",
+  "theme_color": "#17cf54",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3565/3565418.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3565/3565418.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

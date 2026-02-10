@@ -1,196 +1,231 @@
 
-import { Recipe, AppSettings, ShoppingItem, MealPlan } from '../types';
+import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem } from '../types';
 import { config } from '../config';
-
-// API Client Wrapper for Cloudflare Pages Functions
-// Includes localStorage fallback for development/offline resilience
+import * as idb from './idb';
+import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS } from '../constants';
 
 const API_BASE = '/api';
-const LOCAL_KEYS = {
-    RECIPES: 'recipes_fallback',
-    SHOPPING: 'shopping_list_fallback',
-    PLANS: 'meal_plans_fallback',
-    SETTINGS: 'appSettings'
-};
 
-// Helper to get local data
-const getLocal = <T>(key: string, defaultVal: T): T => {
-    try {
-        const stored = localStorage.getItem(key);
-        return stored ? JSON.parse(stored) : defaultVal;
-    } catch {
-        return defaultVal;
-    }
-};
+// --- Auth State ---
+let authCallback: (() => void) | null = null;
+export const setAuthCallback = (cb: () => void) => { authCallback = cb; };
 
-// Helper to set local data
-const setLocal = (key: string, data: any) => {
+const getAuthToken = () => localStorage.getItem('family_auth_token');
+export const setAuthToken = (token: string) => localStorage.setItem('family_auth_token', token);
+export const hasAuthToken = () => !!getAuthToken();
+
+// --- Sync State ---
+const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
+
+export const authenticate = async (password: string, turnstileToken: string): Promise<boolean> => {
     try {
-        localStorage.setItem(key, JSON.stringify(data));
+        const res = await fetch(`${API_BASE}/auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, turnstileToken })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+                setAuthToken(data.token);
+                return true;
+            }
+        }
+        return false;
     } catch (e) {
-        console.error("Local storage full or error", e);
+        console.error("Auth failed", e);
+        return false;
     }
 };
+
+// --- Recipes (IndexedDB + Sync) ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-  try {
-    const res = await fetch(`${API_BASE}/recipes`);
-    if (!res.ok) throw new Error(`API Error ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.warn("Backend unavailable, using local data.");
-    
-    // Check if we have already seeded data to prevent re-seeding after user deletion
-    const hasSeeded = localStorage.getItem('has_seeded_initial_data');
-    let local = getLocal<Recipe[]>(LOCAL_KEYS.RECIPES, []);
+    // 1. Load from IDB (Fast)
+    let recipes = await idb.getAll<Recipe>(STORE_RECIPES);
 
-    if (local.length === 0 && !hasSeeded && config.sampleRecipes) {
-        local = config.sampleRecipes as Recipe[];
-        setLocal(LOCAL_KEYS.RECIPES, local);
-        localStorage.setItem('has_seeded_initial_data', 'true');
+    // 2. Seed if empty
+    if (recipes.length === 0 && config.sampleRecipes) {
+        const hasSeeded = localStorage.getItem('has_seeded_initial_data_v2');
+        if (!hasSeeded) {
+            recipes = config.sampleRecipes as Recipe[];
+            for (const r of recipes) {
+                await idb.put(STORE_RECIPES, r);
+            }
+            localStorage.setItem('has_seeded_initial_data_v2', 'true');
+        }
     }
-    return local;
-  }
+
+    // 3. Trigger Sync in background (if online and auto-sync is on)
+    const settings = await getSettings();
+    if (navigator.onLine && settings.autoSync !== false) {
+        syncRecipes().catch(console.error);
+    }
+
+    return recipes;
 };
 
 export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
-  const recipes = await getAllRecipes();
-  return recipes.find(r => r.id === id);
+    return idb.getOne<Recipe>(STORE_RECIPES, id);
 };
 
 export const upsertRecipe = async (recipe: Recipe): Promise<void> => {
-  try {
-    const res = await fetch(`${API_BASE}/recipes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recipe)
-    });
-    if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-    // Fallback
-    const recipes = await getAllRecipes();
-    const idx = recipes.findIndex(r => r.id === recipe.id);
-    if (idx > -1) {
-        recipes[idx] = recipe;
-    } else {
-        recipes.unshift(recipe);
+    // 1. Save to IDB
+    await idb.put(STORE_RECIPES, recipe);
+
+    // 2. Queue for Sync (if shared)
+    if (recipe.shareToFamily) {
+        await idb.addToSyncQueue({
+            id: recipe.id,
+            action: 'upsert',
+            data: recipe,
+            timestamp: Date.now()
+        });
+        
+        // 3. Try Sync
+        const settings = await getSettings();
+        if (navigator.onLine && settings.autoSync !== false) {
+            syncRecipes();
+        }
     }
-    setLocal(LOCAL_KEYS.RECIPES, recipes);
-  }
 };
 
 export const deleteRecipe = async (id: string): Promise<void> => {
-  try {
-    const res = await fetch(`${API_BASE}/recipes?id=${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-    const recipes = await getAllRecipes();
-    const filtered = recipes.filter(r => r.id !== id);
-    setLocal(LOCAL_KEYS.RECIPES, filtered);
-  }
+    // 1. Delete from IDB
+    await idb.remove(STORE_RECIPES, id);
+
+    // 2. Queue Delete
+    await idb.addToSyncQueue({
+        id,
+        action: 'delete',
+        timestamp: Date.now()
+    });
+
+    // 3. Try Sync
+    const settings = await getSettings();
+    if (navigator.onLine && settings.autoSync !== false) {
+        syncRecipes();
+    }
 };
 
-// --- Shopping List ---
+// --- SYNC ENGINE ---
+
+const syncRecipes = async () => {
+    // 1. Process Outgoing Queue
+    const queue = await idb.getSyncQueue();
+    if (queue.length > 0) {
+        if (!hasAuthToken()) {
+            if (authCallback) authCallback(); // Prompt User
+            return;
+        }
+
+        for (const item of queue) {
+            try {
+                const token = getAuthToken();
+                let res;
+                if (item.action === 'upsert' && item.data) {
+                    res = await fetch(`${API_BASE}/recipes`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(item.data)
+                    });
+                } else if (item.action === 'delete') {
+                    res = await fetch(`${API_BASE}/recipes?id=${item.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+
+                if (res && res.ok) {
+                    await idb.removeFromSyncQueue(item.id);
+                } else if (res && (res.status === 401 || res.status === 403)) {
+                    // Auth failed
+                    localStorage.removeItem('family_auth_token');
+                    if (authCallback) authCallback();
+                    return; // Stop processing
+                }
+            } catch (e) {
+                console.error("Sync item failed", e);
+            }
+        }
+    }
+
+    // 2. Pull Incoming Changes
+    try {
+        const lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
+        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`);
+        if (res.ok) {
+            const updates: Recipe[] = await res.json();
+            if (updates.length > 0) {
+                let maxTs = parseInt(lastUpdated);
+                for (const r of updates) {
+                    await idb.put(STORE_RECIPES, r);
+                    if (r.updatedAt > maxTs) maxTs = r.updatedAt;
+                }
+                localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());
+                // Dispatch event or callback to refresh UI if needed
+                window.dispatchEvent(new Event('recipes-updated'));
+            }
+        }
+    } catch (e) {
+        console.warn("Pull sync failed", e);
+    }
+};
+
+
+// --- Shopping List (Local Only) ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
-  try {
-    const res = await fetch(`${API_BASE}/shopping`);
-    if (!res.ok) throw new Error('API Error');
-    return await res.json();
-  } catch (err) {
-    return getLocal<ShoppingItem[]>(LOCAL_KEYS.SHOPPING, []);
-  }
+    return idb.getAll(STORE_SHOPPING);
 };
 
 export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
-  try {
-    const res = await fetch(`${API_BASE}/shopping`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    });
-    if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-    const items = await getShoppingList();
-    const idx = items.findIndex(i => i.id === item.id);
-    if (idx > -1) items[idx] = item;
-    else items.push(item);
-    setLocal(LOCAL_KEYS.SHOPPING, items);
-  }
+    await idb.put(STORE_SHOPPING, item);
 };
 
 export const deleteShoppingItem = async (id: string): Promise<void> => {
-  try {
-      const res = await fetch(`${API_BASE}/shopping?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-      const items = await getShoppingList();
-      setLocal(LOCAL_KEYS.SHOPPING, items.filter(i => i.id !== id));
-  }
+    await idb.remove(STORE_SHOPPING, id);
 };
 
 export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
-  try {
-      const param = onlyChecked ? 'checked' : 'true';
-      const res = await fetch(`${API_BASE}/shopping?clearAll=${param}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-      if (onlyChecked) {
-          const items = await getShoppingList();
-          setLocal(LOCAL_KEYS.SHOPPING, items.filter(i => !i.isChecked));
-      } else {
-          setLocal(LOCAL_KEYS.SHOPPING, []);
-      }
-  }
+    const items = await getShoppingList();
+    if (onlyChecked) {
+        for (const item of items) {
+            if (item.isChecked) await idb.remove(STORE_SHOPPING, item.id);
+        }
+    } else {
+        // Clear all (IDB doesn't have clear(), so loop delete or recreating store, loop is safer for now)
+        for (const item of items) {
+            await idb.remove(STORE_SHOPPING, item.id);
+        }
+    }
 };
 
-// --- Meal Plans ---
+// --- Meal Plans (Local Only) ---
 
 export const getMealPlans = async (): Promise<MealPlan[]> => {
-  try {
-    const res = await fetch(`${API_BASE}/plans`);
-    if (!res.ok) throw new Error('API Error');
-    return await res.json();
-  } catch (err) {
-    return getLocal<MealPlan[]>(LOCAL_KEYS.PLANS, []);
-  }
+    return idb.getAll(STORE_PLANS);
 };
 
 export const upsertMealPlan = async (plan: MealPlan): Promise<void> => {
-  try {
-    const res = await fetch(`${API_BASE}/plans`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(plan)
-    });
-    if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-      const plans = await getMealPlans();
-      const idx = plans.findIndex(p => p.id === plan.id);
-      if (idx > -1) plans[idx] = plan;
-      else plans.push(plan);
-      setLocal(LOCAL_KEYS.PLANS, plans);
-  }
+    await idb.put(STORE_PLANS, plan);
 };
 
 export const deleteMealPlan = async (id: string): Promise<void> => {
-  try {
-      const res = await fetch(`${API_BASE}/plans?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('API Error');
-  } catch (err) {
-      const plans = await getMealPlans();
-      setLocal(LOCAL_KEYS.PLANS, plans.filter(p => p.id !== id));
-  }
+    await idb.remove(STORE_PLANS, id);
 };
 
 // --- Settings ---
 
 export const getSettings = async (): Promise<AppSettings> => {
-  // Settings are always local-first for UI responsiveness, 
-  // but could sync to DB if user auth existed.
-  return getLocal<AppSettings>(LOCAL_KEYS.SETTINGS, { theme: 'system' });
+  const s = await idb.getOne<AppSettings>(STORE_SETTINGS, 'app-settings');
+  return s || { theme: 'system', autoSync: true };
 };
 
 export const saveSettings = async (settings: AppSettings): Promise<void> => {
-  setLocal(LOCAL_KEYS.SETTINGS, settings);
+  // We attach a fixed ID for the singleton settings object
+  await idb.put(STORE_SETTINGS, { ...settings, id: 'app-settings' });
 };

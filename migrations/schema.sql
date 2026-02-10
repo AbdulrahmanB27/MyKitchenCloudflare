@@ -6,8 +6,11 @@ CREATE TABLE recipes (
   category TEXT,
   is_favorite INTEGER DEFAULT 0,
   is_archived INTEGER DEFAULT 0,
-  data TEXT, -- Stores the full JSON object including ingredients/instructions
-  updated_at INTEGER
+  share_to_family INTEGER DEFAULT 1,
+  tenant_id TEXT DEFAULT 'global',
+  data TEXT,
+  updated_at INTEGER,
+  created_at INTEGER
 );
 
 DROP TABLE IF EXISTS shopping_list;

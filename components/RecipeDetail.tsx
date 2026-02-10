@@ -5,6 +5,7 @@ import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
 import { Play, Square, RotateCcw, Lightbulb, Bell, Clock } from 'lucide-react';
+import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
   recipeId: string;
@@ -150,12 +151,12 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
   if (!recipe) return null;
 
-  if (isCookMode) {
-      return <CookMode recipe={recipe} onClose={() => setIsCookMode(false)} />;
-  }
-
   const originalServings = recipe.servings || 1;
   const scalingFactor = (typeof currentServings === 'number' && currentServings > 0) ? (currentServings / originalServings) : 1;
+
+  if (isCookMode) {
+      return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} />;
+  }
 
   const toggleIngredient = (id: string) => {
     const next = new Set(checkedIngredients);
@@ -267,26 +268,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
       }
   };
 
-  // Helper to format scaled numbers
-  const formatNumber = (num: number): string => {
-    const val = num * scalingFactor;
-    // Check for fractions
-    const decimal = val - Math.floor(val);
-    if (Math.abs(decimal - 0.33) < 0.05) return `${Math.floor(val) > 0 ? Math.floor(val) + ' ' : ''}1/3`;
-    if (Math.abs(decimal - 0.66) < 0.05) return `${Math.floor(val) > 0 ? Math.floor(val) + ' ' : ''}2/3`;
-    if (Math.abs(decimal - 0.25) < 0.05) return `${Math.floor(val) > 0 ? Math.floor(val) + ' ' : ''}1/4`;
-    if (Math.abs(decimal - 0.5) < 0.05) return `${Math.floor(val) > 0 ? Math.floor(val) + ' ' : ''}1/2`;
-    if (Math.abs(decimal - 0.75) < 0.05) return `${Math.floor(val) > 0 ? Math.floor(val) + ' ' : ''}3/4`;
-    
-    // Round to 2 decimals if not a clean integer
-    if (Math.abs(Math.round(val) - val) < 0.01) return Math.round(val).toString();
-    return parseFloat(val.toFixed(2)).toString();
-  };
-
   const renderIngredient = (ing: Ingredient) => {
+      const scaledAmount = ing.amount * scalingFactor;
       return (
           <span>
-              <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatNumber(ing.amount)} {ing.unit}</span>
+              <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
               {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
@@ -303,7 +289,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
     const items = allItems.map(ing => {
       const scaledAmount = ing.amount * scalingFactor;
-      const displayText = `${parseFloat(scaledAmount.toFixed(2))} ${ing.unit} ${ing.item}`; 
+      const displayText = `${formatFraction(scaledAmount)} ${ing.unit} ${ing.item}`; 
       
       return {
         id: uuidv4(),

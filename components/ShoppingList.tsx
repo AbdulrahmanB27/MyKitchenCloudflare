@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingItem } from '../types';
 import * as db from '../services/db';
+import { formatFraction } from '../utils/format';
 
 interface ShoppingListProps {
   onOpenMenu: () => void;
@@ -171,8 +172,8 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
     const text = sortedCombinedItems.map(item => {
       // Format nicely: "2 cups Flour" or "Onions (x2)"
       return item.unit 
-          ? `${Number(item.qty.toFixed(2))} ${item.unit} ${item.text}` 
-          : `${item.text}${item.qty > 1 ? ` (x${item.qty})` : ''}`;
+          ? `${formatFraction(item.qty)} ${item.unit} ${item.text}` 
+          : `${item.text}${item.qty > 1 ? ` (x${formatFraction(item.qty)})` : ''}`;
     }).join('\n');
 
     try {
@@ -309,7 +310,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                         <div className="flex-1 flex flex-col">
                             <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-primary transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
                                 {/* Format quantity nicely */}
-                                {item.unit ? `${Number(item.qty.toFixed(2))} ${item.unit} ${item.text}` : `${item.text} (x${item.qty})`}
+                                {item.unit ? `${formatFraction(item.qty)} ${item.unit} ${item.text}` : `${item.text}${item.qty > 1 ? ` (x${formatFraction(item.qty)})` : ''}`}
                             </span>
                             {item.sourceRecipeNames.size > 0 && (
                                 <span className="text-xs text-text-muted dark:text-gray-500 mt-0.5">
@@ -331,4 +332,3 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 };
 
 export default ShoppingList;
-    

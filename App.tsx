@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
 import * as db from './services/db';
@@ -7,13 +8,15 @@ import RecipeForm from './components/RecipeForm';
 import ShoppingList from './components/ShoppingList';
 import MealPlanner from './components/MealPlanner';
 import Recommendations from './components/Recommendations';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload } from 'lucide-react';
+import AuthModal from './components/AuthModal';
+import ExportModal, { ExportOptions } from './components/ExportModal';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pinnedTags, setPinnedTags] = useState<string[]>(['Dinner', 'Healthy', 'Quick']); // Defaults
-  const [settings, setSettings] = useState<AppSettings>({ theme: 'system' });
+  const [settings, setSettings] = useState<AppSettings>({ theme: 'system', autoSync: true });
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -26,16 +29,20 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<RecipeCategory | 'All'>('All');
   
-  // Tag Filter State (Multi-select)
+  // Filters
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [filterFavorites, setFilterFavorites] = useState(false);
-
   const [showArchived, setShowArchived] = useState(false);
+  const [familyFilter, setFamilyFilter] = useState<'all' | 'mine' | 'family'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('name');
   
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
+  // Auth State
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // --- Import Logic ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,14 +61,22 @@ const App: React.FC = () => {
         const content = e.target?.result as string;
         const imported = JSON.parse(content);
         
-        // Handle array of recipes or single recipe
-        const recipesToImport = Array.isArray(imported) ? imported : [imported];
+        let recipesToImport: any[] = [];
+        if (Array.isArray(imported)) {
+            recipesToImport = imported;
+        } else if (imported.recipes && Array.isArray(imported.recipes)) {
+            recipesToImport = imported.recipes;
+        } else {
+            recipesToImport = [imported];
+        }
         
         let count = 0;
         for (const r of recipesToImport) {
-            // Basic validation
             if (r.name && r.ingredients && r.instructions) {
-                await db.upsertRecipe(r);
+                // If importing a backup, we might want to preserve the 'shareToFamily' status 
+                // if it exists, otherwise default to false for safety.
+                const shouldShare = r.shareToFamily !== undefined ? r.shareToFamily : false;
+                await db.upsertRecipe({ ...r, shareToFamily: shouldShare });
                 count++;
             }
         }
@@ -71,10 +86,39 @@ const App: React.FC = () => {
         console.error(err);
         alert('Failed to import recipes. Invalid JSON.');
       }
-      // Reset input
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleExport = (options: ExportOptions) => {
+    const dataToExport: any = {
+      version: 1,
+      timestamp: Date.now(),
+      recipes: recipes, 
+    };
+
+    if (!options.includeReviews) {
+        dataToExport.recipes = recipes.map(r => {
+            const { reviews, ...rest } = r;
+            return { ...rest, reviews: [] };
+        });
+    }
+
+    if (options.includeSettings) {
+      dataToExport.settings = settings;
+    }
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mykitchen_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setShowExportModal(false);
   };
 
   // --- Effects ---
@@ -86,7 +130,6 @@ const App: React.FC = () => {
       return loadedRecipes;
     } catch (err) {
       console.error("Failed to load recipes", err);
-      // If offline or fail, we just show empty or last cached if we implemented SW caching strategies
       return [];
     }
   };
@@ -108,6 +151,15 @@ const App: React.FC = () => {
         }
     };
     init();
+
+    // Listen for auth requests from DB service
+    db.setAuthCallback(() => setShowAuthModal(true));
+
+    // Listen for background sync updates
+    const handleUpdates = () => loadData();
+    window.addEventListener('recipes-updated', handleUpdates);
+    
+    return () => window.removeEventListener('recipes-updated', handleUpdates);
   }, []);
 
   // Monitor Online Status
@@ -138,6 +190,13 @@ const App: React.FC = () => {
     db.saveSettings(newSettings);
   };
 
+  const toggleAutoSync = () => {
+      const newSettings = { ...settings, autoSync: !settings.autoSync };
+      setSettings(newSettings);
+      db.saveSettings(newSettings);
+      if (newSettings.autoSync) db.getAllRecipes(); // Trigger sync attempt
+  };
+
   // --- Computed ---
 
   const filteredRecipes = useMemo(() => {
@@ -156,6 +215,13 @@ const App: React.FC = () => {
     // Filter by Favorites
     if (filterFavorites) {
         result = result.filter(r => r.favorite);
+    }
+
+    // Filter by Family Share Status
+    if (familyFilter === 'mine') {
+        result = result.filter(r => !r.shareToFamily);
+    } else if (familyFilter === 'family') {
+        result = result.filter(r => r.shareToFamily);
     }
 
     // Filter by Tags (AND logic)
@@ -183,25 +249,17 @@ const App: React.FC = () => {
         if (!a.favorite && b.favorite) return 1;
 
         switch (sortBy) {
-            case 'name':
-                return a.name.localeCompare(b.name);
-            case 'time':
-                const timeA = (a.prepTime || 0) + (a.cookTime || 0) || 9999;
-                const timeB = (b.prepTime || 0) + (b.cookTime || 0) || 9999;
-                return timeA - timeB;
-            case 'rating':
+            case 'name': return a.name.localeCompare(b.name);
+            case 'time': return ((a.prepTime || 0) + (a.cookTime || 0)) - ((b.prepTime || 0) + (b.cookTime || 0));
+            case 'rating': 
                 const rateA = a.reviews?.length ? a.reviews.reduce((s, r) => s + r.rating, 0) / a.reviews.length : 0;
                 const rateB = b.reviews?.length ? b.reviews.reduce((s, r) => s + r.rating, 0) / b.reviews.length : 0;
                 return rateB - rateA;
-            case 'calories':
-                const calA = a.nutrition?.calories || 9999;
-                const calB = b.nutrition?.calories || 9999;
-                return calA - calB;
-            default:
-                return a.name.localeCompare(b.name);
+            case 'calories': return (a.nutrition?.calories || 9999) - (b.nutrition?.calories || 9999);
+            default: return a.name.localeCompare(b.name);
         }
     });
-  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites]);
+  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter]);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -222,17 +280,13 @@ const App: React.FC = () => {
         return;
     }
     const next = new Set(selectedTags);
-    if (next.has(tag)) {
-        next.delete(tag);
-    } else {
-        next.add(tag);
-    }
+    if (next.has(tag)) next.delete(tag); else next.add(tag);
     setSelectedTags(next);
   };
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     await db.upsertRecipe(recipe);
-    await loadData(); // Reload list
+    await loadData();
     setIsFormOpen(false);
     setEditingRecipe(null);
   };
@@ -255,7 +309,7 @@ const App: React.FC = () => {
 
   // --- Render ---
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-background-light dark:bg-background-dark text-primary">Loading Shared Library...</div>;
+  if (loading) return <div className="flex items-center justify-center h-screen bg-background-light dark:bg-background-dark text-primary">Loading MyKitchen...</div>;
 
   return (
     <div className="flex h-screen overflow-hidden font-display bg-background-light dark:bg-background-dark text-text-main dark:text-text-main-dark transition-colors duration-200">
@@ -268,17 +322,9 @@ const App: React.FC = () => {
             {!isSidebarCollapsed ? (
                 <div>
                     <h1 className="text-xl font-bold dark:text-white whitespace-nowrap">MyKitchen</h1>
-                    <p className={`text-xs whitespace-nowrap flex items-center gap-1 ${isOnline ? 'text-primary' : 'text-gray-500'}`}>
-                        {isOnline ? (
-                            <>
-                                <Cloud size={10} /> Online & Synced
-                            </>
-                        ) : (
-                            <>
-                                <CloudOff size={10} /> Offline Mode
-                            </>
-                        )}
-                    </p>
+                    <button onClick={toggleAutoSync} className={`text-xs whitespace-nowrap flex items-center gap-1 ${settings.autoSync ? (isOnline ? 'text-primary' : 'text-yellow-500') : 'text-gray-400'} hover:underline`} title="Click to toggle auto-sync">
+                        {settings.autoSync ? (isOnline ? <><Cloud size={10} /> Synced</> : <><CloudOff size={10} /> Offline (Queued)</>) : <><RefreshCw size={10} /> Sync Paused</>}
+                    </button>
                 </div>
             ) : (
                 <span className="material-symbols-outlined text-primary text-3xl">local_dining</span>
@@ -299,7 +345,7 @@ const App: React.FC = () => {
                 <button 
                     onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); }} 
                     className={`nav-btn ${currentView === 'recipes' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isSidebarCollapsed ? "Recipes" : ""}
+                    title="Recipes"
                 >
                     <span className="material-symbols-outlined">menu_book</span> 
                     {!isSidebarCollapsed && "Recipes"}
@@ -307,15 +353,15 @@ const App: React.FC = () => {
                 <button 
                     onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); }} 
                     className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isSidebarCollapsed ? "What can I make?" : ""}
+                    title="Recommendations"
                 >
                     <span className="material-symbols-outlined">kitchen</span> 
-                    {!isSidebarCollapsed && "Recommendations"}
+                    {!isSidebarCollapsed && "What can I make?"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); }} 
                     className={`nav-btn ${currentView === 'planner' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isSidebarCollapsed ? "Planner" : ""}
+                    title="Planner"
                 >
                     <span className="material-symbols-outlined">calendar_month</span> 
                     {!isSidebarCollapsed && "Planner"}
@@ -323,127 +369,91 @@ const App: React.FC = () => {
                 <button 
                     onClick={() => { setCurrentView('shopping'); setIsMobileMenuOpen(false); }} 
                     className={`nav-btn ${currentView === 'shopping' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title={isSidebarCollapsed ? "Shopping List" : ""}
+                    title="Shopping List"
                 >
                     <span className="material-symbols-outlined">shopping_cart</span> 
                     {!isSidebarCollapsed && "Shopping List"}
                 </button>
             </div>
             
-            {/* Shared Library: No Source Toggle needed, but we keep the Archive toggle */}
-             <div className={`border-t border-border-light dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+            {/* Filters */}
+             <div className={`border-t border-border-light dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
+                 {!isSidebarCollapsed && <h4 className="text-xs font-bold uppercase text-text-muted px-3 mb-2">Filters</h4>}
+                 
                  {!isSidebarCollapsed ? (
-                    <div 
-                        onClick={() => setShowArchived(!showArchived)} 
-                        className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white group transition-colors select-none"
-                    >
-                        <div className={`w-5 h-5 rounded-[6px] border-[2px] flex items-center justify-center transition-all duration-200 ${
-                            showArchived 
-                                ? 'bg-primary border-primary' 
-                                    : 'border-gray-400 dark:border-gray-500 group-hover:border-primary bg-transparent'
-                        }`}>
-                            <span className={`material-symbols-outlined text-white text-[14px] font-bold transform transition-transform ${showArchived ? 'scale-100' : 'scale-0'}`}>check</span>
+                    <>
+                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none">
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${showArchived ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                                {showArchived && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                            </div>
+                            <span className="font-medium">Show Archived</span>
                         </div>
-                        <span className="font-medium">Show Archived</span>
-                    </div>
+                        
+                        {/* Family Filters */}
+                        <div className="px-3 py-2">
+                             <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-1">
+                                 <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'all' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>All</button>
+                                 <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'mine' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>Mine</button>
+                                 <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'family' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>Family</button>
+                             </div>
+                        </div>
+                    </>
                  ) : (
-                    <button 
-                        onClick={() => setShowArchived(!showArchived)} 
-                        className={`nav-btn ${showArchived ? 'text-primary' : ''} justify-center px-0`}
-                        title="Toggle Archived"
-                    >
-                        <span className="material-symbols-outlined">archive</span>
-                    </button>
+                    <>
+                         <button onClick={() => setShowArchived(!showArchived)} className={`nav-btn justify-center px-0 ${showArchived ? 'text-primary' : ''}`} title="Archived">
+                            <span className="material-symbols-outlined">archive</span>
+                         </button>
+                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`nav-btn justify-center px-0 ${familyFilter !== 'all' ? 'text-primary' : ''}`} title="Family Filter">
+                            <Users size={20} />
+                         </button>
+                    </>
                  )}
              </div>
         </nav>
-        <div className={`p-4 border-t border-border-light dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-            {!isSidebarCollapsed && <span className="text-xs text-gray-500">Cloud Edition</span>}
-            <button onClick={toggleTheme} className="text-gray-500 hover:text-primary">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+        <div className={`p-4 border-t border-border-light dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
+            <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-3'}`}>
+                <button onClick={handleImportClick} className="text-gray-500 hover:text-primary transition-colors" title="Import Recipes"><Upload size={18} /></button>
+                <button onClick={() => setShowExportModal(true)} className="text-gray-500 hover:text-primary transition-colors" title="Backup/Export"><Download size={18} /></button>
+            </div>
+            <button onClick={toggleTheme} className="text-gray-500 hover:text-primary transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
+        {/* Hidden Input for Import */}
+        <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         
-        {currentView === 'planner' && (
-            <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />
-        )}
-
-        {currentView === 'shopping' && (
-            <ShoppingList 
-                onOpenMenu={() => setIsMobileMenuOpen(true)} 
-                allTags={availableTags} 
-                pinnedTags={pinnedTags}
-                onOpenRecipe={(id) => {
-                    setActiveRecipeId(id);
-                }} 
-            />
-        )}
-        
-        {currentView === 'recommendations' && (
-            <Recommendations
-                onOpenMenu={() => setIsMobileMenuOpen(true)}
-                recipes={recipes}
-                onOpenRecipe={(r) => { setActiveRecipeId(r.id); }}
-            />
-        )}
+        {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
+        {currentView === 'shopping' && <ShoppingList onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
+        {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
 
         {currentView === 'recipes' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Mobile Header with Search */}
+                {/* Mobile Header */}
                 <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
                         <span className="material-symbols-outlined">menu</span>
                     </button>
                     <div className="relative flex-1">
                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-                         <input 
-                            type="text" 
-                            value={searchQuery} 
-                            onChange={e => setSearchQuery(e.target.value)} 
-                            placeholder="Search recipes..." 
-                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" 
-                         />
+                         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" />
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8">
-                     {/* Toolbar */}
                      <div className="max-w-7xl mx-auto space-y-6">
                          <div className="flex flex-col md:flex-row gap-4 justify-between">
-                             {/* Desktop Search */}
                              <div className="relative flex-1 max-w-lg hidden md:block">
                                  <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
-                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search shared recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
+                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
                              </div>
                              <div className="flex gap-2 items-center">
-                                 {/* Import Button */}
-                                 <button 
-                                    onClick={handleImportClick}
-                                    className="p-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-muted hover:text-text-main dark:hover:text-white transition-colors"
-                                    title="Import JSON Recipe"
-                                 >
-                                     <Upload size={20} />
-                                 </button>
-                                 <input 
-                                    type="file" 
-                                    ref={fileInputRef} 
-                                    onChange={handleFileImport} 
-                                    className="hidden" 
-                                    accept=".json" 
-                                 />
-
-                                 {/* Sort Dropdown */}
                                  <div className="relative group">
                                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                                          <ArrowUpDown size={14} className="text-text-muted" />
                                      </div>
-                                     <select
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value as SortOption)}
-                                        className="pl-8 pr-8 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary appearance-none cursor-pointer text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors"
-                                     >
+                                     <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="pl-8 pr-8 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary appearance-none cursor-pointer text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors">
                                          <option value="name">Name (A-Z)</option>
                                          <option value="time">Fastest</option>
                                          <option value="rating">Highest Rated</option>
@@ -465,21 +475,9 @@ const App: React.FC = () => {
                          {/* Tags */}
                          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                              {availableTags.map(tag => {
-                                 let isActive = false;
-                                 if (tag === 'All') {
-                                     isActive = selectedTags.size === 0 && !filterFavorites;
-                                 } else if (tag === 'Favorites') {
-                                     isActive = filterFavorites;
-                                 } else {
-                                     isActive = selectedTags.has(tag);
-                                 }
-
+                                 const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                  return (
-                                     <button 
-                                        key={tag} 
-                                        onClick={() => handleToggleTag(tag)} 
-                                        className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-text-main dark:bg-white text-white dark:text-text-main border-transparent' : 'border-border-light dark:border-border-dark text-text-muted'}`}
-                                     >
+                                     <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-text-main dark:bg-white text-white dark:text-text-main border-transparent' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
                                          {tag}
                                      </button>
                                  );
@@ -528,6 +526,9 @@ const App: React.FC = () => {
             onRefreshList={loadData}
         />
       )}
+
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={() => db.getAllRecipes()} />}
+      {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       
       {/* Mobile Backdrop */}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}

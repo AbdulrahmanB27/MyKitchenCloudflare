@@ -1,5 +1,4 @@
 
-
 export interface Nutrition {
   calories?: number;
   protein?: number;
@@ -88,6 +87,11 @@ export interface Recipe {
   favorite: boolean;
   archived: boolean;
   
+  // Sync & Tenants
+  shareToFamily: boolean; // Sync to global family DB?
+  tenantId?: string; // For future multi-tenancy
+  schemaVersion?: number; 
+
   // Timestamps
   createdAt: number;
   updatedAt: number;
@@ -117,6 +121,7 @@ export interface MealPlan {
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
+  autoSync: boolean;
 }
 
 export interface AppConfig {
@@ -125,3 +130,10 @@ export interface AppConfig {
 }
 
 export type SortOption = 'name' | 'rating' | 'time' | 'calories';
+
+export interface SyncQueueItem {
+    id: string;
+    action: 'upsert' | 'delete';
+    data?: Recipe;
+    timestamp: number;
+}

@@ -41,24 +41,15 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
 // --- Recipes (IndexedDB + Sync) ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-    // 1. Load from IDB (Fast)
+    // 1. Load from IDB (Fast, Offline-First)
     let recipes = await idb.getAll<Recipe>(STORE_RECIPES);
 
-    // 2. Seed if empty
-    if (recipes.length === 0 && config.sampleRecipes) {
-        const hasSeeded = localStorage.getItem('has_seeded_initial_data_v2');
-        if (!hasSeeded) {
-            recipes = config.sampleRecipes as Recipe[];
-            for (const r of recipes) {
-                await idb.put(STORE_RECIPES, r);
-            }
-            localStorage.setItem('has_seeded_initial_data_v2', 'true');
-        }
-    }
-
-    // 3. Trigger Sync in background (if online and auto-sync is on)
+    // 2. Trigger Sync in background to fetch latest from Cloudflare
+    // We do this EVERY time to ensure fresh data, especially after clearing cookies.
     const settings = await getSettings();
     if (navigator.onLine && settings.autoSync !== false) {
+        // If we have 0 recipes, we might have just cleared cookies.
+        // Sync immediately to restore from D1.
         syncRecipes().catch(console.error);
     }
 
@@ -111,11 +102,39 @@ export const deleteRecipe = async (id: string): Promise<void> => {
 // --- SYNC ENGINE ---
 
 const syncRecipes = async () => {
-    // 1. Process Outgoing Queue
+    // 1. Pull Incoming Changes (Cloudflare D1 -> Local IDB)
+    try {
+        // If we have no recipes locally, reset the lastUpdated timestamp to 0 
+        // to force a full fetch from the server.
+        const localRecipes = await idb.getAll(STORE_RECIPES);
+        let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
+        if (localRecipes.length === 0) lastUpdated = '0';
+
+        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`);
+        if (res.ok) {
+            const updates: Recipe[] = await res.json();
+            if (updates.length > 0) {
+                let maxTs = parseInt(lastUpdated);
+                for (const r of updates) {
+                    await idb.put(STORE_RECIPES, r);
+                    if (r.updatedAt > maxTs) maxTs = r.updatedAt;
+                }
+                localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());
+                
+                // Notify UI to re-render
+                window.dispatchEvent(new Event('recipes-updated'));
+            }
+        }
+    } catch (e) {
+        console.warn("Pull sync failed", e);
+    }
+
+    // 2. Process Outgoing Queue (Local IDB -> Cloudflare D1)
     const queue = await idb.getSyncQueue();
     if (queue.length > 0) {
+        // We only try to push if we have an auth token. 
+        // If not, items stay in queue until user logs in via the UI action.
         if (!hasAuthToken()) {
-            if (authCallback) authCallback(); // Prompt User
             return;
         }
 
@@ -142,36 +161,14 @@ const syncRecipes = async () => {
                 if (res && res.ok) {
                     await idb.removeFromSyncQueue(item.id);
                 } else if (res && (res.status === 401 || res.status === 403)) {
-                    // Auth failed
+                    // Auth failed - Token might be expired
                     localStorage.removeItem('family_auth_token');
-                    if (authCallback) authCallback();
-                    return; // Stop processing
+                    return; // Stop processing queue until re-auth
                 }
             } catch (e) {
                 console.error("Sync item failed", e);
             }
         }
-    }
-
-    // 2. Pull Incoming Changes
-    try {
-        const lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
-        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`);
-        if (res.ok) {
-            const updates: Recipe[] = await res.json();
-            if (updates.length > 0) {
-                let maxTs = parseInt(lastUpdated);
-                for (const r of updates) {
-                    await idb.put(STORE_RECIPES, r);
-                    if (r.updatedAt > maxTs) maxTs = r.updatedAt;
-                }
-                localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());
-                // Dispatch event or callback to refresh UI if needed
-                window.dispatchEvent(new Event('recipes-updated'));
-            }
-        }
-    } catch (e) {
-        console.warn("Pull sync failed", e);
     }
 };
 
@@ -197,7 +194,6 @@ export const clearShoppingList = async (onlyChecked: boolean = false): Promise<v
             if (item.isChecked) await idb.remove(STORE_SHOPPING, item.id);
         }
     } else {
-        // Clear all (IDB doesn't have clear(), so loop delete or recreating store, loop is safer for now)
         for (const item of items) {
             await idb.remove(STORE_SHOPPING, item.id);
         }
@@ -226,6 +222,5 @@ export const getSettings = async (): Promise<AppSettings> => {
 };
 
 export const saveSettings = async (settings: AppSettings): Promise<void> => {
-  // We attach a fixed ID for the singleton settings object
   await idb.put(STORE_SETTINGS, { ...settings, id: 'app-settings' });
 };

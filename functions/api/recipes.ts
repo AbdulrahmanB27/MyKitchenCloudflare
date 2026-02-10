@@ -7,12 +7,32 @@ interface Env {
   FAMILY_PASSWORD: string;
 }
 
-const checkAuth = (request: Request) => {
+// Securely verify HMAC-SHA256 signature
+const checkAuth = async (request: Request, secret: string) => {
     const auth = request.headers.get('Authorization');
-    // In a real app, verify the JWT signature.
-    // Here we assume the client obtained a valid token via the /auth endpoint.
-    // For robust security, verify the token signature.
-    return auth && auth.startsWith('Bearer ');
+    if (!auth || !auth.startsWith('Bearer ')) return false;
+    
+    const token = auth.split(' ')[1];
+    const [payloadB64, signatureB64] = token.split('.');
+    if (!payloadB64 || !signatureB64) return false;
+
+    try {
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+            'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+        );
+        const signature = Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0));
+        const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(payloadB64));
+        
+        if (!valid) return false;
+
+        const payload = JSON.parse(atob(payloadB64));
+        if (payload.exp < Date.now()) return false; // Token expired
+
+        return true;
+    } catch (e) {
+        return false;
+    }
 };
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -40,7 +60,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  if (!checkAuth(context.request)) return new Response("Unauthorized", { status: 401 });
+  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  if (!authorized) return new Response("Unauthorized", { status: 401 });
 
   try {
     const recipe = await context.request.json() as any;
@@ -68,7 +89,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
-  if (!checkAuth(context.request)) return new Response("Unauthorized", { status: 401 });
+  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  if (!authorized) return new Response("Unauthorized", { status: 401 });
 
   try {
     const url = new URL(context.request.url);

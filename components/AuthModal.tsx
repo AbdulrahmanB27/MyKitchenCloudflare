@@ -36,14 +36,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         setError('');
         setLoading(true);
 
-        // Allow bypass if token missing in dev, but strictly enforce in prod
-        // For this demo, we assume the backend checks it.
-        
         const success = await db.authenticate(password, turnstileToken);
         setLoading(false);
 
         if (success) {
             onSuccess();
+            // Critical: Immediately retry syncing pending items now that we are logged in
+            db.retrySync();
             onClose();
         } else {
             setError('Incorrect password or verification failed.');

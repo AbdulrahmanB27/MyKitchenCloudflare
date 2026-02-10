@@ -20,9 +20,13 @@ async function signToken(payload: any, secret: string) {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { password, turnstileToken } = await context.request.json() as any;
+
+    if (!context.env.FAMILY_PASSWORD) {
+        return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500 });
+    }
     
     // 1. Validate Turnstile (Production only)
-    if (context.env.TURNSTILE_SECRET) {
+    if (context.env.TURNSTILE_SECRET && turnstileToken) {
         const ip = context.request.headers.get('CF-Connecting-IP');
         const formData = new FormData();
         formData.append('secret', context.env.TURNSTILE_SECRET);
@@ -51,7 +55,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: 'Invalid password' }), { status: 401 });
     }
 
-  } catch (e) {
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 };

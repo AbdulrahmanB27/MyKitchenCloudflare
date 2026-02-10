@@ -72,13 +72,10 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     // 1. Load from IDB (Fast, Offline-First)
     let recipes = await idb.getAll<Recipe>(STORE_RECIPES);
 
-    // 2. Trigger Sync in background to fetch latest from Cloudflare
-    // We do this EVERY time to ensure fresh data, especially after clearing cookies.
+    // 2. Trigger Sync in background (Silent Auto Mode)
     const settings = await getSettings();
     if (navigator.onLine && settings.autoSync !== false) {
-        // If we have 0 recipes, we might have just cleared cookies.
-        // Sync immediately to restore from D1.
-        syncRecipes().catch(console.error);
+        syncRecipes('auto').catch(console.error);
     }
 
     return recipes;
@@ -101,10 +98,10 @@ export const upsertRecipe = async (recipe: Recipe): Promise<void> => {
             timestamp: Date.now()
         });
         
-        // 3. Try Sync
+        // 3. Try Sync (Manual Mode - Trigger Prompt if needed)
         const settings = await getSettings();
         if (navigator.onLine && settings.autoSync !== false) {
-            syncRecipes();
+            syncRecipes('manual');
         }
     }
 };
@@ -120,20 +117,21 @@ export const deleteRecipe = async (id: string): Promise<void> => {
         timestamp: Date.now()
     });
 
-    // 3. Try Sync
+    // 3. Try Sync (Manual Mode)
     const settings = await getSettings();
     if (navigator.onLine && settings.autoSync !== false) {
-        syncRecipes();
+        syncRecipes('manual');
     }
 };
 
 // --- SYNC ENGINE ---
 
-const syncRecipes = async () => {
+// Exposed for AuthModal to trigger after successful login
+export const retrySync = () => syncRecipes('manual');
+
+const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
     // 1. Pull Incoming Changes (Cloudflare D1 -> Local IDB)
     try {
-        // If we have no recipes locally, reset the lastUpdated timestamp to 0 
-        // to force a full fetch from the server.
         const localRecipes = await idb.getAll(STORE_RECIPES);
         let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
         if (localRecipes.length === 0) lastUpdated = '0';
@@ -161,9 +159,12 @@ const syncRecipes = async () => {
     const queue = await idb.getSyncQueue();
     if (queue.length > 0) {
         // We only try to push if we have an auth token. 
-        // If not, trigger the auth modal so the user can log in and sync their changes.
         if (!hasAuthToken()) {
-            if (authCallback) authCallback();
+            // ONLY prompt the user if this is a MANUAL sync attempt (user just saved something)
+            // If it's AUTO (background load), stay silent and keep items in queue.
+            if (mode === 'manual' && authCallback) {
+                authCallback();
+            }
             return;
         }
 
@@ -192,7 +193,7 @@ const syncRecipes = async () => {
                 } else if (res && (res.status === 401 || res.status === 403)) {
                     // Auth failed - Token might be expired
                     localStorage.removeItem('family_auth_token');
-                    if (authCallback) authCallback(); // Prompt user to log in again
+                    if (mode === 'manual' && authCallback) authCallback(); // Re-prompt only if manual
                     return; // Stop processing queue until re-auth
                 }
             } catch (e) {

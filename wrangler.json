@@ -1,3 +1,4 @@
+
 {
   "name": "my-meal-prep-recipes",
   "assets": {
@@ -11,8 +12,14 @@
     {
       "binding": "DB",
       "database_name": "MyKitchenDB",
-      "database_id": "a250f66a-6914-407a-a4c7-7a9b4b15d9b4",
+      "database_id": "2634e868-674e-42a6-acd4-f173c8a52a57",
       "remote": true
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "my-kitchen-images"
     }
   ]
 }

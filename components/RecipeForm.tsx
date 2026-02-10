@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import * as db from '../services/db';
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
@@ -47,6 +48,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     shareToFamily: true, // Default to true
     reviews: []
   });
+
+  // Upload State
+  const [isUploading, setIsUploading] = useState(false);
 
   // Text Area State for Array fields
   const [rawTags, setRawTags] = useState('');
@@ -195,19 +199,40 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       if (!isNaN(num)) updateNested(parent, field, num);
   }
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
+  
   const processImageFile = (file: File) => {
       const reader = new FileReader();
       reader.onload = (event) => {
           const img = new Image();
-          img.onload = () => {
+          img.onload = async () => {
+              // 1. Resize/Compress via Canvas
               const canvas = document.createElement('canvas');
               let width = img.width;
               let height = img.height;
-              const MAX_SIZE = 800;
+              const MAX_SIZE = 1200; // Larger max size for R2
               if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
               canvas.width = width; canvas.height = height;
               const ctx = canvas.getContext('2d');
-              if (ctx) { ctx.drawImage(img, 0, 0, width, height); handleChange('image', canvas.toDataURL('image/jpeg', 0.7)); }
+              if (ctx) { 
+                  ctx.drawImage(img, 0, 0, width, height); 
+                  
+                  // 2. Convert to Blob
+                  canvas.toBlob(async (blob) => {
+                      if (blob) {
+                          try {
+                              setIsUploading(true);
+                              // 3. Upload to R2 via API
+                              const url = await db.uploadImage(blob);
+                              handleChange('image', url);
+                          } catch (e) {
+                              console.error(e);
+                              alert("Failed to upload image. Please ensure you are logged in (Shared Family Mode).");
+                          } finally {
+                              setIsUploading(false);
+                          }
+                      }
+                  }, 'image/jpeg', 0.8);
+              }
           };
           img.src = event.target?.result as string;
       };
@@ -268,8 +293,23 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                <div><label className="label">Servings</label><input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className="input" placeholder="1"/></div>
              </div>
              <div><label className="label">Tags</label><input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick..." /></div>
-             {/* Media Inputs (Simplified) */}
-             <div className="pt-2"><label className="label">Image URL / Upload</label><div className="flex gap-2"><input type="text" value={formData.image?.startsWith('data:') ? '' : (formData.image || '')} onChange={e => handleChange('image', e.target.value)} className="input" placeholder="https://..." disabled={!!formData.image?.startsWith('data:')} /><label className="p-2 border rounded cursor-pointer"><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /><Upload size={20}/></label></div></div>
+             
+             {/* Media Inputs (R2 Integration) */}
+             <div className="pt-2">
+                 <label className="label">Image</label>
+                 <div className="flex gap-2">
+                     <input type="text" value={formData.image || ''} onChange={e => handleChange('image', e.target.value)} className="input" placeholder="https://..." disabled={isUploading} />
+                     <label className={`p-2 border rounded cursor-pointer transition-colors ${isUploading ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                         {isUploading ? <Loader className="animate-spin text-primary" size={20} /> : <Upload size={20} />}
+                     </label>
+                 </div>
+                 {formData.image && (
+                     <div className="mt-2 relative h-32 w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-border-light dark:border-border-dark">
+                         <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                     </div>
+                 )}
+             </div>
           </section>
 
           {/* Ingredients Section */}
@@ -331,7 +371,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         </div>
         <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-between gap-3 bg-card-light dark:bg-card-dark rounded-b-2xl">
           {initialData?.id && onDelete ? <button type="button" onClick={() => onDelete(initialData.id)} className="px-4 py-2 text-red-500"><Trash2 size={18} /></button> : <div></div>}
-          <div className="flex gap-3"><button type="button" onClick={onClose} className="px-5 py-2 rounded-lg">Cancel</button><button type="submit" className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2"><Save size={18} /> Save</button></div>
+          <div className="flex gap-3"><button type="button" onClick={onClose} className="px-5 py-2 rounded-lg">Cancel</button><button type="submit" disabled={isUploading} className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2 disabled:opacity-50"><Save size={18} /> Save</button></div>
         </div>
       </form>
       <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: #4e9767; margin-bottom: 0.25rem; } .dark .label { color: #8bc49e; } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #e7f3eb; background-color: #f8fcf9; color: #0e1b12; outline: none; } .dark .input { border-color: #2a4030; background-color: #1a2c20; color: white; }`}</style>

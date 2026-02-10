@@ -38,6 +38,34 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
     }
 };
 
+// --- Images (R2) ---
+
+export const uploadImage = async (file: Blob): Promise<string> => {
+    if (!hasAuthToken()) {
+        if (authCallback) authCallback();
+        throw new Error("Authentication required to upload images");
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_BASE}/images`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: formData
+    });
+
+    if (!res.ok) {
+        throw new Error("Image upload failed");
+    }
+
+    const data = await res.json();
+    return data.url;
+};
+
+
 // --- Recipes (IndexedDB + Sync) ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
@@ -133,8 +161,9 @@ const syncRecipes = async () => {
     const queue = await idb.getSyncQueue();
     if (queue.length > 0) {
         // We only try to push if we have an auth token. 
-        // If not, items stay in queue until user logs in via the UI action.
+        // If not, trigger the auth modal so the user can log in and sync their changes.
         if (!hasAuthToken()) {
+            if (authCallback) authCallback();
             return;
         }
 
@@ -163,6 +192,7 @@ const syncRecipes = async () => {
                 } else if (res && (res.status === 401 || res.status === 403)) {
                     // Auth failed - Token might be expired
                     localStorage.removeItem('family_auth_token');
+                    if (authCallback) authCallback(); // Prompt user to log in again
                     return; // Stop processing queue until re-auth
                 }
             } catch (e) {

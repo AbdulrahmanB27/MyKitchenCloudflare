@@ -6,5 +6,13 @@
   "compatibility_date": "2025-02-04",
   "observability": {
     "enabled": true
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "MyKitchenDB",
+      "database_id": "a250f66a-6914-407a-a4c7-7a9b4b15d9b4",
+      "remote": true
+    }
+  ]
 }

@@ -126,6 +126,10 @@ export const deleteRecipe = async (id: string): Promise<void> => {
 
 // --- SYNC ENGINE ---
 
+export const getSyncQueue = async () => {
+    return idb.getSyncQueue();
+};
+
 // Exposed for AuthModal to trigger after successful login
 export const retrySync = () => syncRecipes('manual');
 

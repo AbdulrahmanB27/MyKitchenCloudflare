@@ -19,9 +19,13 @@ async function signToken(payload: any, secret: string) {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
-    const { password, turnstileToken } = await context.request.json() as any;
+    const body = await context.request.json() as any;
+    const password = (body.password || '').trim();
+    const turnstileToken = body.turnstileToken;
 
-    if (!context.env.FAMILY_PASSWORD) {
+    const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+
+    if (!envPassword) {
         return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500 });
     }
     
@@ -43,15 +47,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     }
 
     // 2. Validate Password & Generate Signed Token
-    if (password === context.env.FAMILY_PASSWORD) {
+    if (password === envPassword) {
         // Token expires in 30 days
         const payload = { 
             sub: 'family_member', 
             exp: Date.now() + (1000 * 60 * 60 * 24 * 30) 
         };
-        const token = await signToken(payload, context.env.FAMILY_PASSWORD);
+        const token = await signToken(payload, envPassword);
         return new Response(JSON.stringify({ token, success: true }));
     } else {
+        // console.log(`Auth failed. Received: '${password}', Expected: '${envPassword.replace(/./g, '*')}'`);
         return new Response(JSON.stringify({ error: 'Invalid password' }), { status: 401 });
     }
 

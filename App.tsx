@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({ theme: 'system', autoSync: true });
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingSyncIds, setPendingSyncIds] = useState<Set<string>>(new Set());
   
   // View State
   const [currentView, setCurrentView] = useState<'recipes' | 'shopping' | 'planner' | 'settings' | 'recommendations'>('recipes');
@@ -43,6 +44,9 @@ const App: React.FC = () => {
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  
+  // State to hold a recipe that is waiting for authentication to be saved
+  const [pendingRecipeSave, setPendingRecipeSave] = useState<Recipe | null>(null);
 
   // --- Import Logic ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,8 +129,14 @@ const App: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const loadedRecipes = await db.getAllRecipes();
+      const [loadedRecipes, queue] = await Promise.all([
+          db.getAllRecipes(),
+          db.getSyncQueue()
+      ]);
       setRecipes(loadedRecipes);
+      // Track which IDs are pending sync
+      const pendingIds = new Set(queue.map(q => q.id));
+      setPendingSyncIds(pendingIds);
       return loadedRecipes;
     } catch (err) {
       console.error("Failed to load recipes", err);
@@ -144,6 +154,10 @@ const App: React.FC = () => {
             setRecipes(loadedRecipes);
             setSettings(loadedSettings);
             applyTheme(loadedSettings.theme);
+            
+            // Check queue initially
+            const queue = await db.getSyncQueue();
+            setPendingSyncIds(new Set(queue.map(q => q.id)));
         } catch (e) {
             console.error("Initialization failed", e);
         } finally {
@@ -194,7 +208,7 @@ const App: React.FC = () => {
       const newSettings = { ...settings, autoSync: !settings.autoSync };
       setSettings(newSettings);
       db.saveSettings(newSettings);
-      if (newSettings.autoSync) db.getAllRecipes(); // Trigger sync attempt
+      if (newSettings.autoSync) loadData(); // Trigger sync attempt via loadData which calls getAllRecipes
   };
 
   // --- Computed ---
@@ -284,11 +298,30 @@ const App: React.FC = () => {
     setSelectedTags(next);
   };
 
+  const performSave = async (recipe: Recipe) => {
+      await db.upsertRecipe(recipe);
+      await loadData();
+      setIsFormOpen(false);
+      setEditingRecipe(null);
+      setPendingRecipeSave(null);
+  };
+
   const handleSaveRecipe = async (recipe: Recipe) => {
-    await db.upsertRecipe(recipe);
-    await loadData();
-    setIsFormOpen(false);
-    setEditingRecipe(null);
+    // If sharing to family AND not authenticated, block the save and show modal
+    if (recipe.shareToFamily && !db.hasAuthToken()) {
+        setPendingRecipeSave(recipe);
+        setShowAuthModal(true);
+        return;
+    }
+    await performSave(recipe);
+  };
+
+  const handleAuthSuccess = () => {
+      // If we were waiting to save a recipe, do it now
+      if (pendingRecipeSave) {
+          performSave(pendingRecipeSave);
+      }
+      db.getAllRecipes(); // Trigger sync
   };
 
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
@@ -299,6 +332,13 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecipe = async (id: string) => {
+    // Check if shared, if so require auth to delete
+    const recipe = recipes.find(r => r.id === id);
+    if (recipe?.shareToFamily && !db.hasAuthToken()) {
+        setShowAuthModal(true);
+        return;
+    }
+
     if(!confirm('Delete this recipe? This cannot be undone.')) return;
     await db.deleteRecipe(id);
     await loadData();
@@ -527,7 +567,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={() => db.getAllRecipes()} />}
+      {showAuthModal && <AuthModal onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       
       {/* Mobile Backdrop */}

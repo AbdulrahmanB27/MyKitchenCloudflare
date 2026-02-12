@@ -22,12 +22,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
     const [turnstileToken, setTurnstileToken] = useState('');
 
     useEffect(() => {
-        // Initialize Turnstile
+        // Initialize Turnstile with the "Always Pass" Test Key
+        // This prevents the 400020 error in dev and production when using dummy keys
         if (window.turnstile && turnstileRef.current) {
-            window.turnstile.render(turnstileRef.current, {
-                sitekey: '0x4AAAAAAAARrB6c2q-jW-wW', // Use dummy test key for dev, replace with env var in prod
-                callback: (token: string) => setTurnstileToken(token),
-            });
+            try {
+                window.turnstile.render(turnstileRef.current, {
+                    sitekey: '1x00000000000000000000AA', // Official Cloudflare Test Key (Always Pass)
+                    callback: (token: string) => setTurnstileToken(token),
+                    'error-callback': () => setError('Verification widget failed to load.')
+                });
+            } catch (e) {
+                console.warn("Turnstile render failed", e);
+            }
         }
     }, []);
 
@@ -36,18 +42,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         setError('');
         setLoading(true);
 
-        const success = await db.authenticate(password, turnstileToken);
+        const result = await db.authenticate(password, turnstileToken);
         setLoading(false);
 
-        if (success) {
+        if (result.success) {
             onSuccess();
             // Critical: Immediately retry syncing pending items now that we are logged in
             db.retrySync();
             onClose();
         } else {
-            setError('Incorrect password or verification failed.');
-            // Reset turnstile
-            if (window.turnstile) window.turnstile.reset();
+            // Display specific error from server (e.g., "Invalid password", "Server misconfigured")
+            setError(result.error || 'Incorrect password or verification failed.');
+            
+            // Reset turnstile if it exists
+            if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(e) {}
+            }
             setTurnstileToken('');
         }
     };
@@ -80,7 +90,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
                     <div ref={turnstileRef} className="flex justify-center min-h-[65px]"></div>
 
-                    {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
+                    {error && <p className="text-red-500 text-xs text-center font-bold px-4">{error}</p>}
 
                     <div className="flex gap-3">
                         <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-text-muted hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">

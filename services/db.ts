@@ -17,24 +17,26 @@ export const hasAuthToken = () => !!getAuthToken();
 // --- Sync State ---
 const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
 
-export const authenticate = async (password: string, turnstileToken: string): Promise<boolean> => {
+// Return object with success status and optional error message
+export const authenticate = async (password: string, turnstileToken: string): Promise<{ success: boolean; error?: string }> => {
     try {
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password, turnstileToken })
         });
-        if (res.ok) {
-            const data = await res.json();
-            if (data.token) {
-                setAuthToken(data.token);
-                return true;
-            }
+        
+        const data = await res.json();
+        
+        if (res.ok && data.token) {
+            setAuthToken(data.token);
+            return { success: true };
+        } else {
+            return { success: false, error: data.error || 'Authentication failed' };
         }
-        return false;
-    } catch (e) {
-        console.error("Auth failed", e);
-        return false;
+    } catch (e: any) {
+        console.error("Auth network error", e);
+        return { success: false, error: e.message || 'Network error occurred' };
     }
 };
 

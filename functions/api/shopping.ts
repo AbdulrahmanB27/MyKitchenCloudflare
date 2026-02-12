@@ -26,7 +26,8 @@ const checkAuth = async (request: Request, secret: string) => {
 };
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+  const authorized = await checkAuth(context.request, envPassword);
   if (!authorized) return new Response("Unauthorized", { status: 401 });
   
   try {
@@ -39,7 +40,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+  const authorized = await checkAuth(context.request, envPassword);
   if (!authorized) return new Response("Unauthorized", { status: 401 });
 
   try {
@@ -54,7 +56,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
-  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+  const authorized = await checkAuth(context.request, envPassword);
   if (!authorized) return new Response("Unauthorized", { status: 401 });
 
   try {

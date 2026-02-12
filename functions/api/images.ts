@@ -49,7 +49,8 @@ export const onRequestGet = async (context: any) => {
 
 // POST: Upload images
 export const onRequestPost = async (context: any) => {
-  const authorized = await checkAuth(context.request, context.env.FAMILY_PASSWORD);
+  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+  const authorized = await checkAuth(context.request, envPassword);
   if (!authorized) return new Response("Unauthorized", { status: 401 });
 
   try {

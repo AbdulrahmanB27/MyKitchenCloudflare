@@ -76,6 +76,7 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     const settings = await getSettings();
     if (navigator.onLine && settings.autoSync !== false) {
         syncRecipes('auto').catch(console.error);
+        syncShoppingList().catch(console.error); // Also sync shopping list
     }
 
     return recipes;
@@ -124,6 +125,71 @@ export const deleteRecipe = async (id: string): Promise<void> => {
     }
 };
 
+// --- Shopping List (Sync Enabled) ---
+
+export const getShoppingList = async (): Promise<ShoppingItem[]> => {
+    const items = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
+    
+    // Trigger background sync on load
+    if (navigator.onLine) syncShoppingList().catch(console.error);
+    
+    return items;
+};
+
+export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
+    await idb.put(STORE_SHOPPING, item);
+    
+    // Always attempt to sync shopping list items if logged in, but don't force auth modal
+    // Shopping list is treated as "Sync if possible, otherwise Local"
+    if (navigator.onLine && hasAuthToken()) {
+       fetch(`${API_BASE}/shopping`, {
+           method: 'POST',
+           headers: { 
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${getAuthToken()}`
+           },
+           body: JSON.stringify(item)
+       }).catch(console.warn);
+    }
+};
+
+export const deleteShoppingItem = async (id: string): Promise<void> => {
+    await idb.remove(STORE_SHOPPING, id);
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/shopping?id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        }).catch(console.warn);
+    }
+};
+
+export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
+    const items = await getShoppingList();
+    const idsToDelete: string[] = [];
+
+    if (onlyChecked) {
+        for (const item of items) {
+            if (item.isChecked) {
+                await idb.remove(STORE_SHOPPING, item.id);
+                idsToDelete.push(item.id);
+            }
+        }
+    } else {
+        for (const item of items) {
+            await idb.remove(STORE_SHOPPING, item.id);
+            idsToDelete.push(item.id);
+        }
+    }
+
+    if (navigator.onLine && hasAuthToken()) {
+        const query = onlyChecked ? 'clearAll=checked' : 'clearAll=true';
+        fetch(`${API_BASE}/shopping?${query}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        }).catch(console.warn);
+    }
+};
+
 // --- SYNC ENGINE ---
 
 export const getSyncQueue = async () => {
@@ -131,7 +197,29 @@ export const getSyncQueue = async () => {
 };
 
 // Exposed for AuthModal to trigger after successful login
-export const retrySync = () => syncRecipes('manual');
+export const retrySync = () => {
+    syncRecipes('manual');
+    syncShoppingList();
+};
+
+// Simple Shopping List Sync (Last Write Wins, no queue for simplicity, relies on load to fetch)
+const syncShoppingList = async () => {
+    if (!hasAuthToken()) return;
+    try {
+        const res = await fetch(`${API_BASE}/shopping`, {
+             headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        });
+        if (res.ok) {
+            const serverItems: ShoppingItem[] = await res.json();
+            // Merge strategy: Overwrite local with server for simplicity in this context
+            if (serverItems.length > 0) {
+                 for (const item of serverItems) {
+                     await idb.put(STORE_SHOPPING, item);
+                 }
+            }
+        }
+    } catch(e) { console.warn("Shopping sync failed", e); }
+};
 
 const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
     // 1. Pull Incoming Changes (Cloudflare D1 -> Local IDB)
@@ -207,33 +295,6 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
     }
 };
 
-
-// --- Shopping List (Local Only) ---
-
-export const getShoppingList = async (): Promise<ShoppingItem[]> => {
-    return idb.getAll(STORE_SHOPPING);
-};
-
-export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
-    await idb.put(STORE_SHOPPING, item);
-};
-
-export const deleteShoppingItem = async (id: string): Promise<void> => {
-    await idb.remove(STORE_SHOPPING, id);
-};
-
-export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
-    const items = await getShoppingList();
-    if (onlyChecked) {
-        for (const item of items) {
-            if (item.isChecked) await idb.remove(STORE_SHOPPING, item.id);
-        }
-    } else {
-        for (const item of items) {
-            await idb.remove(STORE_SHOPPING, item.id);
-        }
-    }
-};
 
 // --- Meal Plans (Local Only) ---
 

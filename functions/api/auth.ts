@@ -20,6 +20,7 @@ async function signToken(payload: any, secret: string) {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const body = await context.request.json() as any;
+    // We still trim to remove accidental leading/trailing spaces from copy-pasting
     const password = (body.password || '').trim();
     const turnstileToken = body.turnstileToken;
 
@@ -46,7 +47,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         }
     }
 
-    // 2. Validate Password & Generate Signed Token
+    // 2. Validate Password (Case-Sensitive Strict Match)
     if (password === envPassword) {
         // Token expires in 30 days
         const payload = { 
@@ -56,7 +57,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const token = await signToken(payload, envPassword);
         return new Response(JSON.stringify({ token, success: true }));
     } else {
-        // console.log(`Auth failed. Received: '${password}', Expected: '${envPassword.replace(/./g, '*')}'`);
         return new Response(JSON.stringify({ error: 'Invalid password' }), { status: 401 });
     }
 

@@ -17,7 +17,23 @@ async function signToken(payload: any, secret: string) {
     return `${data}.${signatureB64}`;
 }
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
+export const onRequest: PagesFunction<Env> = async (context) => {
+  // Handle CORS Preflight or other methods gracefully
+  if (context.request.method === "OPTIONS") {
+      return new Response(null, {
+          headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "POST, OPTIONS",
+              "Access-Control-Allow-Headers": "Content-Type",
+          }
+      });
+  }
+
+  // Enforce POST
+  if (context.request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+  }
+
   try {
     let body;
     try {

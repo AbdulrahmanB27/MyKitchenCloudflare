@@ -20,12 +20,19 @@ const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
 // Return object with success status and optional error message
 export const authenticate = async (password: string, turnstileToken: string): Promise<{ success: boolean; error?: string }> => {
     try {
+        console.log(`Authenticating against ${API_BASE}/auth...`);
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password, turnstileToken })
         });
         
+        // Handle 404 specifically to help debug dev environment issues
+        if (res.status === 404) {
+            console.error("API endpoint not found (404).");
+            return { success: false, error: 'API not found. If running locally, use "wrangler pages dev".' };
+        }
+
         // Safely handle the response, even if it's empty or HTML error page
         const text = await res.text();
         
@@ -34,7 +41,7 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
             data = text ? JSON.parse(text) : {};
         } catch (e) {
             console.error("Auth response was not JSON:", text);
-            return { success: false, error: `Server Error (${res.status}): Please check logs.` };
+            return { success: false, error: `Server Error (${res.status}): Non-JSON response.` };
         }
         
         if (res.ok && data.token) {

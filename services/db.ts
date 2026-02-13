@@ -26,13 +26,22 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
             body: JSON.stringify({ password, turnstileToken })
         });
         
-        const data = await res.json();
+        // Safely handle the response, even if it's empty or HTML error page
+        const text = await res.text();
+        
+        let data;
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            console.error("Auth response was not JSON:", text);
+            return { success: false, error: `Server Error (${res.status}): Please check logs.` };
+        }
         
         if (res.ok && data.token) {
             setAuthToken(data.token);
             return { success: true };
         } else {
-            return { success: false, error: data.error || 'Authentication failed' };
+            return { success: false, error: data.error || `Authentication failed (${res.status})` };
         }
     } catch (e: any) {
         console.error("Auth network error", e);

@@ -19,7 +19,13 @@ async function signToken(payload: any, secret: string) {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
-    const body = await context.request.json() as any;
+    let body;
+    try {
+        body = await context.request.json() as any;
+    } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON request body' }), { status: 400 });
+    }
+
     // We still trim to remove accidental leading/trailing spaces from copy-pasting
     const password = (body.password || '').trim();
     const turnstileToken = body.turnstileToken;
@@ -30,20 +36,32 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500 });
     }
     
-    // 1. Validate Turnstile (Production only)
-    if (context.env.TURNSTILE_SECRET && turnstileToken) {
+    // 1. Validate Turnstile
+    // If TURNSTILE_SECRET is set, we ENFORCE it. 
+    if (context.env.TURNSTILE_SECRET) {
+        if (!turnstileToken) {
+            return new Response(JSON.stringify({ error: 'Verification token missing' }), { status: 400 });
+        }
+
         const ip = context.request.headers.get('CF-Connecting-IP');
         const formData = new FormData();
         formData.append('secret', context.env.TURNSTILE_SECRET);
         formData.append('response', turnstileToken);
         formData.append('remoteip', ip || '');
     
-        const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
-        const result = await fetch(url, { body: formData, method: 'POST' });
-        const outcome = await result.json() as any;
-        
-        if (!outcome.success) {
-           return new Response(JSON.stringify({ error: 'Turnstile verification failed' }), { status: 403 });
+        try {
+            const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+            const result = await fetch(url, { body: formData, method: 'POST' });
+            const outcome = await result.json() as any;
+            
+            if (!outcome.success) {
+               console.error('Turnstile verification failed', outcome);
+               return new Response(JSON.stringify({ error: 'Security check failed. Please refresh.' }), { status: 403 });
+            }
+        } catch (e) {
+            console.error('Turnstile fetch error', e);
+            // Fail open or closed? Safest to fail closed if we can't verify.
+            return new Response(JSON.stringify({ error: 'Could not verify security token' }), { status: 500 });
         }
     }
 
@@ -57,10 +75,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const token = await signToken(payload, envPassword);
         return new Response(JSON.stringify({ token, success: true }));
     } else {
-        return new Response(JSON.stringify({ error: 'Invalid password' }), { status: 401 });
+        return new Response(JSON.stringify({ error: 'Incorrect password' }), { status: 401 });
     }
 
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: `Server Error: ${e.message}` }), { status: 500 });
   }
 };

@@ -22,12 +22,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
     const [turnstileToken, setTurnstileToken] = useState('');
 
     useEffect(() => {
-        // Initialize Turnstile with the "Always Pass" Test Key
-        // This prevents the 400020 error in dev and production when using dummy keys
+        // Initialize Turnstile
         if (window.turnstile && turnstileRef.current) {
             try {
                 window.turnstile.render(turnstileRef.current, {
-                    sitekey: '1x00000000000000000000AA', // Official Cloudflare Test Key (Always Pass)
+                    sitekey: '0x4AAAAAACbNmMbGsTdJpq8I', 
                     callback: (token: string) => setTurnstileToken(token),
                     'error-callback': () => setError('Verification widget failed to load.')
                 });

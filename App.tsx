@@ -10,7 +10,7 @@ import MealPlanner from './components/MealPlanner';
 import Recommendations from './components/Recommendations';
 import AuthModal from './components/AuthModal';
 import ExportModal, { ExportOptions } from './components/ExportModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -77,8 +77,6 @@ const App: React.FC = () => {
         let count = 0;
         for (const r of recipesToImport) {
             if (r.name && r.ingredients && r.instructions) {
-                // If importing a backup, we might want to preserve the 'shareToFamily' status 
-                // if it exists, otherwise default to false for safety.
                 const shouldShare = r.shareToFamily !== undefined ? r.shareToFamily : false;
                 await db.upsertRecipe({ ...r, shareToFamily: shouldShare });
                 count++;
@@ -208,7 +206,7 @@ const App: React.FC = () => {
       const newSettings = { ...settings, autoSync: !settings.autoSync };
       setSettings(newSettings);
       db.saveSettings(newSettings);
-      if (newSettings.autoSync) loadData(); // Trigger sync attempt via loadData which calls getAllRecipes
+      if (newSettings.autoSync) loadData(); 
   };
 
   // --- Computed ---
@@ -216,29 +214,12 @@ const App: React.FC = () => {
   const filteredRecipes = useMemo(() => {
     let result = recipes;
 
-    // Filter by Archived
-    if (!showArchived) {
-        result = result.filter(r => !r.archived);
-    }
+    if (!showArchived) result = result.filter(r => !r.archived);
+    if (selectedCategory !== 'All') result = result.filter(r => r.category === selectedCategory);
+    if (filterFavorites) result = result.filter(r => r.favorite);
+    if (familyFilter === 'mine') result = result.filter(r => !r.shareToFamily);
+    else if (familyFilter === 'family') result = result.filter(r => r.shareToFamily);
 
-    // Filter by Category
-    if (selectedCategory !== 'All') {
-        result = result.filter(r => r.category === selectedCategory);
-    }
-
-    // Filter by Favorites
-    if (filterFavorites) {
-        result = result.filter(r => r.favorite);
-    }
-
-    // Filter by Family Share Status
-    if (familyFilter === 'mine') {
-        result = result.filter(r => !r.shareToFamily);
-    } else if (familyFilter === 'family') {
-        result = result.filter(r => r.shareToFamily);
-    }
-
-    // Filter by Tags (AND logic)
     if (selectedTags.size > 0) {
         result = result.filter(r => {
             for (const tag of selectedTags) {
@@ -248,7 +229,6 @@ const App: React.FC = () => {
         });
     }
 
-    // Filter by Search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => 
@@ -257,7 +237,6 @@ const App: React.FC = () => {
       );
     }
 
-    // Sort
     return result.sort((a, b) => {
         if (a.favorite && !b.favorite) return -1;
         if (!a.favorite && b.favorite) return 1;
@@ -307,7 +286,6 @@ const App: React.FC = () => {
   };
 
   const handleSaveRecipe = async (recipe: Recipe) => {
-    // If sharing to family AND not authenticated, block the save and show modal
     if (recipe.shareToFamily && !db.hasAuthToken()) {
         setPendingRecipeSave(recipe);
         setShowAuthModal(true);
@@ -317,11 +295,10 @@ const App: React.FC = () => {
   };
 
   const handleAuthSuccess = () => {
-      // If we were waiting to save a recipe, do it now
       if (pendingRecipeSave) {
           performSave(pendingRecipeSave);
       }
-      db.getAllRecipes(); // Trigger sync
+      db.getAllRecipes(); 
   };
 
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
@@ -332,13 +309,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecipe = async (id: string) => {
-    // Check if shared, if so require auth to delete
     const recipe = recipes.find(r => r.id === id);
     if (recipe?.shareToFamily && !db.hasAuthToken()) {
         setShowAuthModal(true);
         return;
     }
-
     if(!confirm('Delete this recipe? This cannot be undone.')) return;
     await db.deleteRecipe(id);
     await loadData();
@@ -346,6 +321,15 @@ const App: React.FC = () => {
     setEditingRecipe(null);
     setActiveRecipeId(null);
   };
+
+  const getSyncStatus = () => {
+      if (!settings.autoSync) return { icon: <RefreshCw size={10} />, text: 'Paused', color: 'text-gray-400' };
+      if (!isOnline) return { icon: <CloudOff size={10} />, text: 'Offline', color: 'text-yellow-500' };
+      if (pendingSyncIds.size > 0) return { icon: <Loader2 size={10} className="animate-spin" />, text: 'Syncing...', color: 'text-blue-500' };
+      return { icon: <Cloud size={10} />, text: 'Synced', color: 'text-primary' };
+  };
+
+  const syncStatus = getSyncStatus();
 
   // --- Render ---
 
@@ -362,8 +346,8 @@ const App: React.FC = () => {
             {!isSidebarCollapsed ? (
                 <div>
                     <h1 className="text-xl font-bold dark:text-white whitespace-nowrap">MyKitchen</h1>
-                    <button onClick={toggleAutoSync} className={`text-xs whitespace-nowrap flex items-center gap-1 ${settings.autoSync ? (isOnline ? 'text-primary' : 'text-yellow-500') : 'text-gray-400'} hover:underline`} title="Click to toggle auto-sync">
-                        {settings.autoSync ? (isOnline ? <><Cloud size={10} /> Synced</> : <><CloudOff size={10} /> Offline (Queued)</>) : <><RefreshCw size={10} /> Sync Paused</>}
+                    <button onClick={toggleAutoSync} className={`text-xs whitespace-nowrap flex items-center gap-1 ${syncStatus.color} hover:underline`} title="Click to toggle auto-sync">
+                        {syncStatus.icon} {syncStatus.text}
                     </button>
                 </div>
             ) : (
@@ -416,7 +400,6 @@ const App: React.FC = () => {
                 </button>
             </div>
             
-            {/* Filters */}
              <div className={`border-t border-border-light dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
                  {!isSidebarCollapsed && <h4 className="text-xs font-bold uppercase text-text-muted px-3 mb-2">Filters</h4>}
                  
@@ -429,7 +412,6 @@ const App: React.FC = () => {
                             <span className="font-medium">Show Archived</span>
                         </div>
                         
-                        {/* Family Filters */}
                         <div className="px-3 py-2">
                              <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-1">
                                  <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'all' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>All</button>
@@ -457,7 +439,6 @@ const App: React.FC = () => {
             </div>
             <button onClick={toggleTheme} className="text-gray-500 hover:text-primary transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
-        {/* Hidden Input for Import */}
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
@@ -470,7 +451,6 @@ const App: React.FC = () => {
 
         {currentView === 'recipes' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Mobile Header */}
                 <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
                         <span className="material-symbols-outlined">menu</span>
@@ -503,7 +483,6 @@ const App: React.FC = () => {
                              </div>
                          </div>
 
-                         {/* Categories */}
                          <div className="flex gap-2">
                              {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
                                  <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-surface-light dark:bg-surface-dark text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}>
@@ -512,7 +491,6 @@ const App: React.FC = () => {
                              ))}
                          </div>
 
-                         {/* Tags */}
                          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                              {availableTags.map(tag => {
                                  const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
@@ -524,7 +502,6 @@ const App: React.FC = () => {
                              })}
                          </div>
 
-                         {/* Grid */}
                          {filteredRecipes.length === 0 ? (
                              <div className="text-center py-20 text-text-muted border-2 border-dashed border-border-light dark:border-border-dark rounded-2xl">
                                  <p>No recipes found.</p>
@@ -539,7 +516,6 @@ const App: React.FC = () => {
                      </div>
                 </div>
 
-                {/* FAB */}
                 <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30">
                     <Plus size={28} />
                 </button>
@@ -548,7 +524,6 @@ const App: React.FC = () => {
 
       </main>
 
-      {/* Modals */}
       {(isFormOpen || editingRecipe) && (
         <RecipeForm 
             initialData={editingRecipe} 
@@ -570,7 +545,6 @@ const App: React.FC = () => {
       {showAuthModal && <AuthModal onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       
-      {/* Mobile Backdrop */}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 
       <style>{`

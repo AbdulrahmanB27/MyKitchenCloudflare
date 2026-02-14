@@ -27,13 +27,11 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
             body: JSON.stringify({ password, turnstileToken })
         });
         
-        // Handle 404 specifically to help debug dev environment issues
         if (res.status === 404) {
             console.error("API endpoint not found (404).");
             return { success: false, error: 'API not found. Ensure backend is running (npx wrangler dev).' };
         }
 
-        // Safely handle the response, even if it's empty or HTML error page
         const text = await res.text();
         
         let data;
@@ -117,6 +115,9 @@ export const upsertRecipe = async (recipe: Recipe): Promise<void> => {
             timestamp: Date.now()
         });
         
+        // Update UI immediately to show pending state
+        window.dispatchEvent(new Event('recipes-updated'));
+
         // 3. Try Sync (Manual Mode - Trigger Prompt if needed)
         const settings = await getSettings();
         if (navigator.onLine && settings.autoSync !== false) {
@@ -135,6 +136,8 @@ export const deleteRecipe = async (id: string): Promise<void> => {
         action: 'delete',
         timestamp: Date.now()
     });
+
+    window.dispatchEvent(new Event('recipes-updated'));
 
     // 3. Try Sync (Manual Mode)
     const settings = await getSettings();
@@ -157,8 +160,7 @@ export const getShoppingList = async (): Promise<ShoppingItem[]> => {
 export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
     await idb.put(STORE_SHOPPING, item);
     
-    // Always attempt to sync shopping list items if logged in, but don't force auth modal
-    // Shopping list is treated as "Sync if possible, otherwise Local"
+    // Always attempt to sync shopping list items if logged in
     if (navigator.onLine && hasAuthToken()) {
        fetch(`${API_BASE}/shopping`, {
            method: 'POST',
@@ -214,13 +216,11 @@ export const getSyncQueue = async () => {
     return idb.getSyncQueue();
 };
 
-// Exposed for AuthModal to trigger after successful login
 export const retrySync = () => {
     syncRecipes('manual');
     syncShoppingList();
 };
 
-// Simple Shopping List Sync (Last Write Wins, no queue for simplicity, relies on load to fetch)
 const syncShoppingList = async () => {
     if (!hasAuthToken()) return;
     try {
@@ -229,7 +229,6 @@ const syncShoppingList = async () => {
         });
         if (res.ok) {
             const serverItems: ShoppingItem[] = await res.json();
-            // Merge strategy: Overwrite local with server for simplicity in this context
             if (serverItems.length > 0) {
                  for (const item of serverItems) {
                      await idb.put(STORE_SHOPPING, item);
@@ -240,7 +239,9 @@ const syncShoppingList = async () => {
 };
 
 const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
-    // 1. Pull Incoming Changes (Cloudflare D1 -> Local IDB)
+    let hasChanges = false;
+    
+    // 1. Pull Incoming Changes
     try {
         const localRecipes = await idb.getAll(STORE_RECIPES);
         let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
@@ -256,22 +257,17 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
                     if (r.updatedAt > maxTs) maxTs = r.updatedAt;
                 }
                 localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());
-                
-                // Notify UI to re-render
-                window.dispatchEvent(new Event('recipes-updated'));
+                hasChanges = true;
             }
         }
     } catch (e) {
         console.warn("Pull sync failed", e);
     }
 
-    // 2. Process Outgoing Queue (Local IDB -> Cloudflare D1)
+    // 2. Process Outgoing Queue
     const queue = await idb.getSyncQueue();
     if (queue.length > 0) {
-        // We only try to push if we have an auth token. 
         if (!hasAuthToken()) {
-            // ONLY prompt the user if this is a MANUAL sync attempt (user just saved something)
-            // If it's AUTO (background load), stay silent and keep items in queue.
             if (mode === 'manual' && authCallback) {
                 authCallback();
             }
@@ -300,16 +296,20 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
 
                 if (res && res.ok) {
                     await idb.removeFromSyncQueue(item.id);
+                    hasChanges = true; // Queue size changed, update UI
                 } else if (res && (res.status === 401 || res.status === 403)) {
-                    // Auth failed - Token might be expired
                     localStorage.removeItem('family_auth_token');
-                    if (mode === 'manual' && authCallback) authCallback(); // Re-prompt only if manual
-                    return; // Stop processing queue until re-auth
+                    if (mode === 'manual' && authCallback) authCallback();
+                    break;
                 }
             } catch (e) {
                 console.error("Sync item failed", e);
             }
         }
+    }
+
+    if (hasChanges) {
+        window.dispatchEvent(new Event('recipes-updated'));
     }
 };
 

@@ -1,6 +1,7 @@
 
 {
   "name": "my-meal-prep-recipes",
+  "main": "worker.ts",
   "assets": {
     "directory": "./dist"
   },

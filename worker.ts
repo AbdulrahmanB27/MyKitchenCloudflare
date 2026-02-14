@@ -20,6 +20,7 @@ const corsHeaders = {
 };
 
 async function signToken(payload: any, secret: string) {
+    if (!secret) throw new Error("Secret required for signing");
     const encoder = new TextEncoder();
     const data = btoa(JSON.stringify(payload));
     const key = await crypto.subtle.importKey(
@@ -31,13 +32,17 @@ async function signToken(payload: any, secret: string) {
 }
 
 const checkAuth = async (request: Request, secret: string) => {
+    // CRITICAL: Return false immediately if secret is missing to prevent crypto crash
     if (!secret) return false;
 
     const auth = request.headers.get('Authorization');
     if (!auth || !auth.startsWith('Bearer ')) return false;
     
     const token = auth.split(' ')[1];
-    const [payloadB64, signatureB64] = token.split('.');
+    const parts = token.split('.');
+    if (parts.length !== 2) return false;
+    
+    const [payloadB64, signatureB64] = parts;
     if (!payloadB64 || !signatureB64) return false;
 
     try {
@@ -85,12 +90,13 @@ async function handleAuth(request: Request, env: Env) {
         const envPassword = (env.FAMILY_PASSWORD || '').trim();
         const envTurnstile = (env.TURNSTILE_SECRET || '').trim();
 
+        // STRICT CHECK: If password is not set in environment, fail immediately.
         if (!envPassword) {
             console.error('[Auth] FAMILY_PASSWORD environment variable is missing.');
-            return errorResponse('Server configuration error.', 500);
+            return errorResponse('Server configuration missing: Password not set.', 401);
         }
 
-        // Turnstile
+        // Turnstile Verification
         if (envTurnstile) {
             if (!turnstileToken) return errorResponse('Verification token missing', 400);
             
@@ -102,7 +108,10 @@ async function handleAuth(request: Request, env: Env) {
 
             const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { body: formData, method: 'POST' });
             const outcome: any = await result.json();
-            if (!outcome.success) return errorResponse('Security check failed.', 403);
+            if (!outcome.success) {
+                console.error('[Auth] Turnstile verification failed', outcome);
+                return errorResponse('Security check failed.', 403);
+            }
         }
 
         if (password === envPassword) {
@@ -116,7 +125,8 @@ async function handleAuth(request: Request, env: Env) {
             return errorResponse('Incorrect password', 401);
         }
     } catch (e: any) {
-        return errorResponse(e.message);
+        console.error('[Auth] Internal Error:', e);
+        return errorResponse(`Server Error: ${e.message}`, 500);
     }
 }
 

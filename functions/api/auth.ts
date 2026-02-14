@@ -18,20 +18,21 @@ async function signToken(payload: any, secret: string) {
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  // Handle CORS Preflight or other methods gracefully
+  // CORS Headers
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+
+  // Handle CORS Preflight
   if (context.request.method === "OPTIONS") {
-      return new Response(null, {
-          headers: {
-              "Access-Control-Allow-Origin": "*",
-              "Access-Control-Allow-Methods": "POST, OPTIONS",
-              "Access-Control-Allow-Headers": "Content-Type",
-          }
-      });
+      return new Response(null, { headers: corsHeaders });
   }
 
   // Enforce POST
   if (context.request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
 
   try {
@@ -39,24 +40,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     try {
         body = await context.request.json() as any;
     } catch (e) {
-        return new Response(JSON.stringify({ error: 'Invalid JSON request body' }), { status: 400 });
+        return new Response(JSON.stringify({ error: 'Invalid JSON request body' }), { status: 400, headers: corsHeaders });
     }
 
-    // We still trim to remove accidental leading/trailing spaces from copy-pasting
     const password = (body.password || '').trim();
     const turnstileToken = body.turnstileToken;
-
     const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
 
     if (!envPassword) {
-        return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500, headers: corsHeaders });
     }
     
     // 1. Validate Turnstile
-    // If TURNSTILE_SECRET is set, we ENFORCE it. 
     if (context.env.TURNSTILE_SECRET) {
         if (!turnstileToken) {
-            return new Response(JSON.stringify({ error: 'Verification token missing' }), { status: 400 });
+            return new Response(JSON.stringify({ error: 'Verification token missing' }), { status: 400, headers: corsHeaders });
         }
 
         const ip = context.request.headers.get('CF-Connecting-IP');
@@ -72,29 +70,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             
             if (!outcome.success) {
                console.error('Turnstile verification failed', outcome);
-               return new Response(JSON.stringify({ error: 'Security check failed. Please refresh.' }), { status: 403 });
+               return new Response(JSON.stringify({ error: 'Security check failed. Please refresh.' }), { status: 403, headers: corsHeaders });
             }
         } catch (e) {
             console.error('Turnstile fetch error', e);
-            // Fail open or closed? Safest to fail closed if we can't verify.
-            return new Response(JSON.stringify({ error: 'Could not verify security token' }), { status: 500 });
+            return new Response(JSON.stringify({ error: 'Could not verify security token' }), { status: 500, headers: corsHeaders });
         }
     }
 
-    // 2. Validate Password (Case-Sensitive Strict Match)
+    // 2. Validate Password
     if (password === envPassword) {
-        // Token expires in 30 days
         const payload = { 
             sub: 'family_member', 
-            exp: Date.now() + (1000 * 60 * 60 * 24 * 30) 
+            // Set expiration to 100 years from now (effectively never)
+            exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
         };
         const token = await signToken(payload, envPassword);
-        return new Response(JSON.stringify({ token, success: true }));
+        return new Response(JSON.stringify({ token, success: true }), { 
+            headers: { "Content-Type": "application/json", ...corsHeaders } 
+        });
     } else {
-        return new Response(JSON.stringify({ error: 'Incorrect password' }), { status: 401 });
+        return new Response(JSON.stringify({ error: 'Incorrect password' }), { status: 401, headers: corsHeaders });
     }
 
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: `Server Error: ${e.message}` }), { status: 500 });
+    return new Response(JSON.stringify({ error: `Server Error: ${e.message}` }), { status: 500, headers: corsHeaders });
   }
 };

@@ -30,7 +30,7 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
         // Handle 404 specifically to help debug dev environment issues
         if (res.status === 404) {
             console.error("API endpoint not found (404).");
-            return { success: false, error: 'API not found. If running locally, use "wrangler pages dev".' };
+            return { success: false, error: 'API not found. Make sure backend is running (npx wrangler pages dev).' };
         }
 
         // Safely handle the response, even if it's empty or HTML error page

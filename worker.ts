@@ -78,9 +78,14 @@ async function handleAuth(request: Request, env: Env) {
         const body: any = await request.json();
         const password = (body.password || '').trim();
         const turnstileToken = body.turnstileToken;
+
+        // Ensure secrets are strictly from the environment
         const envPassword = (env.FAMILY_PASSWORD || '').trim();
 
-        if (!envPassword) return errorResponse('Server misconfigured: FAMILY_PASSWORD missing', 500);
+        if (!envPassword) {
+            console.error('[Auth] FAMILY_PASSWORD environment variable is missing.');
+            return errorResponse('Server configuration error.', 500);
+        }
 
         // Turnstile
         if (env.TURNSTILE_SECRET) {

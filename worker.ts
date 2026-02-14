@@ -31,6 +31,8 @@ async function signToken(payload: any, secret: string) {
 }
 
 const checkAuth = async (request: Request, secret: string) => {
+    if (!secret) return false;
+
     const auth = request.headers.get('Authorization');
     if (!auth || !auth.startsWith('Bearer ')) return false;
     
@@ -81,6 +83,7 @@ async function handleAuth(request: Request, env: Env) {
 
         // Ensure secrets are strictly from the environment
         const envPassword = (env.FAMILY_PASSWORD || '').trim();
+        const envTurnstile = (env.TURNSTILE_SECRET || '').trim();
 
         if (!envPassword) {
             console.error('[Auth] FAMILY_PASSWORD environment variable is missing.');
@@ -88,12 +91,12 @@ async function handleAuth(request: Request, env: Env) {
         }
 
         // Turnstile
-        if (env.TURNSTILE_SECRET) {
+        if (envTurnstile) {
             if (!turnstileToken) return errorResponse('Verification token missing', 400);
             
             const ip = request.headers.get('CF-Connecting-IP');
             const formData = new FormData();
-            formData.append('secret', env.TURNSTILE_SECRET);
+            formData.append('secret', envTurnstile);
             formData.append('response', turnstileToken);
             formData.append('remoteip', ip || '');
 

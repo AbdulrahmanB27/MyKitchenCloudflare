@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -276,6 +276,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
               {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
+              {ing.optional && <span className="text-blue-500 text-[10px] font-bold uppercase ml-2 bg-blue-50 dark:bg-blue-900/10 px-1.5 py-0.5 rounded">Optional</span>}
           </span>
       );
   };
@@ -661,7 +662,10 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                 const tip = getInstructionTip(step);
                                                 const optional = getInstructionOptional(step);
                                                 const stepId = getInstructionId(step) || `${gIdx}-${idx}`; // Fallback ID if string
-                                                globalStepCounter++;
+                                                
+                                                if (!optional) {
+                                                    globalStepCounter++;
+                                                }
                                                 
                                                 const timerData = activeTimers[stepId];
                                                 const isRunning = timerData !== undefined;
@@ -677,7 +681,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                                     ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 text-blue-600' 
                                                                     : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-gray-600 text-gray-500 group-hover:border-primary group-hover:text-primary'
                                                             }`}>
-                                                                {globalStepCounter}
+                                                                {optional ? <span className="text-[10px] uppercase">Opt</span> : globalStepCounter}
                                                             </div>
                                                         </div>
                                                         {/* Connecting Line */}

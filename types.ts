@@ -27,6 +27,7 @@ export interface Ingredient {
   notes?: string;
   substitution?: string;
   section?: string; // e.g. "For the Sauce"
+  optional?: boolean;
 }
 
 export interface Review {

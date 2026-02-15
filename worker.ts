@@ -319,7 +319,7 @@ async function handlePlans(request: Request, env: Env) {
     return errorResponse("Method Not Allowed", 405);
 }
 
-// 5. Images
+// 5. Images (Deduplicated with Hashing)
 async function handleImages(request: Request, env: Env) {
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
@@ -350,10 +350,34 @@ async function handleImages(request: Request, env: Env) {
         const file = formData.get('file');
         if (!file || !(file instanceof File)) return errorResponse("No file uploaded", 400);
 
-        const extension = file.name.split('.').pop();
-        const uniqueKey = `${crypto.randomUUID()}.${extension}`;
-        await env.IMAGES.put(uniqueKey, file.stream(), { httpMetadata: { contentType: file.type } });
-        return jsonResponse({ url: `/api/images?key=${uniqueKey}` });
+        try {
+            // Calculate SHA-256 hash of the file content
+            const arrayBuffer = await file.arrayBuffer();
+            const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(digest));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            
+            // Determine extension (default to jpg if blob)
+            let extension = file.name.split('.').pop();
+            if (!extension || extension === file.name || extension === 'blob') {
+                extension = file.type === 'image/png' ? 'png' : 'jpg';
+            }
+            
+            const uniqueKey = `${hashHex}.${extension}`;
+            
+            // Deduplication: Check if an image with this hash already exists
+            const existing = await env.IMAGES.head(uniqueKey);
+            
+            if (!existing) {
+                // If new content, upload it
+                await env.IMAGES.put(uniqueKey, arrayBuffer, { httpMetadata: { contentType: file.type } });
+            }
+            // If exists, simply return the URL for the existing file (deduplication)
+
+            return jsonResponse({ url: `/api/images?key=${uniqueKey}` });
+        } catch (e: any) {
+            return errorResponse(`Upload failed: ${e.message}`, 500);
+        }
     }
 
     return errorResponse("Method Not Allowed", 405);

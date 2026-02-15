@@ -21,11 +21,16 @@ const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
 export const authenticate = async (password: string, turnstileToken: string): Promise<{ success: boolean; error?: string }> => {
     try {
         console.log(`Authenticating against ${API_BASE}/auth...`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, turnstileToken })
+            body: JSON.stringify({ password, turnstileToken }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         
         if (res.status === 404) {
             console.error("API endpoint not found (404).");
@@ -50,7 +55,7 @@ export const authenticate = async (password: string, turnstileToken: string): Pr
         }
     } catch (e: any) {
         console.error("Auth network error", e);
-        return { success: false, error: e.message || 'Network error occurred' };
+        return { success: false, error: e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Network error occurred') };
     }
 };
 
@@ -92,7 +97,6 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     const settings = await getSettings();
     if (navigator.onLine && settings.autoSync !== false) {
         syncRecipes('auto').catch(console.error);
-        syncShoppingList().catch(console.error); // Also sync shopping list
     }
 
     return recipes;
@@ -102,12 +106,12 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
     return idb.getOne<Recipe>(STORE_RECIPES, id);
 };
 
-export const upsertRecipe = async (recipe: Recipe): Promise<void> => {
+export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }): Promise<void> => {
     // 1. Save to IDB
     await idb.put(STORE_RECIPES, recipe);
 
-    // 2. Queue for Sync (if shared)
-    if (recipe.shareToFamily) {
+    // 2. Queue for Sync (if shared and NOT localOnly)
+    if (recipe.shareToFamily && !options?.localOnly) {
         await idb.addToSyncQueue({
             id: recipe.id,
             action: 'upsert',
@@ -146,67 +150,26 @@ export const deleteRecipe = async (id: string): Promise<void> => {
     }
 };
 
-// --- Shopping List (Sync Enabled) ---
+// --- Shopping List (Local Only) ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
-    const items = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
-    
-    // Trigger background sync on load
-    if (navigator.onLine) syncShoppingList().catch(console.error);
-    
-    return items;
+    return idb.getAll<ShoppingItem>(STORE_SHOPPING);
 };
 
 export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
     await idb.put(STORE_SHOPPING, item);
-    
-    // Always attempt to sync shopping list items if logged in
-    if (navigator.onLine && hasAuthToken()) {
-       fetch(`${API_BASE}/shopping`, {
-           method: 'POST',
-           headers: { 
-               'Content-Type': 'application/json',
-               'Authorization': `Bearer ${getAuthToken()}`
-           },
-           body: JSON.stringify(item)
-       }).catch(console.warn);
-    }
 };
 
 export const deleteShoppingItem = async (id: string): Promise<void> => {
     await idb.remove(STORE_SHOPPING, id);
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/shopping?id=${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        }).catch(console.warn);
-    }
 };
 
 export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
     const items = await getShoppingList();
-    const idsToDelete: string[] = [];
-
-    if (onlyChecked) {
-        for (const item of items) {
-            if (item.isChecked) {
-                await idb.remove(STORE_SHOPPING, item.id);
-                idsToDelete.push(item.id);
-            }
-        }
-    } else {
-        for (const item of items) {
+    for (const item of items) {
+        if (!onlyChecked || item.isChecked) {
             await idb.remove(STORE_SHOPPING, item.id);
-            idsToDelete.push(item.id);
         }
-    }
-
-    if (navigator.onLine && hasAuthToken()) {
-        const query = onlyChecked ? 'clearAll=checked' : 'clearAll=true';
-        fetch(`${API_BASE}/shopping?${query}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        }).catch(console.warn);
     }
 };
 
@@ -218,24 +181,6 @@ export const getSyncQueue = async () => {
 
 export const retrySync = () => {
     syncRecipes('manual');
-    syncShoppingList();
-};
-
-const syncShoppingList = async () => {
-    if (!hasAuthToken()) return;
-    try {
-        const res = await fetch(`${API_BASE}/shopping`, {
-             headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        });
-        if (res.ok) {
-            const serverItems: ShoppingItem[] = await res.json();
-            if (serverItems.length > 0) {
-                 for (const item of serverItems) {
-                     await idb.put(STORE_SHOPPING, item);
-                 }
-            }
-        }
-    } catch(e) { console.warn("Shopping sync failed", e); }
 };
 
 const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
@@ -257,7 +202,13 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
                         // Handle Soft Delete: Remove from local DB
                         await idb.remove(STORE_RECIPES, r.id);
                     } else {
-                        // Handle Update/Insert
+                        // Handle Update/Insert - PRESERVE LOCAL FAVORITE STATUS
+                        const existing = await idb.getOne<Recipe>(STORE_RECIPES, r.id);
+                        if (existing) {
+                            r.favorite = existing.favorite; // Keep local favorite preference
+                        } else {
+                            r.favorite = false; // Default for new
+                        }
                         await idb.put(STORE_RECIPES, r);
                     }
                     if (r.updatedAt > maxTs) maxTs = r.updatedAt;

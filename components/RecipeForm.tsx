@@ -261,6 +261,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
   
   const processImageFile = (file: File) => {
+      if (isUploading) return;
+      setIsUploading(true); // Lock immediately
+
       const reader = new FileReader();
       reader.onload = (event) => {
           const img = new Image();
@@ -280,7 +283,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                   canvas.toBlob(async (blob) => {
                       if (blob) {
                           try {
-                              setIsUploading(true);
                               // 3. Upload to R2 via API
                               const url = await db.uploadImage(blob);
                               handleChange('image', url);
@@ -290,12 +292,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                           } finally {
                               setIsUploading(false);
                           }
+                      } else {
+                          setIsUploading(false);
                       }
                   }, 'image/jpeg', 0.8);
+              } else {
+                  setIsUploading(false);
               }
           };
+          img.onerror = () => setIsUploading(false);
           img.src = event.target?.result as string;
       };
+      reader.onerror = () => setIsUploading(false);
       reader.readAsDataURL(file);
   };
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processImageFile(file); };
@@ -401,18 +409,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
              
              {/* Time and Yield */}
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-               <div>
+             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+               <div className="col-span-1">
                    <label className="label">Prep Time</label>
                    <input type="text" value={prepTimeStr} onChange={e => setPrepTimeStr(e.target.value)} className="input" placeholder="e.g. 15 or 15-20" />
-                   <span className="text-[10px] text-text-muted opacity-80">Minutes (Range allowed)</span>
+                   <span className="text-[10px] text-text-muted opacity-80">Minutes</span>
                </div>
-               <div>
+               <div className="col-span-1">
                    <label className="label">Cook Time</label>
                    <input type="text" value={cookTimeStr} onChange={e => setCookTimeStr(e.target.value)} className="input" placeholder="e.g. 30 or 30-45" />
-                   <span className="text-[10px] text-text-muted opacity-80">Minutes (Range allowed)</span>
+                   <span className="text-[10px] text-text-muted opacity-80">Minutes</span>
                </div>
-               <div>
+               <div className="col-span-2 md:col-span-1">
                    <label className="label">Yield</label>
                    <div className="flex gap-2">
                        <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className="input w-20 text-center" placeholder="1"/>
@@ -464,14 +472,43 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
                              <div key={ing.id} className="flex flex-col gap-2 p-3 rounded-lg bg-white/50 dark:bg-black/20 border border-transparent hover:border-border-light dark:hover:border-border-dark transition-colors">
-                                 <div className="flex gap-2 items-start">
-                                      <div className="flex-1 grid grid-cols-12 gap-2">
-                                          <div className="col-span-3 sm:col-span-2"><input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="input p-2 text-sm text-center" /></div>
-                                          <div className="col-span-3 sm:col-span-3"><input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="input p-2 text-sm" /></div>
-                                          <div className="col-span-6 sm:col-span-7"><input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`input p-2 text-sm font-medium ${ing.optional ? 'text-text-muted italic' : ''}`} /></div>
+                                 {/* Responsive Ingredient Grid */}
+                                 <div className="grid grid-cols-12 gap-2 items-center">
+                                      {/* Item Name: Row 1 on mobile (full width), First on desktop */}
+                                      <div className="col-span-12 sm:col-span-6">
+                                          <input 
+                                            type="text" 
+                                            placeholder="Item Name" 
+                                            value={ing.item || ''} 
+                                            onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} 
+                                            className={`input p-2 text-sm font-medium ${ing.optional ? 'text-text-muted italic' : ''}`} 
+                                          />
+                                      </div>
+
+                                      {/* Amount: Row 2 on mobile, Second on desktop */}
+                                      <div className="col-span-3 sm:col-span-2">
+                                          <input 
+                                            type="text" 
+                                            placeholder="Amt" 
+                                            value={ing.amount} 
+                                            onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} 
+                                            className="input p-2 text-sm text-center" 
+                                          />
+                                      </div>
+
+                                      {/* Unit: Row 2 on mobile, Third on desktop */}
+                                      <div className="col-span-4 sm:col-span-2">
+                                          <input 
+                                            type="text" 
+                                            placeholder="Unit" 
+                                            value={ing.unit || ''} 
+                                            onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} 
+                                            className="input p-2 text-sm" 
+                                          />
                                       </div>
                                       
-                                      <div className="flex gap-1 items-center self-center pt-0 ml-1">
+                                      {/* Actions: Row 2 on mobile, Fourth on desktop */}
+                                      <div className="col-span-5 sm:col-span-2 flex gap-1 items-center justify-end sm:justify-center">
                                             <button 
                                                 type="button" 
                                                 onClick={() => toggleIngredientOptional(block.id, ing.id)} 
@@ -501,7 +538,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                             placeholder="Substitution (e.g. Tofu)" 
                                             value={ing.substitution} 
                                             onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} 
-                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 !pl-9" 
+                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 !pl-10" 
                                           />
                                      </div>
                                  )}
@@ -570,41 +607,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                  </div>
              ))}
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Instruction Section</button>
-          </section>
-
-          {/* Nutrition & Storage Section (Restored) */}
-          <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
-              <h3 className="text-lg font-bold text-primary flex items-center gap-2"><Activity size={18} /> Nutrition & Storage</h3>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                      <label className="label">Calories</label>
-                      <input type="number" value={formData.nutrition?.calories || ''} onChange={e => updateNested('nutrition', 'calories', e.target.value)} className="input" placeholder="kcal" />
-                  </div>
-                  <div>
-                      <label className="label">Protein (g)</label>
-                      <input type="number" value={formData.nutrition?.protein || ''} onChange={e => updateNested('nutrition', 'protein', e.target.value)} className="input" placeholder="g" />
-                  </div>
-                  <div>
-                      <label className="label">Carbs (g)</label>
-                      <input type="number" value={formData.nutrition?.carbs || ''} onChange={e => updateNested('nutrition', 'carbs', e.target.value)} className="input" placeholder="g" />
-                  </div>
-                  <div>
-                      <label className="label">Fat (g)</label>
-                      <input type="number" value={formData.nutrition?.fat || ''} onChange={e => updateNested('nutrition', 'fat', e.target.value)} className="input" placeholder="g" />
-                  </div>
-              </div>
-
-              <div>
-                  <label className="label">Storage Notes</label>
-                  <textarea 
-                      value={formData.storageNotes || ''} 
-                      onChange={e => handleChange('storageNotes', e.target.value)} 
-                      rows={3} 
-                      className="input" 
-                      placeholder="How long does it keep in the fridge? Freezing instructions?" 
-                  />
-              </div>
           </section>
 
         </div>

@@ -139,5 +139,14 @@
   <body class="bg-background-light text-text-main dark:bg-background-dark dark:text-text-main-dark transition-colors duration-300 min-h-screen">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW registered'))
+            .catch(err => console.log('SW failed', err));
+        });
+      }
+    </script>
   </body>
 </html>

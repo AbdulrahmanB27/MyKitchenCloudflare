@@ -231,8 +231,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     }
   };
 
-  const persistUpdate = async (updated: Recipe) => {
-      await db.upsertRecipe(updated);
+  const persistUpdate = async (updated: Recipe, localOnly = false) => {
+      await db.upsertRecipe(updated, { localOnly });
       setRecipe(updated);
       onRefreshList();
   };
@@ -244,7 +244,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
   const toggleFavorite = async () => {
       const updated = { ...recipe, favorite: !recipe.favorite };
-      await persistUpdate(updated);
+      await persistUpdate(updated, true); // Local only!
   };
 
   const handleServingsChange = (valStr: string) => {
@@ -282,13 +282,25 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   };
 
   const addToShoppingList = async () => {
-    // Collect all ingredients including components
-    let allItems: Ingredient[] = [...recipe.ingredients];
-    if (recipe.components) {
-        recipe.components.forEach(c => allItems.push(...c.ingredients));
+    // Only collect ingredients that are NOT checked off
+    const itemsToAdd: Ingredient[] = [];
+
+    groupedIngredients.forEach(group => {
+        group.items.forEach(ing => {
+            const key = `${group.title}-${ing.id}`;
+            // If checking means "I have this" or "Done", we add items that are NOT in the set
+            if (!checkedIngredients.has(key)) {
+                itemsToAdd.push(ing);
+            }
+        });
+    });
+
+    if (itemsToAdd.length === 0) {
+        alert("No ingredients selected (all checked items were skipped).");
+        return;
     }
 
-    const items = allItems.map(ing => {
+    const items = itemsToAdd.map(ing => {
       const scaledAmount = ing.amount * scalingFactor;
       const displayText = `${formatFraction(scaledAmount)} ${ing.unit} ${ing.item}`; 
       
@@ -330,7 +342,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
           ...recipe,
           reviews: [...(recipe.reviews || []), newReview]
       };
-      await persistUpdate(updatedRecipe);
+      await persistUpdate(updatedRecipe); // Rates typically sync
       setIsRatingOpen(false);
   };
 
@@ -393,8 +405,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-primary' : 'text-text-muted'} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
                     <span className="material-symbols-outlined text-[18px]">{recipe.archived ? 'unarchive' : 'archive'}</span>
                 </button>
-                <button onClick={() => onEdit(recipe)} className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium">
-                    <span className="material-symbols-outlined text-[18px]">edit</span> Edit
+                <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium" title="Edit Recipe">
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    <span className="hidden md:inline">Edit</span>
                 </button>
                 <button onClick={toggleFavorite} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-yellow-500' : 'text-gray-400'}`}>
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: recipe.favorite ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
@@ -506,7 +519,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                             <span className="text-sm">Start Cooking</span>
                         </button>
                         <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 ml-auto md:ml-0">
                              <button onClick={handleShare} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
                                 <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
                                     <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">share</span>

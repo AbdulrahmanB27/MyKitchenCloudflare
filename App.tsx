@@ -304,7 +304,8 @@ const App: React.FC = () => {
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
     if (e) e.stopPropagation();
     const updated = { ...recipe, favorite: !recipe.favorite };
-    await db.upsertRecipe(updated);
+    // Pass localOnly: true to prevent syncing favorite status
+    await db.upsertRecipe(updated, { localOnly: true });
     await loadData();
   };
 

@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -357,6 +357,12 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
       return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const formatRange = (min?: number, max?: number) => {
+      if (!min && min !== 0) return '0m';
+      if (max && max > min) return `${min}-${max}m`;
+      return `${min}m`;
+  };
+
   // Calculate Average Rating (Scale 1-10)
   const avgRating = recipe.reviews && recipe.reviews.length > 0
     ? (recipe.reviews.reduce((a, b) => a + b.rating, 0) / recipe.reviews.length)
@@ -468,21 +474,23 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     {/* Stats */}
                     <div className="flex flex-wrap gap-3 w-full md:w-auto">
                         <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.prepTime || 0}m</p>
+                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{formatRange(recipe.prepTime, recipe.prepTimeMax)}</p>
                             <div className="flex items-center gap-1 text-text-muted">
                                 <span className="material-symbols-outlined text-[16px]">schedule</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Prep</p>
                             </div>
                         </div>
                         <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.cookTime || 0}m</p>
+                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{formatRange(recipe.cookTime, recipe.cookTimeMax)}</p>
                             <div className="flex items-center gap-1 text-text-muted">
                                 <span className="material-symbols-outlined text-[16px]">outdoor_grill</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Cook</p>
                             </div>
                         </div>
                         <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{originalServings}</p>
+                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">
+                                {originalServings} <span className="text-xs font-normal text-text-muted">{recipe.yieldUnit || 'srv'}</span>
+                            </p>
                             <div className="flex items-center gap-1 text-text-muted">
                                 <span className="material-symbols-outlined text-[16px]">restaurant</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Yield</p>
@@ -516,6 +524,23 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
                 <hr className="border-border-light dark:border-border-dark w-full"/>
 
+                {/* Required Cookware Section */}
+                {recipe.cookware && recipe.cookware.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                        <h3 className="text-lg font-bold text-text-main dark:text-white flex items-center gap-2">
+                             <CookingPot className="text-primary" size={20} />
+                             Required Equipment
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                            {recipe.cookware.map((item, idx) => (
+                                <span key={idx} className="px-3 py-1.5 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-medium text-text-main dark:text-gray-200">
+                                    {item}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Main Content: Ingredients & Instructions */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                     
@@ -539,7 +564,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                  </button>
                                  
                                  <div className="flex-1 flex flex-col items-center justify-center py-1">
-                                     <label className="text-[10px] uppercase font-bold text-text-muted">Servings</label>
+                                     <label className="text-[10px] uppercase font-bold text-text-muted">{recipe.yieldUnit || 'Servings'}</label>
                                      <div className="flex items-baseline gap-1">
                                          <input 
                                             type="number" 

@@ -60,12 +60,17 @@ export interface Recipe {
   description: string;
   category: RecipeCategory;
   tags: string[];
+  cookware?: string[]; // New field
   image?: string;
   
   // Times & Yield
-  prepTime?: number; // minutes
-  cookTime?: number; // minutes
+  prepTime?: number; // minutes (min or exact)
+  prepTimeMax?: number; // minutes (max)
+  cookTime?: number; // minutes (min or exact)
+  cookTimeMax?: number; // minutes (max)
+  
   servings?: number;
+  yieldUnit?: string; // e.g. "cookies", "cups", "servings"
 
   // Core Content
   ingredients: Ingredient[]; // Main ingredients
@@ -91,6 +96,7 @@ export interface Recipe {
   shareToFamily: boolean; // Sync to global family DB?
   tenantId?: string; // For future multi-tenancy
   schemaVersion?: number; 
+  deleted?: boolean; // Tombstone flag for sync
 
   // Timestamps
   createdAt: number;

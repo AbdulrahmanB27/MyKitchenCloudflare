@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 
@@ -35,10 +35,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     description: '',
     category: 'Entrees',
     tags: [],
+    cookware: [],
     image: '',
     prepTime: 0,
     cookTime: 0,
     servings: 1,
+    yieldUnit: 'servings',
     video: { url: '', note: '' },
     storageNotes: '',
     source: { name: '', url: '', author: '' },
@@ -49,11 +51,16 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     reviews: []
   });
 
+  // Intermediate state for range inputs (string based)
+  const [prepTimeStr, setPrepTimeStr] = useState('');
+  const [cookTimeStr, setCookTimeStr] = useState('');
+
   // Upload State
   const [isUploading, setIsUploading] = useState(false);
 
   // Text Area State for Array fields
   const [rawTags, setRawTags] = useState('');
+  const [rawCookware, setRawCookware] = useState('');
 
   // Structured State (Blocks)
   const [ingredientBlocks, setIngredientBlocks] = useState<IngredientBlock[]>([]);
@@ -63,7 +70,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (initialData) {
       setFormData(initialData);
       setRawTags((initialData.tags || []).join(', '));
+      setRawCookware((initialData.cookware || []).join(', '));
       
+      // Init Time Strings
+      setPrepTimeStr(formatTimeRange(initialData.prepTime, initialData.prepTimeMax));
+      setCookTimeStr(formatTimeRange(initialData.cookTime, initialData.cookTimeMax));
+
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
       const mainIngs = initialData.ingredients || [];
@@ -122,6 +134,45 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     }
   }, [initialData]);
 
+  // Handle Paste Event for Images
+  useEffect(() => {
+      const handlePaste = (e: ClipboardEvent) => {
+          if (isUploading) return;
+          const items = e.clipboardData?.items;
+          if (!items) return;
+
+          for (let i = 0; i < items.length; i++) {
+              if (items[i].type.indexOf('image') !== -1) {
+                  const file = items[i].getAsFile();
+                  if (file) {
+                      e.preventDefault(); // Prevent pasting the binary code if focused in text field
+                      processImageFile(file);
+                      return; // Only process one image
+                  }
+              }
+          }
+      };
+
+      window.addEventListener('paste', handlePaste);
+      return () => window.removeEventListener('paste', handlePaste);
+  }, [isUploading]);
+
+  const formatTimeRange = (min?: number, max?: number) => {
+      if (!min && min !== 0) return '';
+      if (max && max > min) return `${min}-${max}`;
+      return min.toString();
+  };
+
+  const parseTimeInput = (val: string) => {
+      const parts = val.split('-').map(s => parseInt(s.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return { min: parts[0], max: parts[1] };
+      }
+      const single = parseInt(val);
+      if (!isNaN(single)) return { min: single, max: undefined };
+      return { min: 0, max: undefined };
+  };
+
   const parseAmount = (val: string | number): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -164,10 +215,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     const parseNum = (val: any) => (val === '' || val === undefined) ? 0 : Number(val);
     const parseOptionalNum = (val: any) => (val === '' || val === undefined) ? undefined : Number(val);
 
+    const prep = parseTimeInput(prepTimeStr);
+    const cook = parseTimeInput(cookTimeStr);
+
     const recipe: Recipe = {
       ...formData as Recipe,
-      prepTime: parseNum(formData.prepTime),
-      cookTime: parseNum(formData.cookTime),
+      prepTime: prep.min,
+      prepTimeMax: prep.max,
+      cookTime: cook.min,
+      cookTimeMax: cook.max,
       servings: parseNum(formData.servings) || 1, 
       nutrition: {
           calories: parseOptionalNum(formData.nutrition?.calories),
@@ -177,6 +233,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       },
       id: initialData?.id || uuidv4(),
       tags: rawTags.split(',').map(t => t.trim()).filter(Boolean),
+      cookware: rawCookware.split(',').map(t => t.trim()).filter(Boolean),
       ingredients: flatIngredients,
       instructions: flatInstructions,
       components: [], 
@@ -193,11 +250,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (!isNaN(num)) handleChange(field, num);
   };
   const updateNested = (parent: keyof Recipe, field: string, value: any) => setFormData(prev => ({ ...prev, [parent]: { ...prev[parent] as any, [field]: value } }));
-  const handleNestedNumberChange = (parent: keyof Recipe, field: string, valueStr: string) => {
-      if (valueStr === '') { updateNested(parent, field, '' as any); return; }
-      const num = parseFloat(valueStr);
-      if (!isNaN(num)) updateNested(parent, field, num);
-  }
   const getNumValue = (val: any) => (val !== undefined && val !== null) ? val : '';
   
   const processImageFile = (file: File) => {
@@ -240,8 +292,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processImageFile(file); };
 
-  // ... (Keep existing Block Logic functions: addIngredientBlock, etc. - assume they are present or I can copy them if needed. To save space I will include them compactly)
-  // Re-implementing block logic for completeness in response
+  // Block Logic...
   const addIngredientBlock = () => setIngredientBlocks(prev => [...prev, { id: uuidv4(), name: 'New Group', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
   const removeIngredientBlock = (blockId: string) => setIngredientBlocks(prev => prev.filter(b => b.id !== blockId));
   const updateIngredientBlockName = (blockId: string, name: string) => setIngredientBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name } : b));
@@ -287,12 +338,39 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 </div>
                 <div><label className="label">Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className="input resize-none" placeholder="Short description..." /></div>
              </div>
-             <div className="grid grid-cols-3 gap-4">
-               <div><label className="label">Prep (min)</label><input type="number" value={getNumValue(formData.prepTime)} onChange={e => handleNumberChange('prepTime', e.target.value)} className="input" placeholder="0"/></div>
-               <div><label className="label">Cook (min)</label><input type="number" value={getNumValue(formData.cookTime)} onChange={e => handleNumberChange('cookTime', e.target.value)} className="input" placeholder="0"/></div>
-               <div><label className="label">Servings</label><input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className="input" placeholder="1"/></div>
+             
+             {/* Time and Yield */}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                   <label className="label">Prep Time</label>
+                   <input type="text" value={prepTimeStr} onChange={e => setPrepTimeStr(e.target.value)} className="input" placeholder="e.g. 15 or 15-20" />
+                   <span className="text-[10px] text-text-muted opacity-80">Minutes (Range allowed)</span>
+               </div>
+               <div>
+                   <label className="label">Cook Time</label>
+                   <input type="text" value={cookTimeStr} onChange={e => setCookTimeStr(e.target.value)} className="input" placeholder="e.g. 30 or 30-45" />
+                   <span className="text-[10px] text-text-muted opacity-80">Minutes (Range allowed)</span>
+               </div>
+               <div>
+                   <label className="label">Yield</label>
+                   <div className="flex gap-2">
+                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className="input w-20 text-center" placeholder="1"/>
+                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className="input flex-1" placeholder="servings" />
+                   </div>
+                   <span className="text-[10px] text-text-muted opacity-80">Amount and Unit</span>
+               </div>
              </div>
-             <div><label className="label">Tags</label><input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick..." /></div>
+             
+             <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label className="label">Tags</label>
+                    <input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick..." />
+                </div>
+                <div>
+                    <label className="label flex items-center gap-1"><CookingPot size={14} /> Required Cookware</label>
+                    <input type="text" value={rawCookware} onChange={e => setRawCookware(e.target.value)} className="input" placeholder="Dutch Oven, Blender, Sheet Pan..." />
+                </div>
+             </div>
              
              {/* Media Inputs (R2 Integration) */}
              <div className="pt-2">
@@ -304,6 +382,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          {isUploading ? <Loader className="animate-spin text-primary" size={20} /> : <Upload size={20} />}
                      </label>
                  </div>
+                 <p className="text-[10px] text-text-muted mt-1 italic">Tip: You can paste an image (Ctrl+V) directly into this form to upload it.</p>
                  {formData.image && (
                      <div className="mt-2 relative h-32 w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-border-light dark:border-border-dark">
                          <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
@@ -349,19 +428,46 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      <div className="space-y-3">
                          {block.steps.map((step, idx) => (
                              <div key={step.id} className="flex gap-3">
-                                 <div className="size-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold mt-2">{idx + 1}</div>
+                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-2 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-primary/10 text-primary'}`}>{idx + 1}</div>
                                  <div className="flex-1 space-y-2">
-                                     <div className="flex gap-2">
-                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold" />
-                                        <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded ${step.timer !== undefined ? 'bg-primary text-white' : 'text-muted'}`}><Clock size={16}/></button>
+                                     <div className="flex gap-2 items-center">
+                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1" />
+                                        
+                                        {/* Step Actions */}
+                                        <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-0.5">
+                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`} title="Toggle Timer">
+                                                <Clock size={16}/>
+                                            </button>
+                                            <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'bg-white dark:bg-gray-700 text-yellow-500 shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`} title="Add Tip">
+                                                <Lightbulb size={16}/>
+                                            </button>
+                                            <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'bg-white dark:bg-gray-700 text-blue-500 shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`} title="Mark Optional">
+                                                <AlertCircle size={16}/>
+                                            </button>
+                                        </div>
                                      </div>
                                      <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="input text-sm" />
-                                     {step.timer !== undefined && <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="input text-xs w-20" />}
+                                     
+                                     {/* Extended Inputs */}
+                                     <div className="flex flex-wrap gap-2">
+                                         {step.timer !== undefined && (
+                                             <div className="flex items-center gap-1 bg-primary/5 border border-primary/20 rounded-md px-2 py-1">
+                                                 <Clock size={12} className="text-primary"/>
+                                                 <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0" placeholder="Min" />
+                                                 <span className="text-xs text-primary font-medium">min</span>
+                                             </div>
+                                         )}
+                                         {step.tip !== undefined && (
+                                             <div className="flex items-center gap-1 flex-1 min-w-[200px]">
+                                                 <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="input text-xs py-1 px-2 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 w-full" autoFocus />
+                                             </div>
+                                         )}
+                                     </div>
                                  </div>
-                                 <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 mt-2"><Trash2 size={16}/></button>
+                                 <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 mt-2 hover:bg-red-50 dark:hover:bg-red-900/10 p-1 rounded transition-colors h-fit"><Trash2 size={16}/></button>
                              </div>
                          ))}
-                         <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-primary flex items-center gap-1"><Plus size={16} /> Add Step</button>
+                         <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
                      </div>
                  </div>
              ))}

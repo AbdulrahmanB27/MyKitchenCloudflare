@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square } from 'lucide-react';
+import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface CookModeProps {
@@ -27,7 +27,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
   const [currentStep, setCurrentStep] = useState(0);
   
   // Sidebar Tabs State
-  const [activeTab, setActiveTab] = useState<'steps' | 'ingredients' | 'swaps' | 'tips'>('ingredients');
+  const [activeTab, setActiveTab] = useState<'steps' | 'ingredients' | 'swaps' | 'tips' | 'tools'>('ingredients');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   
@@ -378,8 +378,9 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
         >
             <div className="w-80 h-full flex flex-col">
                 <div className="flex border-b border-border-light dark:border-border-dark overflow-x-auto no-scrollbar flex-none">
-                    <button onClick={() => setActiveTab('ingredients')} className={`flex-1 min-w-[80px] py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Ingredients</button>
+                    <button onClick={() => setActiveTab('ingredients')} className={`flex-1 min-w-[80px] py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Prep</button>
                     <button onClick={() => setActiveTab('steps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'steps' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Steps</button>
+                    <button onClick={() => setActiveTab('tools')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tools' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Tools</button>
                     <button onClick={() => setActiveTab('swaps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'swaps' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Swaps</button>
                     <button onClick={() => setActiveTab('tips')} className={`flex-1 min-w-[50px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tips' ? 'border-primary text-primary' : 'border-transparent text-text-muted'}`}>Tips</button>
                 </div>
@@ -418,6 +419,23 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {activeTab === 'tools' && (
+                        <div className="space-y-3">
+                             <h4 className="text-xs font-bold uppercase text-text-muted">Required Equipment</h4>
+                             {recipe.cookware && recipe.cookware.length > 0 ? (
+                                 <div className="flex flex-col gap-2">
+                                     {recipe.cookware.map((tool, i) => (
+                                         <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-white/5 rounded border border-border-light dark:border-border-dark">
+                                             <CookingPot size={16} className="text-primary" />
+                                             <span className="text-sm font-medium">{tool}</span>
+                                         </div>
+                                     ))}
+                                 </div>
+                             ) : (
+                                 <p className="text-sm text-text-muted italic">No specific tools listed.</p>
+                             )}
                         </div>
                     )}
                     {activeTab === 'swaps' && (

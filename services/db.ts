@@ -243,7 +243,7 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
     
     // 1. Pull Incoming Changes
     try {
-        const localRecipes = await idb.getAll(STORE_RECIPES);
+        const localRecipes = await idb.getAll<Recipe>(STORE_RECIPES);
         let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
         if (localRecipes.length === 0) lastUpdated = '0';
 
@@ -253,7 +253,13 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
             if (updates.length > 0) {
                 let maxTs = parseInt(lastUpdated);
                 for (const r of updates) {
-                    await idb.put(STORE_RECIPES, r);
+                    if (r.deleted) {
+                        // Handle Soft Delete: Remove from local DB
+                        await idb.remove(STORE_RECIPES, r.id);
+                    } else {
+                        // Handle Update/Insert
+                        await idb.put(STORE_RECIPES, r);
+                    }
                     if (r.updatedAt > maxTs) maxTs = r.updatedAt;
                 }
                 localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());

@@ -18,8 +18,18 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
   // Convert to 5-star scale for visualization
   const visualRating = avgRating ? avgRating / 2 : 0;
 
-  // Calculate Total Time safely (ensuring numbers)
-  const totalTime = (Number(recipe.prepTime) || 0) + (Number(recipe.cookTime) || 0);
+  // Calculate Total Time Range
+  const minPrep = recipe.prepTime || 0;
+  const maxPrep = recipe.prepTimeMax || minPrep;
+  const minCook = recipe.cookTime || 0;
+  const maxCook = recipe.cookTimeMax || minCook;
+
+  const minTotal = minPrep + minCook;
+  const maxTotal = maxPrep + maxCook;
+
+  const timeDisplay = minTotal === maxTotal 
+    ? (minTotal > 0 ? `${minTotal} mins` : 'Quick')
+    : `${minTotal}-${maxTotal} mins`;
 
   return (
     <div 
@@ -78,7 +88,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
           <div className="flex items-center gap-1.5 text-text-light dark:text-text-dark">
             <Clock size={16} />
             <span className="text-xs font-semibold">
-               {totalTime > 0 ? `${totalTime} mins` : 'Quick'}
+               {timeDisplay}
             </span>
           </div>
           

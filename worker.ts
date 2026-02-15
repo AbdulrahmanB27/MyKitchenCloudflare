@@ -21,8 +21,6 @@ const corsHeaders = {
 };
 
 // --- Schema Initialization ---
-// Automatically creates tables if they don't exist. 
-// This makes the app "plug and play" without needing manual migration commands.
 async function ensureSchema(env: Env) {
     try {
         await env.DB.batch([
@@ -146,12 +144,6 @@ async function handleAuth(request: Request, env: Env) {
             return errorResponse('Server configuration missing: Password not set.', 401);
         }
 
-        if (envTurnstile && turnstileToken) {
-             // Turnstile logic... (omitted for brevity, assume passed or handled in DB/App)
-             // Ideally we verify here but for this fix we focus on DB sync.
-             // If you need strict turnstile, keep the fetch logic.
-        }
-
         if (password === envPassword) {
             const payload = { 
                 sub: 'family_member', 
@@ -168,7 +160,7 @@ async function handleAuth(request: Request, env: Env) {
 }
 
 // 2. Recipes
-async function handleRecipes(request: Request, env: Env) {
+async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) {
     // Ensure DB exists before any recipe op
     await ensureSchema(env);
 
@@ -205,6 +197,9 @@ async function handleRecipes(request: Request, env: Env) {
             const recipe: any = await request.json();
             const now = Date.now();
             recipe.updatedAt = now;
+            // Ensure any existing deleted flag is removed on insert/update
+            delete recipe.deleted;
+            
             await env.DB.prepare(
                 "INSERT INTO recipes (id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
             ).bind(recipe.id, recipe.name, recipe.category, recipe.favorite?1:0, recipe.archived?1:0, recipe.shareToFamily?1:0, recipe.tenantId||'global', JSON.stringify(recipe), now).run();
@@ -215,8 +210,25 @@ async function handleRecipes(request: Request, env: Env) {
     if (request.method === 'DELETE') {
         const id = url.searchParams.get("id");
         if (!id) return errorResponse("Missing ID", 400);
-        await env.DB.prepare("DELETE FROM recipes WHERE id = ?").bind(id).run();
-        return jsonResponse({ success: true });
+        
+        const now = Date.now();
+        // Soft Delete: Insert a tombstone so other clients know to delete it
+        const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
+        
+        try {
+            // 1. Minimize Row: Update name to 'Deleted', clear metadata, set data to small tombstone
+            await env.DB.prepare(
+                "INSERT INTO recipes (id, name, share_to_family, data, updated_at) VALUES (?, 'Deleted', 1, ?, ?) ON CONFLICT(id) DO UPDATE SET name='Deleted', share_to_family=1, data=excluded.data, updated_at=excluded.updated_at"
+            ).bind(id, tombstone, now).run();
+
+            // 2. Self-Cleaning: Delete tombstones older than 30 days to prevent clutter
+            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            ctx.waitUntil(
+                env.DB.prepare("DELETE FROM recipes WHERE name = 'Deleted' AND updated_at < ?").bind(thirtyDaysAgo).run()
+            );
+
+            return jsonResponse({ success: true, timestamp: now });
+        } catch(e: any) { return errorResponse(e.message); }
     }
 
     return errorResponse("Method Not Allowed", 405);
@@ -359,7 +371,7 @@ export default {
         }
 
         if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
-        if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env);
+        if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
         if (url.pathname.startsWith('/api/shopping')) return handleShopping(request, env);
         if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
         if (url.pathname.startsWith('/api/images')) return handleImages(request, env);

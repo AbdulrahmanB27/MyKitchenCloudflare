@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 
@@ -13,8 +13,9 @@ interface RecipeFormProps {
 }
 
 // Local form type allowing string input for amounts (e.g. "1/2")
-interface FormIngredient extends Omit<Ingredient, 'amount'> {
+interface FormIngredient extends Omit<Ingredient, 'amount' | 'secondaryAmount'> {
     amount: string | number;
+    secondaryAmount?: string | number;
 }
 
 interface IngredientBlock {
@@ -44,6 +45,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     video: { url: '', note: '' },
     storageNotes: '',
     source: { name: '', url: '', author: '' },
+    addedBy: '',
     nutrition: { calories: undefined, protein: undefined, carbs: undefined, fat: undefined },
     favorite: false,
     archived: false,
@@ -143,8 +145,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (initialData) {
       loadRecipeData(initialData);
     } else {
+        // Defaults for new recipe
         setIngredientBlocks([{ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
         setInstructionBlocks([{ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] }]);
+        
+        // Auto-fill "Added By" from previous use
+        const lastAuthor = localStorage.getItem('mykitchen_last_author');
+        if (lastAuthor) {
+            setFormData(prev => ({ ...prev, addedBy: lastAuthor }));
+        }
     }
   }, [initialData]);
 
@@ -206,7 +215,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     ingredientBlocks.forEach(block => {
         block.ingredients.forEach(ing => {
             if (ing.item.trim()) {
-                flatIngredients.push({ ...ing, amount: parseAmount(ing.amount), section: block.name || undefined });
+                flatIngredients.push({ 
+                    ...ing, 
+                    amount: parseAmount(ing.amount), 
+                    secondaryAmount: (ing.secondaryAmount !== undefined && ing.secondaryAmount !== '') ? parseAmount(ing.secondaryAmount) : undefined,
+                    section: block.name || undefined 
+                });
             }
         });
     });
@@ -225,6 +239,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
     const prep = parseTimeInput(prepTimeStr);
     const cook = parseTimeInput(cookTimeStr);
+
+    // Save author preference
+    if (formData.addedBy) {
+        localStorage.setItem('mykitchen_last_author', formData.addedBy);
+    }
 
     const recipe: Recipe = {
       ...formData as Recipe,
@@ -368,6 +387,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       }));
   };
 
+  const toggleIngredientSecondary = (blockId: string, ingId: string) => {
+      setIngredientBlocks(prev => prev.map(b => b.id !== blockId ? b : {
+          ...b,
+          ingredients: b.ingredients.map(i => i.id === ingId ? { 
+              ...i, 
+              // Check against undefined only; if it's null (from DB) or empty string, treat as "has value", so toggle should remove it (set to undefined)
+              // Wait, if we want to Add it, it should be undefined. 
+              // If it has any value (including null from legacy), we toggle it OFF.
+              secondaryAmount: i.secondaryAmount === undefined ? '' : undefined,
+              secondaryUnit: i.secondaryUnit === undefined ? '' : undefined
+          } : i)
+      }));
+  };
+
   const addInstructionBlock = () => setInstructionBlocks(prev => [...prev, { id: uuidv4(), name: 'New Section', steps: [{ id: uuidv4(), text: '' }] }]);
   const removeInstructionBlock = (blockId: string) => setInstructionBlocks(prev => prev.filter(b => b.id !== blockId));
   const updateInstructionBlockName = (blockId: string, name: string) => setInstructionBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name } : b));
@@ -389,6 +422,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
           
           <section className="space-y-4">
+             {/* Basics Section ... (Unchanged) */}
              <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
                  <h3 className="text-lg font-bold text-primary">Basics</h3>
                  <label className="flex items-center gap-2 cursor-pointer bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
@@ -519,6 +553,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                             </button>
                                             <button 
                                                 type="button" 
+                                                onClick={() => toggleIngredientSecondary(block.id, ing.id)} 
+                                                className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`}
+                                                title="Add Secondary Measurement (e.g. grams)"
+                                            >
+                                                <Scale size={16} />
+                                            </button>
+                                            <button 
+                                                type="button" 
                                                 onClick={() => toggleIngredientSub(block.id, ing.id)} 
                                                 className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-300 hover:text-orange-400'}`}
                                                 title="Add Substitution"
@@ -529,16 +571,41 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                       </div>
                                  </div>
                                  
+                                 {/* Secondary Amount Row (Conditional) */}
+                                 {ing.secondaryAmount !== undefined && (
+                                     <div className="flex gap-2 items-center mt-2 ml-1 w-full max-w-full overflow-hidden">
+                                          <div className="w-5 flex justify-center shrink-0">
+                                              <Scale size={20} className="text-purple-400" />
+                                          </div>
+                                          <input 
+                                            type="text" 
+                                            placeholder="Sec. Amt" 
+                                            value={ing.secondaryAmount || ''} 
+                                            onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} 
+                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 w-24 text-center shrink-0" 
+                                          />
+                                          <input 
+                                            type="text" 
+                                            placeholder="Sec. Unit (e.g. g)" 
+                                            value={ing.secondaryUnit || ''} 
+                                            onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} 
+                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 flex-1 min-w-0" 
+                                          />
+                                     </div>
+                                 )}
+
                                  {/* Substitution Row (Conditional) */}
                                  {ing.substitution !== undefined && (
-                                     <div className="pl-1 relative mt-1">
-                                          <ArrowRightLeft size={12} className="absolute left-3 top-2.5 text-text-muted pointer-events-none" />
+                                     <div className="flex gap-2 items-center mt-2 ml-1 w-full max-w-full overflow-hidden">
+                                          <div className="w-5 flex justify-center shrink-0">
+                                              <ArrowRightLeft size={20} className="text-orange-400" />
+                                          </div>
                                           <input 
                                             type="text" 
                                             placeholder="Substitution (e.g. Tofu)" 
-                                            value={ing.substitution} 
+                                            value={ing.substitution || ''} 
                                             onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} 
-                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 !pl-10" 
+                                            className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 flex-1 min-w-0" 
                                           />
                                      </div>
                                  )}
@@ -551,7 +618,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Ingredient Group</button>
           </section>
 
-          {/* Instructions Section */}
+          {/* Instructions Section ... (Unchanged) */}
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Instructions</h3>
              {instructionBlocks.map((block, bIdx) => (
@@ -607,6 +674,52 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                  </div>
              ))}
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Instruction Section</button>
+          </section>
+
+          {/* Nutrition, Storage, Attribution sections (unchanged) ... */}
+          {/* ... keeping the rest of the file identical to preserve context ... */}
+          <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
+             <h3 className="text-lg font-bold text-primary">Nutrition & Storage</h3>
+             <div className="grid grid-cols-4 gap-2">
+                <div className="col-span-4 md:col-span-1">
+                   <label className="label">Calories</label>
+                   <input type="number" value={getNumValue(formData.nutrition?.calories)} onChange={e => updateNested('nutrition', 'calories', e.target.value)} className="input" placeholder="kcal" />
+                </div>
+                <div className="col-span-4 md:col-span-1">
+                   <label className="label">Protein (g)</label>
+                   <input type="number" value={getNumValue(formData.nutrition?.protein)} onChange={e => updateNested('nutrition', 'protein', e.target.value)} className="input" placeholder="g" />
+                </div>
+                <div className="col-span-4 md:col-span-1">
+                   <label className="label">Carbs (g)</label>
+                   <input type="number" value={getNumValue(formData.nutrition?.carbs)} onChange={e => updateNested('nutrition', 'carbs', e.target.value)} className="input" placeholder="g" />
+                </div>
+                <div className="col-span-4 md:col-span-1">
+                   <label className="label">Fat (g)</label>
+                   <input type="number" value={getNumValue(formData.nutrition?.fat)} onChange={e => updateNested('nutrition', 'fat', e.target.value)} className="input" placeholder="g" />
+                </div>
+            </div>
+            <div>
+                <label className="label">Storage & Reheating</label>
+                <textarea value={formData.storageNotes || ''} onChange={e => handleChange('storageNotes', e.target.value)} rows={2} className="input resize-none" placeholder="e.g. Keeps for 3 days in fridge..." />
+            </div>
+          </section>
+
+          <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
+             <h3 className="text-lg font-bold text-primary">Attribution</h3>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div>
+                    <label className="label flex items-center gap-1"><User size={14}/> Added By</label>
+                    <input type="text" value={formData.addedBy || ''} onChange={e => handleChange('addedBy', e.target.value)} className="input" placeholder="Your Name" />
+                 </div>
+                 <div>
+                    <label className="label flex items-center gap-1"><LinkIcon size={14}/> Source Name</label>
+                    <input type="text" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className="input" placeholder="e.g. NYT Cooking" />
+                 </div>
+                 <div>
+                    <label className="label flex items-center gap-1"><LinkIcon size={14}/> Source URL</label>
+                    <input type="text" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className="input" placeholder="https://..." />
+                 </div>
+             </div>
           </section>
 
         </div>

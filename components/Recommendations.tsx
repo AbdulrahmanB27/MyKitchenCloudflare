@@ -107,8 +107,13 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
             ? allIngredients.filter(ing => !isSeasoning(ing.item))
             : allIngredients;
         
-        const totalRequired = relevantIngredients.length;
-        if (totalRequired === 0) return; 
+        // Count only mandatory ingredients as "required" for matching calculation
+        const totalRequired = relevantIngredients.filter(i => !i.optional).length;
+        
+        // If there are no mandatory ingredients, the recipe is technically always matchable if ingredients list isn't empty
+        if (totalRequired === 0 && relevantIngredients.length > 0) {
+            // Edge case: All optional ingredients.
+        }
 
         const missing: Ingredient[] = [];
         let matchedCount = 0;
@@ -117,10 +122,14 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
             if (checkIngredientMatch(ing.item, selectedIngredients)) {
                 matchedCount++;
             } else {
-                missing.push(ing);
+                // Only count as missing if NOT optional
+                if (!ing.optional) {
+                    missing.push(ing);
+                }
             }
         });
 
+        // "Missing One" logic relies on the missing array which now excludes optional items
         if (missing.length === 0 || (showMissingOne && missing.length === 1)) {
             results.push({
                 recipe,

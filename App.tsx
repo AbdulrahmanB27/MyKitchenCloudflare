@@ -223,7 +223,9 @@ const App: React.FC = () => {
     if (selectedTags.size > 0) {
         result = result.filter(r => {
             for (const tag of selectedTags) {
-                if (!r.tags.includes(tag)) return false;
+                const hasTag = r.tags.includes(tag);
+                const isAuthor = r.addedBy === tag;
+                if (!hasTag && !isAuthor) return false;
             }
             return true;
         });
@@ -256,7 +258,10 @@ const App: React.FC = () => {
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
-    recipes.forEach(r => r.tags.forEach(t => tags.add(t)));
+    recipes.forEach(r => {
+        r.tags.forEach(t => tags.add(t));
+        if (r.addedBy) tags.add(r.addedBy);
+    });
     return ['All', 'Favorites', ...Array.from(tags).sort()];
   }, [recipes]);
 

@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -270,9 +270,16 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
   const renderIngredient = (ing: Ingredient) => {
       const scaledAmount = ing.amount * scalingFactor;
+      let secondaryText = '';
+      if (ing.secondaryAmount) {
+          const scaledSecondary = ing.secondaryAmount * scalingFactor;
+          secondaryText = `(${formatFraction(scaledSecondary)} ${ing.secondaryUnit || ''})`.trim();
+      }
+
       return (
           <span>
               <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
+              {secondaryText && <span className="text-text-muted dark:text-gray-400 text-sm mr-1.5 font-medium">{secondaryText}</span>}
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
               {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
@@ -756,7 +763,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     </div>
                 </div>
                 
-                {/* Storage & Info Block (Moved to Bottom) - Conditioned */}
+                {/* Storage & Info Block */}
                 {recipe.storageNotes && (
                     <div className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-5 shadow-sm mt-4">
                         <div className="flex flex-col sm:flex-row gap-6">
@@ -770,6 +777,31 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 </p>
                             </div>
                         </div>
+                    </div>
+                )}
+                
+                {/* Source & Attribution - Moved to bottom */}
+                {(recipe.source?.name || recipe.addedBy) && (
+                    <div className="w-full mt-6 pt-6 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between gap-4 text-sm text-text-muted">
+                        {recipe.addedBy && (
+                            <div className="flex items-center gap-2">
+                                <User size={16} />
+                                <span>Added by <span className="font-medium text-text-main dark:text-white">{recipe.addedBy}</span></span>
+                            </div>
+                        )}
+                        {(recipe.source?.name || recipe.source?.url) && (
+                            <div className="flex items-center gap-2">
+                                <ExternalLink size={16} />
+                                <span>Source:</span>
+                                {recipe.source?.url ? (
+                                    <a href={recipe.source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                                        {recipe.source.name || 'Link'}
+                                    </a>
+                                ) : (
+                                    <span className="font-medium text-text-main dark:text-white">{recipe.source?.name}</span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
                 

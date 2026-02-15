@@ -32,3 +32,42 @@ export const formatFraction = (amount: number): string => {
   // Round to 2 decimals if not a clean fraction
   return parseFloat(amount.toFixed(2)).toString();
 };
+
+export const normalizeIngredient = (input: string): string => {
+  if (!input) return '';
+  let name = input.toLowerCase().trim();
+  
+  // Remove punctuation (keeping hyphens for things like "semi-sweet", but removing others)
+  // Remove . , ( ) [ ] { } ! ? * " '
+  name = name.replace(/[.,()\[\]{}!@#$%^&*;:<>?"']/g, "");
+  // Normalize internal whitespace
+  name = name.replace(/\s+/g, " ");
+
+  // Safety check for short words or specific exceptions
+  if (name.length <= 2) return name; 
+
+  const exceptions = new Set([
+      "hummus", "couscous", "molasses", "news", "series", "species", "asparagus", 
+      "lens", "chaos", "bias", "canvas", "status", "campus", "virus", "chorizo", "oats", "grits"
+  ]);
+  if (exceptions.has(name)) return name;
+
+  // Standard Pluralization rules
+  if (name.endsWith('ies') && !name.endsWith('eies')) {
+      // berry -> berries
+      return name.slice(0, -3) + 'y';
+  }
+  
+  if (name.endsWith('oes')) {
+      // potato -> potatoes
+      return name.slice(0, -2);
+  }
+
+  // Generic 's' removal
+  // Exclude 'ss' (glass), 'us' (fungus), 'is' (axis)
+  if (name.endsWith('s') && !name.endsWith('ss') && !name.endsWith('us') && !name.endsWith('is')) {
+      return name.slice(0, -1);
+  }
+
+  return name;
+};

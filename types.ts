@@ -28,6 +28,8 @@ export interface Ingredient {
   substitution?: string;
   section?: string; // e.g. "For the Sauce"
   optional?: boolean;
+  secondaryAmount?: number;
+  secondaryUnit?: string;
 }
 
 export interface Review {
@@ -87,6 +89,7 @@ export interface Recipe {
   // Meta
   nutrition?: Nutrition;
   source?: RecipeSource;
+  addedBy?: string;
   reviews: Review[];
   
   // User State

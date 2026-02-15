@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingItem } from '../types';
 import * as db from '../services/db';
-import { formatFraction } from '../utils/format';
+import { formatFraction, normalizeIngredient } from '../utils/format';
 
 interface ShoppingListProps {
   onOpenMenu: () => void;
@@ -125,12 +125,13 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           name = item.structured.item.trim();
           unit = item.structured.unit.trim().toLowerCase();
           amount = item.structured.amount;
-          // Key is item name + unit for merging (e.g. "Flour-cups")
-          key = `${name.toLowerCase()}-${unit}`;
+          // Key is normalized item name + unit for merging (e.g. "flour-cups")
+          // We use normalizeIngredient to handle plurals, punctuation, etc.
+          key = `${normalizeIngredient(name)}-${unit}`;
       } else {
           // Fallback for legacy items: Use text
           name = item.text;
-          key = name.toLowerCase();
+          key = normalizeIngredient(name);
           amount = 1; // Default
       }
 
@@ -154,8 +155,15 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
       if (item.recipeName) entry.sourceRecipeNames.add(item.recipeName);
       if (!item.isChecked) entry.isChecked = false; // If any is unchecked, the group is unchecked
       
-      // Capitalization preference
+      // Heuristic for "best" display name: prefer capitalized, prefer plural if total > 1
+      // For now, stick to capitalization preference
       if (name && name[0] === name[0].toUpperCase() && entry.text[0] !== name[0]) {
+          entry.text = name;
+      }
+      // If we have "egg" and now see "Eggs", maybe prefer "Eggs"?
+      // If the entry text is shorter than current name, and current name starts with entry text (e.g. Egg vs Eggs), swap to longer?
+      // Only do this if we are normalizing plurals.
+      if (name.length > entry.text.length && name.toLowerCase().startsWith(entry.text.toLowerCase())) {
           entry.text = name;
       }
     });

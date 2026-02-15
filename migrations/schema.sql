@@ -36,6 +36,44 @@ CREATE TABLE settings (
   value TEXT
 );
 
+-- RESTAURANT MODULE TABLES --
+
+DROP TABLE IF EXISTS restaurants;
+CREATE TABLE restaurants (
+  id TEXT PRIMARY KEY,
+  family_id TEXT DEFAULT 'global',
+  name TEXT,
+  cuisine_tags TEXT,
+  stars INTEGER DEFAULT 0,
+  price TEXT,
+  notes TEXT,
+  go_to_order TEXT,
+  last_visited_at INTEGER,
+  data TEXT, -- Full JSON blob for flexibility
+  updated_at INTEGER,
+  created_at INTEGER
+);
+
+DROP TABLE IF EXISTS vote_sessions;
+CREATE TABLE vote_sessions (
+  id TEXT PRIMARY KEY,
+  family_id TEXT DEFAULT 'global',
+  created_at INTEGER,
+  ended_at INTEGER,
+  created_by_device_id TEXT,
+  active INTEGER DEFAULT 1
+);
+
+DROP TABLE IF EXISTS votes;
+CREATE TABLE votes (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  restaurant_id TEXT,
+  device_id TEXT,
+  vote_value INTEGER,
+  created_at INTEGER
+);
+
 -- SEED DATA (Default Recipes) --
 
 -- 1. Spaghetti Carbonara

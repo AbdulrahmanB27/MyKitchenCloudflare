@@ -2,15 +2,17 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
 import * as db from './services/db';
+import { ENABLE_RESTAURANTS } from './constants';
 import RecipeCard from './components/RecipeCard';
 import RecipeDetail from './components/RecipeDetail';
 import RecipeForm from './components/RecipeForm';
 import ShoppingList from './components/ShoppingList';
 import MealPlanner from './components/MealPlanner';
 import Recommendations from './components/Recommendations';
+import RestaurantList from './components/RestaurantList';
 import AuthModal from './components/AuthModal';
 import ExportModal, { ExportOptions } from './components/ExportModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2 } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -22,7 +24,7 @@ const App: React.FC = () => {
   const [pendingSyncIds, setPendingSyncIds] = useState<Set<string>>(new Set());
   
   // View State
-  const [currentView, setCurrentView] = useState<'recipes' | 'shopping' | 'planner' | 'settings' | 'recommendations'>('recipes');
+  const [currentView, setCurrentView] = useState<'recipes' | 'shopping' | 'planner' | 'settings' | 'recommendations' | 'restaurants'>('recipes');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -156,6 +158,11 @@ const App: React.FC = () => {
             // Check queue initially
             const queue = await db.getSyncQueue();
             setPendingSyncIds(new Set(queue.map(q => q.id)));
+            
+            // Preload restaurants if enabled
+            if (ENABLE_RESTAURANTS) {
+                db.getRestaurants(); 
+            }
         } catch (e) {
             console.error("Initialization failed", e);
         } finally {
@@ -404,6 +411,18 @@ const App: React.FC = () => {
                     <span className="material-symbols-outlined">shopping_cart</span> 
                     {!isSidebarCollapsed && "Shopping List"}
                 </button>
+                
+                {/* Eat Out Module */}
+                {ENABLE_RESTAURANTS && (
+                    <button 
+                        onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); }} 
+                        className={`nav-btn ${currentView === 'restaurants' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                        title="Eat Out"
+                    >
+                        <UtensilsCrossed size={20} className="shrink-0" />
+                        {!isSidebarCollapsed && "Eat Out"}
+                    </button>
+                )}
             </div>
             
              <div className={`border-t border-border-light dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
@@ -454,6 +473,7 @@ const App: React.FC = () => {
         {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
         {currentView === 'shopping' && <ShoppingList onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
         {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
+        {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList onOpenMenu={() => setIsMobileMenuOpen(true)} />}
 
         {currentView === 'recipes' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">

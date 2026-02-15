@@ -1,12 +1,12 @@
 
-import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem } from '../types';
-import { DB_NAME, DB_VERSION, STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS } from '../constants';
+import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant } from '../types';
+import { DB_NAME, DB_VERSION, STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS } from '../constants';
 
 const STORE_SYNC_QUEUE = 'sync_queue';
 
 export const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION + 1); // Bump version for new stores if needed
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -17,8 +17,11 @@ export const initDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_RECIPES)) db.createObjectStore(STORE_RECIPES, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(STORE_SHOPPING)) db.createObjectStore(STORE_SHOPPING, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(STORE_PLANS)) db.createObjectStore(STORE_PLANS, { keyPath: 'id' });
-      if (!db.objectStoreNames.contains(STORE_SETTINGS)) db.createObjectStore(STORE_SETTINGS, { keyPath: 'id' }); // Settings uses 'id' usually 'app-settings'
+      if (!db.objectStoreNames.contains(STORE_SETTINGS)) db.createObjectStore(STORE_SETTINGS, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(STORE_SYNC_QUEUE)) db.createObjectStore(STORE_SYNC_QUEUE, { keyPath: 'id' });
+      
+      // New Store
+      if (!db.objectStoreNames.contains(STORE_RESTAURANTS)) db.createObjectStore(STORE_RESTAURANTS, { keyPath: 'id' });
     };
   });
 };

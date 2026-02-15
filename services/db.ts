@@ -1,8 +1,8 @@
 
-import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem } from '../types';
-import { config } from '../config';
+import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote } from '../types';
 import * as idb from './idb';
-import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS } from '../constants';
+import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS } from '../constants';
+import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = '/api';
 
@@ -13,6 +13,16 @@ export const setAuthCallback = (cb: () => void) => { authCallback = cb; };
 const getAuthToken = () => localStorage.getItem('family_auth_token');
 export const setAuthToken = (token: string) => localStorage.setItem('family_auth_token', token);
 export const hasAuthToken = () => !!getAuthToken();
+
+// Device ID for Voting
+const getDeviceId = () => {
+    let id = localStorage.getItem('device_id');
+    if (!id) {
+        id = uuidv4();
+        localStorage.setItem('device_id', id);
+    }
+    return id;
+};
 
 // --- Sync State ---
 const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
@@ -181,6 +191,7 @@ export const getSyncQueue = async () => {
 
 export const retrySync = () => {
     syncRecipes('manual');
+    if (ENABLE_RESTAURANTS) syncRestaurants();
 };
 
 const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
@@ -223,7 +234,10 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
 
     // 2. Process Outgoing Queue
     const queue = await idb.getSyncQueue();
-    if (queue.length > 0) {
+    // Filter queue to only recipes for now
+    const recipeQueue = queue.filter(q => !q.store || q.store === STORE_RECIPES);
+
+    if (recipeQueue.length > 0) {
         if (!hasAuthToken()) {
             if (mode === 'manual' && authCallback) {
                 authCallback();
@@ -231,7 +245,7 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
             return;
         }
 
-        for (const item of queue) {
+        for (const item of recipeQueue) {
             try {
                 const token = getAuthToken();
                 let res;
@@ -268,6 +282,152 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
     if (hasChanges) {
         window.dispatchEvent(new Event('recipes-updated'));
     }
+};
+
+// --- Restaurants (Module) ---
+
+const RESTAURANT_SYNC_KEY = 'restaurants_last_sync';
+
+export const getRestaurants = async (): Promise<Restaurant[]> => {
+    if (!ENABLE_RESTAURANTS) return [];
+    
+    // 1. Get Local
+    let list = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    
+    // 2. Trigger Sync
+    if (navigator.onLine) {
+        syncRestaurants().catch(console.error);
+    }
+    
+    return list;
+};
+
+export const upsertRestaurant = async (rest: Restaurant): Promise<void> => {
+    if (!ENABLE_RESTAURANTS) return;
+    
+    // Must be auth'd to write
+    if (!hasAuthToken()) {
+        if (authCallback) authCallback();
+        throw new Error("Auth required");
+    }
+
+    // Optimistic UI Update
+    await idb.put(STORE_RESTAURANTS, rest);
+    window.dispatchEvent(new Event('restaurants-updated'));
+
+    // Push to API
+    try {
+        const res = await fetch(`${API_BASE}/restaurants`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAuthToken()}` 
+            },
+            body: JSON.stringify(rest)
+        });
+        if (!res.ok) throw new Error("Failed to save to server");
+    } catch (e) {
+        console.error("Restaurant save failed", e);
+        // Revert? Or Queue? For now, we rely on the next sync to fix consistency
+    }
+};
+
+export const deleteRestaurant = async (id: string): Promise<void> => {
+     if (!ENABLE_RESTAURANTS) return;
+     if (!hasAuthToken()) {
+        if (authCallback) authCallback();
+        throw new Error("Auth required");
+    }
+
+    await idb.remove(STORE_RESTAURANTS, id);
+    window.dispatchEvent(new Event('restaurants-updated'));
+
+    try {
+        await fetch(`${API_BASE}/restaurants?id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        });
+    } catch (e) {
+        console.error("Restaurant delete failed", e);
+    }
+};
+
+const syncRestaurants = async () => {
+    if (!ENABLE_RESTAURANTS) return;
+    try {
+        const res = await fetch(`${API_BASE}/restaurants`);
+        if (res.ok) {
+            const data: Restaurant[] = await res.json();
+            // Replace local with server for simplicity in this module
+            // Ideally we do diffing, but this is "lightweight"
+            
+            // However, to keep it snappy, we should just upsert
+            // Soft deletes are handled by API returning everything? 
+            // The API logic should probably filter deleted. 
+            // If we receive a full list, we can just sync.
+            // Let's assume API returns all active restaurants.
+            
+            const currentIds = new Set(data.map(r => r.id));
+            const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+            
+            for (const r of data) {
+                await idb.put(STORE_RESTAURANTS, r);
+            }
+            
+            // Remove locals that are not in server list (simple sync)
+            for (const l of local) {
+                if (!currentIds.has(l.id)) {
+                    await idb.remove(STORE_RESTAURANTS, l.id);
+                }
+            }
+            
+            window.dispatchEvent(new Event('restaurants-updated'));
+        }
+    } catch (e) {
+        console.warn("Restaurant sync failed", e);
+    }
+};
+
+// --- Voting Sessions ---
+
+export const createVoteSession = async (): Promise<VoteSession | null> => {
+    if (!ENABLE_RESTAURANTS) return null;
+    try {
+        const res = await fetch(`${API_BASE}/vote_sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: getDeviceId() })
+        });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.error(e);
+    }
+    return null;
+};
+
+export const getActiveSession = async (): Promise<{ session: VoteSession, votes: Vote[] } | null> => {
+     if (!ENABLE_RESTAURANTS) return null;
+     try {
+         const res = await fetch(`${API_BASE}/vote_sessions?active=true`);
+         if (res.ok) return await res.json();
+     } catch (e) { console.error(e); }
+     return null;
+};
+
+export const submitVote = async (sessionId: string, restaurantId: string, value: number) => {
+    if (!ENABLE_RESTAURANTS) return;
+    try {
+        await fetch(`${API_BASE}/votes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId,
+                restaurantId,
+                deviceId: getDeviceId(),
+                voteValue: value
+            })
+        });
+    } catch (e) { console.error(e); }
 };
 
 

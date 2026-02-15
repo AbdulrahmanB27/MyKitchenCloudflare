@@ -129,6 +129,41 @@ export interface MealPlan {
   recipeId: string;
 }
 
+// --- Restaurant Types ---
+
+export interface Restaurant {
+  id: string;
+  familyId: string; // Default 'global'
+  name: string;
+  cuisineTags: string[];
+  stars: number; // 0-3
+  price: '$' | '$$' | '$$$' | '$$$$' | '';
+  notes: string;
+  goToOrder: string;
+  lastVisitedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+  deleted?: boolean;
+}
+
+export interface VoteSession {
+  id: string;
+  familyId: string;
+  createdAt: number;
+  endedAt?: number;
+  createdByDeviceId: string;
+  active: boolean;
+}
+
+export interface Vote {
+  id: string;
+  sessionId: string;
+  restaurantId: string;
+  deviceId: string;
+  voteValue: number; // 1 (approve), 0 (neutral/skip), -1 (reject)
+  createdAt: number;
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   autoSync: boolean;
@@ -144,6 +179,7 @@ export type SortOption = 'name' | 'rating' | 'time' | 'calories';
 export interface SyncQueueItem {
     id: string;
     action: 'upsert' | 'delete';
-    data?: Recipe;
+    data?: any;
+    store?: string;
     timestamp: number;
 }

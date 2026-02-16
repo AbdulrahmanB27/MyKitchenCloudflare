@@ -148,11 +148,11 @@ export interface Restaurant {
 
 export interface VoteSession {
   id: string;
-  familyId: string;
+  accessCode: string; // Public 4-char code
   createdAt: number;
   endedAt?: number;
-  createdByDeviceId: string;
   active: boolean;
+  snapshot?: Restaurant[]; // Snapshot of restaurants for this session
 }
 
 export interface Vote {

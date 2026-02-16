@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, MapPin, DollarSign, Star, UtensilsCrossed, Filter, ArrowRight, ThumbsUp, ThumbsDown, User, Loader } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, QrCode } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,6 +12,9 @@ interface RestaurantListProps {
 
 const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [view, setView] = useState<'list' | 'decide'>('list');
+    const [joinView, setJoinView] = useState(false);
+    const [joinCode, setJoinCode] = useState('');
+    
     const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -30,6 +33,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [activeSession, setActiveSession] = useState<VoteSession | null>(null);
     const [sessionVotes, setSessionVotes] = useState<Vote[]>([]);
     const [myVotes, setMyVotes] = useState<Map<string, number>>(new Map()); // RestID -> Value
+    const [sessionRestaurants, setSessionRestaurants] = useState<Restaurant[]>([]); // For guest view
 
     useEffect(() => {
         loadData();
@@ -106,29 +110,65 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // --- Voting Logic ---
 
     const refreshSession = async () => {
-        const data = await db.getActiveSession();
-        if (data) {
-            setActiveSession(data.session);
-            setSessionVotes(data.votes);
-            
-            // Map my local votes
-            const myDeviceId = localStorage.getItem('device_id');
-            const myMap = new Map<string, number>();
-            data.votes.filter(v => v.deviceId === myDeviceId).forEach(v => myMap.set(v.restaurantId, v.voteValue));
-            setMyVotes(myMap);
-        } else {
-            setActiveSession(null);
+        if (activeSession?.accessCode) {
+            // Poll by code
+            const data = await db.joinSession(activeSession.accessCode);
+            if (data) {
+                setActiveSession(data.session);
+                setSessionVotes(data.votes);
+                setSessionRestaurants(data.restaurants);
+                
+                // Map my local votes
+                const myDeviceId = localStorage.getItem('device_id');
+                const myMap = new Map<string, number>();
+                data.votes.filter(v => v.deviceId === myDeviceId).forEach(v => myMap.set(v.restaurantId, v.voteValue));
+                setMyVotes(myMap);
+            }
         }
     };
 
     const startSession = async () => {
         setLoading(true);
         try {
-            await db.createVoteSession();
-            await refreshSession();
-        } catch (e) {
+            // No auth check needed here anymore
+            const session = await db.createVoteSession();
+            if (!session) {
+                throw new Error("Failed to create session. Server returned error.");
+            }
+            // Automatically join the session we just created
+            const data = await db.joinSession(session.accessCode);
+            if (data) {
+                setActiveSession(data.session);
+                setSessionVotes(data.votes);
+                setSessionRestaurants(data.restaurants);
+            }
+        } catch (e: any) {
             console.error("Error starting session", e);
-            alert("Failed to start session. Check your connection.");
+            alert(`Failed to start session: ${e.message || "Check your connection"}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleJoinSession = async () => {
+        if (joinCode.length !== 4) {
+            alert("Please enter a 4-character code.");
+            return;
+        }
+        setLoading(true);
+        try {
+            const data = await db.joinSession(joinCode);
+            if (!data) {
+                alert("Session not found or inactive.");
+            } else {
+                setActiveSession(data.session);
+                setSessionVotes(data.votes);
+                setSessionRestaurants(data.restaurants);
+                setView('decide');
+                setJoinView(false);
+            }
+        } catch (e) {
+            alert("Failed to join.");
         } finally {
             setLoading(false);
         }
@@ -145,12 +185,12 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     useEffect(() => {
         let interval: number;
-        if (view === 'decide') {
+        if (view === 'decide' && activeSession) {
             refreshSession();
-            interval = window.setInterval(refreshSession, 5000); // Poll every 5s
+            interval = window.setInterval(refreshSession, 3000); // Poll every 3s for liveliness
         }
         return () => clearInterval(interval);
-    }, [view]);
+    }, [view, activeSession?.id]);
 
 
     // --- Filtering ---
@@ -170,11 +210,45 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         return sessionVotes.filter(v => v.restaurantId === restId).reduce((acc, v) => acc + v.voteValue, 0);
     };
 
+    // For session view, we use the sessionRestaurants snapshot or fallback to local restaurants if matching ID
     const rankedForSession = useMemo(() => {
-        return [...visibleRestaurants].sort((a, b) => calculateScore(b.id) - calculateScore(a.id));
-    }, [visibleRestaurants, sessionVotes]);
+        const source = sessionRestaurants.length > 0 ? sessionRestaurants : restaurants;
+        // Only show if we have data
+        if (source.length === 0) return [];
+        return [...source].sort((a, b) => calculateScore(b.id) - calculateScore(a.id));
+    }, [sessionRestaurants, restaurants, sessionVotes]);
 
     // --- Render ---
+
+    if (joinView) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background-light dark:bg-background-dark animate-in fade-in">
+                <div className="w-full max-w-sm space-y-6 text-center">
+                    <button onClick={() => setJoinView(false)} className="absolute top-4 left-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+                        <span className="material-symbols-outlined">arrow_back</span>
+                    </button>
+                    <h2 className="text-2xl font-bold dark:text-white">Join Session</h2>
+                    <p className="text-text-muted">Enter the 4-letter code from the host.</p>
+                    <input 
+                        type="text" 
+                        value={joinCode} 
+                        onChange={e => setJoinCode(e.target.value.toUpperCase())} 
+                        className="w-full text-center text-4xl font-mono tracking-widest p-4 rounded-xl border-2 border-primary/50 focus:border-primary bg-surface-light dark:bg-surface-dark dark:text-white uppercase outline-none" 
+                        placeholder="ABCD" 
+                        maxLength={4}
+                        autoFocus
+                    />
+                    <button 
+                        onClick={handleJoinSession}
+                        disabled={joinCode.length !== 4 || loading}
+                        className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                        {loading ? <Loader className="animate-spin mx-auto" /> : 'Join'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-background-light dark:bg-background-dark">
@@ -190,9 +264,16 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                              <UtensilsCrossed className="text-primary" /> Eat Out
                          </h1>
                      </div>
-                     <button onClick={() => setView(view === 'list' ? 'decide' : 'list')} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                         {view === 'list' ? 'Decide where to eat' : 'Back to List'}
-                     </button>
+                     <div className="flex gap-2">
+                         {view === 'list' && (
+                             <button onClick={() => setJoinView(true)} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted">
+                                 Join Code
+                             </button>
+                         )}
+                         <button onClick={() => setView(view === 'list' ? 'decide' : 'list')} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
+                             {view === 'list' ? 'Start Vote' : 'Back to List'}
+                         </button>
+                     </div>
                 </div>
 
                 {view === 'list' ? (
@@ -259,12 +340,22 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between">
-                                    <div className="text-left">
-                                        <h3 className="text-lg font-bold text-primary">Voting in Progress</h3>
-                                        <p className="text-xs text-text-muted">Session started {new Date(activeSession.createdAt).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}</p>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-left">
+                                            <h3 className="text-lg font-bold text-primary">Voting in Progress</h3>
+                                            <p className="text-xs text-text-muted">Code: <span className="font-mono font-bold text-base text-black dark:text-white ml-1">{activeSession.accessCode}</span></p>
+                                        </div>
+                                        <button onClick={startSession} className="text-xs font-bold text-text-muted hover:text-primary underline">Restart</button>
                                     </div>
-                                    <button onClick={startSession} className="text-xs font-bold text-text-muted hover:text-primary underline">Restart</button>
+                                    <div className="bg-white dark:bg-white/10 p-4 rounded-xl inline-block shadow-inner">
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://mykitchen.com?join=${activeSession.accessCode}`} 
+                                            alt="Join QR" 
+                                            className="w-32 h-32 mx-auto rounded-lg mix-blend-multiply dark:mix-blend-normal"
+                                        />
+                                        <p className="text-[10px] text-center mt-2 font-mono tracking-widest">{activeSession.accessCode}</p>
+                                    </div>
                                 </div>
                             )}
                         </div>

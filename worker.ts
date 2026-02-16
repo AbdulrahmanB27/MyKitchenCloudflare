@@ -88,8 +88,9 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (id TEXT PRIMARY KEY, family_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (id TEXT PRIMARY KEY, family_id TEXT, date TEXT, slot TEXT, recipe_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, family_id TEXT, created_at INTEGER, ended_at INTEGER, created_by_device_id TEXT, active INTEGER DEFAULT 1)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, family_id TEXT, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
+            // Updated vote_sessions with access_code and data (snapshot)
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
         ]);
     } catch (e) {
         console.error("Schema init failed", e);
@@ -189,7 +190,7 @@ async function handleAdmin(request: Request, env: Env) {
                 env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM meal_plans WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM restaurants WHERE family_id = ?").bind(session.familyId),
-                env.DB.prepare("DELETE FROM vote_sessions WHERE family_id = ?").bind(session.familyId)
+                // Note: We might leave vote_sessions or delete them. They are now public/unlinked.
             ]);
             return jsonResponse({ success: true, deleted: true });
         }
@@ -394,20 +395,30 @@ async function handleRestaurants(request: Request, env: Env) {
     return errorResponse("Method Not Allowed", 405);
 }
 
-// 6. Vote Sessions & Votes
+// 6. Vote Sessions & Votes (Public / Code based)
 async function handleVoteSessions(request: Request, env: Env) {
     await ensureSchema(env);
-    const session = await getSession(request, env);
-    if (!session) return errorResponse("Unauthorized", 401);
+    // No auth check for public voting functionality
+
+    const url = new URL(request.url);
 
     if (request.method === 'GET') {
-        // Get active session for family
-        const voteSession = await env.DB.prepare("SELECT * FROM vote_sessions WHERE family_id = ? AND active = 1 ORDER BY created_at DESC LIMIT 1").bind(session.familyId).first();
-        if (!voteSession) return jsonResponse(null);
+        const code = url.searchParams.get('code');
+        if (!code) return errorResponse("Missing code", 400);
 
-        const { results } = await env.DB.prepare("SELECT * FROM votes WHERE session_id = ? AND family_id = ?").bind(voteSession.id, session.familyId).all();
+        const session = await env.DB.prepare("SELECT * FROM vote_sessions WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
+        if (!session) return errorResponse("Session not found", 404);
+
+        const { results } = await env.DB.prepare("SELECT * FROM votes WHERE session_id = ?").bind(session.id).all();
+        
         return jsonResponse({
-            session: { ...voteSession, active: voteSession.active === 1 },
+            session: { 
+                id: session.id, 
+                accessCode: session.access_code,
+                createdAt: session.created_at, 
+                active: session.active === 1,
+                snapshot: session.data ? JSON.parse(session.data) : [] 
+            },
             votes: results.map((r: any) => ({
                 id: r.id, sessionId: r.session_id, restaurantId: r.restaurant_id, deviceId: r.device_id, voteValue: r.vote_value, createdAt: r.created_at
             }))
@@ -418,19 +429,30 @@ async function handleVoteSessions(request: Request, env: Env) {
         const body: any = await request.json();
         const now = Date.now();
         const id = crypto.randomUUID();
+        const code = Math.random().toString(36).substring(2, 6).toUpperCase();
         
-        await env.DB.prepare("UPDATE vote_sessions SET active = 0 WHERE family_id = ? AND active = 1").bind(session.familyId).run();
-        await env.DB.prepare("INSERT INTO vote_sessions (id, family_id, created_at, created_by_device_id, active) VALUES (?, ?, ?, ?, 1)").bind(id, session.familyId, now, body.deviceId || 'unknown').run();
+        // Use provided restaurants snapshot or empty
+        const restaurantData = body.restaurants || [];
+
+        // Note: We don't link to family_id strictly anymore, session is ephemeral/standalone
+        await env.DB.prepare(
+            "INSERT INTO vote_sessions (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
+        ).bind(id, code, JSON.stringify(restaurantData), now).run();
         
-        return jsonResponse({ id, familyId: session.familyId, createdAt: now, createdByDeviceId: body.deviceId, active: true });
+        return jsonResponse({ 
+            id, 
+            accessCode: code,
+            createdAt: now, 
+            active: true,
+            snapshot: restaurantData 
+        });
     }
     return errorResponse("Method Not Allowed", 405);
 }
 
 async function handleVotes(request: Request, env: Env) {
     await ensureSchema(env);
-    const session = await getSession(request, env);
-    if (!session) return errorResponse("Unauthorized", 401);
+    // Public endpoint for voting
 
     if (request.method === 'POST') {
         const body: any = await request.json();
@@ -438,7 +460,8 @@ async function handleVotes(request: Request, env: Env) {
         const id = crypto.randomUUID();
         
         await env.DB.prepare("DELETE FROM votes WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
-        await env.DB.prepare("INSERT INTO votes (id, family_id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, session.familyId, body.sessionId, body.restaurantId, body.deviceId, body.voteValue, now).run();
+        await env.DB.prepare("INSERT INTO votes (id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(id, body.sessionId, body.restaurantId, body.deviceId, body.voteValue, now).run();
         return jsonResponse({ success: true });
     }
     return errorResponse("Method Not Allowed", 405);

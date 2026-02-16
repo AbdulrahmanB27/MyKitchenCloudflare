@@ -519,11 +519,16 @@ const syncRestaurants = async () => {
 
 export const createVoteSession = async (): Promise<VoteSession | null> => {
     if (!ENABLE_RESTAURANTS) return null;
+    
+    // We send current local restaurants to server to create a snapshot for this session
+    // This allows guests without access to the restaurant DB to see the options.
+    const restaurants = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    
     try {
         const res = await fetch(`${API_BASE}/vote_sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
-            body: JSON.stringify({ deviceId: getDeviceId() })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: getDeviceId(), restaurants })
         });
         if (res.ok) return await res.json();
     } catch (e) {
@@ -532,13 +537,22 @@ export const createVoteSession = async (): Promise<VoteSession | null> => {
     return null;
 };
 
-export const getActiveSession = async (): Promise<{ session: VoteSession, votes: Vote[] } | null> => {
-     if (!ENABLE_RESTAURANTS) return null;
-     try {
-         const res = await fetch(`${API_BASE}/vote_sessions?active=true`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
-         if (res.ok) return await res.json();
-     } catch (e) { console.error(e); }
-     return null;
+export const joinSession = async (code: string): Promise<{ session: VoteSession, votes: Vote[], restaurants: Restaurant[] } | null> => {
+    if (!ENABLE_RESTAURANTS) return null;
+    try {
+        const res = await fetch(`${API_BASE}/vote_sessions?code=${code}`);
+        if (res.ok) {
+            const data = await res.json();
+            // Data contains session, votes
+            // session.snapshot contains the restaurants
+            return {
+                session: data.session,
+                votes: data.votes,
+                restaurants: data.session.snapshot || []
+            };
+        }
+    } catch (e) { console.error(e); }
+    return null;
 };
 
 export const submitVote = async (sessionId: string, restaurantId: string, value: number) => {
@@ -546,7 +560,7 @@ export const submitVote = async (sessionId: string, restaurantId: string, value:
     try {
         await fetch(`${API_BASE}/votes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
+            headers: { 'Content-Type': 'application/json' }, // No Auth Required
             body: JSON.stringify({
                 sessionId,
                 restaurantId,

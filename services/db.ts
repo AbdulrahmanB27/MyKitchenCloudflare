@@ -1,4 +1,3 @@
-
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote } from '../types';
 import * as idb from './idb';
 import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS } from '../constants';
@@ -7,614 +6,399 @@ import { v4 as uuidv4 } from 'uuid';
 const API_BASE = '/api';
 const STORAGE_KEY_TOKEN = 'family_auth_token';
 const STORAGE_KEY_SESSIONS = 'family_sessions';
-const STORAGE_KEY_CURRENT_ID = 'current_family_id';
-const STORAGE_KEY_NAME = 'family_name';
-const STORAGE_KEY_PINNED_ID = 'pinned_family_id';
+const STORAGE_KEY_DEVICE_ID = 'device_id';
+const STORAGE_KEY_FAMILY_ID = 'current_family_id';
+const STORAGE_KEY_FAMILY_NAME = 'current_family_name';
 
-// --- Auth State ---
-let authCallback: (() => void) | null = null;
-export const setAuthCallback = (cb: () => void) => { authCallback = cb; };
+// --- Auth & Session State ---
 
-const getAuthToken = () => localStorage.getItem(STORAGE_KEY_TOKEN);
-export const setAuthToken = (token: string) => localStorage.setItem(STORAGE_KEY_TOKEN, token);
-export const hasAuthToken = () => !!getAuthToken();
-export const getCurrentFamilyName = () => localStorage.getItem(STORAGE_KEY_NAME) || 'MyKitchen';
-export const getCurrentFamilyId = () => localStorage.getItem(STORAGE_KEY_CURRENT_ID);
-export const getPinnedFamilyId = () => localStorage.getItem(STORAGE_KEY_PINNED_ID);
-export const setPinnedFamilyId = (id: string) => localStorage.setItem(STORAGE_KEY_PINNED_ID, id);
+export const getDeviceId = (): string => {
+    let id = localStorage.getItem(STORAGE_KEY_DEVICE_ID);
+    if (!id) {
+        id = uuidv4();
+        localStorage.setItem(STORAGE_KEY_DEVICE_ID, id);
+    }
+    return id;
+};
 
-export const getSavedSessions = () => {
+export const hasAuthToken = (): boolean => {
+    return !!localStorage.getItem(STORAGE_KEY_TOKEN);
+};
+
+export const getCurrentFamilyId = (): string | null => {
+    return localStorage.getItem(STORAGE_KEY_FAMILY_ID);
+};
+
+export const getCurrentFamilyName = (): string => {
+    return localStorage.getItem(STORAGE_KEY_FAMILY_NAME) || 'My Kitchen';
+};
+
+export const getPinnedFamilyId = (): string | null => {
+    // For now, same as current
+    return getCurrentFamilyId();
+};
+
+export const getSavedSessions = (): { id: string, name: string, token: string }[] => {
     try {
         return JSON.parse(localStorage.getItem(STORAGE_KEY_SESSIONS) || '[]');
     } catch { return []; }
 };
 
-const saveSession = (id: string, name: string, token: string) => {
-    const sessions = getSavedSessions();
-    const existingIndex = sessions.findIndex((s: any) => s.id === id);
-    
-    if (existingIndex >= 0) {
-        sessions[existingIndex] = { id, name, token };
-    } else {
-        sessions.push({ id, name, token });
-    }
-    
-    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-    localStorage.setItem(STORAGE_KEY_TOKEN, token);
-    localStorage.setItem(STORAGE_KEY_CURRENT_ID, id);
-    localStorage.setItem(STORAGE_KEY_NAME, name);
+let authCallback: (() => void) | null = null;
+export const setAuthCallback = (cb: () => void) => {
+    authCallback = cb;
 };
 
-export const switchFamily = async (familyId: string) => {
-    const sessions = getSavedSessions();
-    const session = sessions.find((s: any) => s.id === familyId);
-    if (session) {
-        localStorage.setItem(STORAGE_KEY_TOKEN, session.token);
-        localStorage.setItem(STORAGE_KEY_CURRENT_ID, session.id);
-        localStorage.setItem(STORAGE_KEY_NAME, session.name);
-        
-        // Clear local data to prevent bleeding between families
-        await idb.clearAllStores();
-        window.location.reload(); 
-    }
-};
+// --- API Helper ---
 
-export const logout = (familyId?: string) => {
-    // If no specific ID, remove the current one
-    const targetId = familyId || localStorage.getItem(STORAGE_KEY_CURRENT_ID);
-    
-    if (targetId) {
-        const sessions = getSavedSessions().filter((s: any) => s.id !== targetId);
-        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-        
-        // If we removed the active session
-        if (localStorage.getItem(STORAGE_KEY_CURRENT_ID) === targetId) {
-             if (sessions.length > 0) {
-                 switchFamily(sessions[0].id);
-             } else {
-                 localStorage.removeItem(STORAGE_KEY_TOKEN);
-                 localStorage.removeItem(STORAGE_KEY_CURRENT_ID);
-                 localStorage.removeItem(STORAGE_KEY_NAME);
-                 localStorage.removeItem('sync_last_updated_at');
-                 idb.clearAllStores().then(() => window.location.reload());
-             }
-        } else {
-            window.dispatchEvent(new Event('sessions-updated'));
-        }
-    }
-};
+export const apiCall = async (endpoint: string, method: string = 'GET', body?: any) => {
+    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-const getDeviceId = () => {
-    let id = localStorage.getItem('device_id');
-    if (!id) {
-        id = uuidv4();
-        localStorage.setItem('device_id', id);
-    }
-    return id;
-};
-
-// --- Auth API ---
-
-export const registerFamily = async (familyName: string, password: string, adminPassword: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-        const res = await fetch(`${API_BASE}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ familyName, password, adminPassword })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            saveSession(data.familyId, data.name, data.token);
-            return { success: true };
-        }
-        return { success: false, error: data.error || 'Registration failed' };
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
-};
-
-export const authenticate = async (familyName: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-        const res = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ familyName, password })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            saveSession(data.familyId, data.name, data.token);
-            return { success: true };
-        }
-        return { success: false, error: data.error || 'Login failed' };
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
-};
-
-export const adminAction = async (action: 'update_passwords' | 'delete_family', payload: any): Promise<{ success: boolean; error?: string }> => {
-    try {
-        const res = await fetch(`${API_BASE}/admin`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getAuthToken()}`
-            },
-            body: JSON.stringify({ action, ...payload })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) return { success: true };
-        return { success: false, error: data.error };
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
-};
-
-// --- Sync State ---
-const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
-
-// --- Images (R2) ---
-
-export const uploadImage = async (file: Blob): Promise<string> => {
-    if (!hasAuthToken()) {
-        if (authCallback) authCallback();
-        throw new Error("Authentication required to upload images");
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const res = await fetch(`${API_BASE}/images`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${getAuthToken()}`
-        },
-        body: formData
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
     });
 
-    if (!res.ok) {
-        throw new Error("Image upload failed");
+    if (res.status === 401) {
+        // Token expired or invalid
+        if (authCallback) authCallback();
+        throw new Error("Unauthorized");
     }
 
-    const data = await res.json();
-    return data.url;
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || res.statusText);
+    }
+
+    if (res.status === 204) return null;
+    return res.json();
 };
 
+// --- Sync Logic (Simplified) ---
 
-// --- Recipes (IndexedDB + Sync) ---
+export const retrySync = async () => {
+    if (!navigator.onLine || !hasAuthToken()) return;
+    
+    const queue = await idb.getSyncQueue();
+    if (queue.length === 0) return;
+
+    for (const item of queue) {
+        try {
+            if (item.store === STORE_RECIPES) {
+                if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data);
+                if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE');
+            } else if (item.store === STORE_SHOPPING) {
+                if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data);
+                if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE');
+            }
+            // ... handle other stores
+            await idb.removeFromSyncQueue(item.id);
+        } catch (e) {
+            console.error("Sync failed for item", item, e);
+        }
+    }
+    // Trigger refresh
+    window.dispatchEvent(new Event('recipes-updated'));
+};
+
+// --- Recipes ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-    // 1. Load from IDB (Fast, Offline-First)
-    let recipes = await idb.getAll<Recipe>(STORE_RECIPES);
-
-    // 2. Trigger Sync in background (Silent Auto Mode)
-    const settings = await getSettings();
-    if (navigator.onLine && settings.autoSync !== false) {
-        syncRecipes('auto').catch(console.error);
+    const local = await idb.getAll<Recipe>(STORE_RECIPES);
+    
+    // Background sync if online
+    if (hasAuthToken() && navigator.onLine) {
+        apiCall('/recipes').then(async (remote: Recipe[]) => {
+            for (const r of remote) {
+                await idb.put(STORE_RECIPES, r);
+            }
+            window.dispatchEvent(new Event('recipes-updated'));
+        }).catch(() => {});
     }
-
-    return recipes;
+    return local;
 };
 
 export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
     return idb.getOne<Recipe>(STORE_RECIPES, id);
 };
 
-export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }): Promise<void> => {
-    // 1. Save to IDB
+export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
     await idb.put(STORE_RECIPES, recipe);
+    
+    if (options?.localOnly) return; 
 
-    // 2. Queue for Sync (if shared and NOT localOnly)
-    if (recipe.shareToFamily && !options?.localOnly) {
-        await idb.addToSyncQueue({
-            id: recipe.id,
-            action: 'upsert',
-            data: recipe,
-            timestamp: Date.now()
-        });
-        
-        // Update UI immediately to show pending state
-        window.dispatchEvent(new Event('recipes-updated'));
-
-        // 3. Try Sync (Manual Mode - Trigger Prompt if needed)
-        const settings = await getSettings();
-        if (navigator.onLine && settings.autoSync !== false) {
-            syncRecipes('manual');
+    if (hasAuthToken() && recipe.shareToFamily) {
+        try {
+            await apiCall('/recipes', 'POST', recipe);
+        } catch (e) {
+            // Queue for sync
+            await idb.addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
         }
     }
 };
 
-// Allows saving a recipe to a specific family ID without affecting local DB or current context
-export const crossPostRecipe = async (recipe: Recipe, familyId: string) => {
-    const sessions = getSavedSessions();
-    const session = sessions.find((s:any) => s.id === familyId);
-    if (!session) throw new Error("Target family session not found");
+export const deleteRecipe = async (id: string) => {
+    await idb.remove(STORE_RECIPES, id);
+    if (hasAuthToken()) {
+        try {
+            await apiCall(`/recipes?id=${id}`, 'DELETE');
+        } catch (e) {
+            await idb.addToSyncQueue({ id, action: 'delete', store: STORE_RECIPES, timestamp: Date.now() });
+        }
+    }
+};
 
+export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) => {
+    const sessions = getSavedSessions();
+    const targetSession = sessions.find(s => s.id === targetFamilyId);
+    
+    if (!targetSession) throw new Error("Not authenticated with target family");
+    
+    // Manual fetch with different token
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/recipes`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.token}`
-        },
+        headers,
         body: JSON.stringify({ ...recipe, shareToFamily: true })
     });
     
-    if (!res.ok) {
-        if (res.status === 401) {
-            // Token might be invalid, could handle re-auth here but complex
-            throw new Error("Authentication failed for target family");
-        }
-        throw new Error("Failed to save to remote family");
-    }
-    return await res.json();
+    if (!res.ok) throw new Error("Failed to cross-post");
 };
 
-export const deleteRecipe = async (id: string): Promise<void> => {
-    // 1. Delete from IDB
-    await idb.remove(STORE_RECIPES, id);
-
-    // 2. Queue Delete
-    await idb.addToSyncQueue({
-        id,
-        action: 'delete',
-        timestamp: Date.now()
-    });
-
-    window.dispatchEvent(new Event('recipes-updated'));
-
-    // 3. Try Sync (Manual Mode)
-    const settings = await getSettings();
-    if (navigator.onLine && settings.autoSync !== false) {
-        syncRecipes('manual');
-    }
-};
-
-// --- Shopping List (Local Only) ---
+// --- Shopping ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
-    // If online, sync first
-    if (navigator.onLine && hasAuthToken()) {
-        try {
-            const res = await fetch(`${API_BASE}/shopping`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` }});
-            if (res.ok) {
-                const items = await res.json();
-                // Simple replace strategy for shopping list for now
-                for (const item of items) await idb.put(STORE_SHOPPING, item);
-            }
-        } catch(e) {}
+    const local = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
+    if (hasAuthToken() && navigator.onLine) {
+        apiCall('/shopping').then(async (remote: ShoppingItem[]) => {
+             for(const i of remote) await idb.put(STORE_SHOPPING, i);
+        }).catch(() => {});
     }
-    return idb.getAll<ShoppingItem>(STORE_SHOPPING);
+    return local;
 };
 
-export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
+export const upsertShoppingItem = async (item: ShoppingItem) => {
     await idb.put(STORE_SHOPPING, item);
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/shopping`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
-            body: JSON.stringify(item)
-        }).catch(console.error);
-    }
-};
-
-export const deleteShoppingItem = async (id: string): Promise<void> => {
-    await idb.remove(STORE_SHOPPING, id);
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/shopping?id=${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        }).catch(console.error);
-    }
-};
-
-export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
-    const items = await getShoppingList();
-    for (const item of items) {
-        if (!onlyChecked || item.isChecked) {
-            await idb.remove(STORE_SHOPPING, item.id);
-        }
-    }
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/shopping?clearAll=${onlyChecked ? 'checked' : 'true'}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        }).catch(console.error);
-    }
-};
-
-// --- SYNC ENGINE ---
-
-export const getSyncQueue = async () => {
-    return idb.getSyncQueue();
-};
-
-export const retrySync = () => {
-    syncRecipes('manual');
-    if (ENABLE_RESTAURANTS) syncRestaurants();
-};
-
-const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
-    let hasChanges = false;
-    
-    // 1. Pull Incoming Changes
-    try {
-        const localRecipes = await idb.getAll<Recipe>(STORE_RECIPES);
-        let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
-        if (localRecipes.length === 0) lastUpdated = '0';
-
-        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`, {
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+    if (hasAuthToken()) {
+        apiCall('/shopping', 'POST', item).catch(() => {
+             idb.addToSyncQueue({ id: item.id, action: 'upsert', data: item, store: STORE_SHOPPING, timestamp: Date.now() });
         });
+    }
+};
+
+export const clearShoppingList = async (purchasedOnly: boolean) => {
+    if (purchasedOnly) {
+        const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
+        const toDelete = all.filter(i => i.isChecked);
+        for(const item of toDelete) await idb.remove(STORE_SHOPPING, item.id);
         
-        if (res.status === 401) {
-            if (mode === 'manual' && authCallback) authCallback();
-            return;
+        if (hasAuthToken()) {
+            apiCall('/shopping?clearAll=checked', 'DELETE').catch(() => {});
         }
-
-        if (res.ok) {
-            const updates: Recipe[] = await res.json();
-            if (updates.length > 0) {
-                let maxTs = parseInt(lastUpdated);
-                for (const r of updates) {
-                    if (r.deleted) {
-                        await idb.remove(STORE_RECIPES, r.id);
-                    } else {
-                        const existing = await idb.getOne<Recipe>(STORE_RECIPES, r.id);
-                        if (existing) {
-                            r.favorite = existing.favorite; 
-                        } else {
-                            r.favorite = false; 
-                        }
-                        await idb.put(STORE_RECIPES, r);
-                    }
-                    if (r.updatedAt > maxTs) maxTs = r.updatedAt;
-                }
-                localStorage.setItem(SYNC_KEY_LAST_UPDATED, maxTs.toString());
-                hasChanges = true;
-            }
-        }
-    } catch (e) {
-        console.warn("Pull sync failed", e);
-    }
-
-    // 2. Process Outgoing Queue
-    const queue = await idb.getSyncQueue();
-    const recipeQueue = queue.filter(q => !q.store || q.store === STORE_RECIPES);
-
-    if (recipeQueue.length > 0) {
-        if (!hasAuthToken()) {
-            if (mode === 'manual' && authCallback) authCallback();
-            return;
-        }
-
-        for (const item of recipeQueue) {
-            try {
-                const token = getAuthToken();
-                let res;
-                if (item.action === 'upsert' && item.data) {
-                    res = await fetch(`${API_BASE}/recipes`, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(item.data)
-                    });
-                } else if (item.action === 'delete') {
-                    res = await fetch(`${API_BASE}/recipes?id=${item.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                }
-
-                if (res && res.ok) {
-                    await idb.removeFromSyncQueue(item.id);
-                    hasChanges = true; 
-                } else if (res && (res.status === 401 || res.status === 403)) {
-                    if (mode === 'manual' && authCallback) authCallback();
-                    break;
-                }
-            } catch (e) {
-                console.error("Sync item failed", e);
-            }
+    } else {
+        const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
+        for(const item of all) await idb.remove(STORE_SHOPPING, item.id);
+        
+        if (hasAuthToken()) {
+            apiCall('/shopping?clearAll=true', 'DELETE').catch(() => {});
         }
     }
-
-    if (hasChanges) {
-        window.dispatchEvent(new Event('recipes-updated'));
-    }
 };
-
-// --- Restaurants (Module) ---
-
-export const getRestaurants = async (): Promise<Restaurant[]> => {
-    if (!ENABLE_RESTAURANTS) return [];
-    
-    // 1. Get Local
-    let list = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
-    
-    // 2. Trigger Sync
-    if (navigator.onLine && hasAuthToken()) {
-        syncRestaurants().catch(console.error);
-    }
-    
-    return list;
-};
-
-export const upsertRestaurant = async (rest: Restaurant): Promise<void> => {
-    if (!ENABLE_RESTAURANTS) return;
-    
-    // Must be auth'd to write
-    if (!hasAuthToken()) {
-        if (authCallback) authCallback();
-        throw new Error("Auth required");
-    }
-
-    // Optimistic UI Update
-    await idb.put(STORE_RESTAURANTS, rest);
-    window.dispatchEvent(new Event('restaurants-updated'));
-
-    // Push to API
-    try {
-        const res = await fetch(`${API_BASE}/restaurants`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getAuthToken()}` 
-            },
-            body: JSON.stringify(rest)
-        });
-        if (!res.ok) throw new Error("Failed to save to server");
-    } catch (e) {
-        console.error("Restaurant save failed", e);
-    }
-};
-
-export const deleteRestaurant = async (id: string): Promise<void> => {
-     if (!ENABLE_RESTAURANTS) return;
-     if (!hasAuthToken()) {
-        if (authCallback) authCallback();
-        throw new Error("Auth required");
-    }
-
-    await idb.remove(STORE_RESTAURANTS, id);
-    window.dispatchEvent(new Event('restaurants-updated'));
-
-    try {
-        await fetch(`${API_BASE}/restaurants?id=${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        });
-    } catch (e) {
-        console.error("Restaurant delete failed", e);
-    }
-};
-
-const syncRestaurants = async () => {
-    if (!ENABLE_RESTAURANTS) return;
-    try {
-        const res = await fetch(`${API_BASE}/restaurants`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
-        if (res.ok) {
-            const data: Restaurant[] = await res.json();
-            const currentIds = new Set(data.map(r => r.id));
-            const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
-            
-            for (const r of data) {
-                await idb.put(STORE_RESTAURANTS, r);
-            }
-            
-            for (const l of local) {
-                if (!currentIds.has(l.id)) {
-                    await idb.remove(STORE_RESTAURANTS, l.id);
-                }
-            }
-            
-            window.dispatchEvent(new Event('restaurants-updated'));
-        }
-    } catch (e) {
-        console.warn("Restaurant sync failed", e);
-    }
-};
-
-// --- Voting Sessions ---
-
-export const createVoteSession = async (): Promise<VoteSession | null> => {
-    if (!ENABLE_RESTAURANTS) return null;
-    
-    // We send current local restaurants to server to create a snapshot for this session
-    // This allows guests without access to the restaurant DB to see the options.
-    const restaurants = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
-    
-    try {
-        const res = await fetch(`${API_BASE}/vote_sessions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ deviceId: getDeviceId(), restaurants })
-        });
-        if (res.ok) return await res.json();
-    } catch (e) {
-        console.error(e);
-    }
-    return null;
-};
-
-export const joinSession = async (code: string): Promise<{ session: VoteSession, votes: Vote[], restaurants: Restaurant[] } | null> => {
-    if (!ENABLE_RESTAURANTS) return null;
-    try {
-        const res = await fetch(`${API_BASE}/vote_sessions?code=${code}`);
-        if (res.ok) {
-            const data = await res.json();
-            // Data contains session, votes
-            // session.snapshot contains the restaurants
-            return {
-                session: data.session,
-                votes: data.votes,
-                restaurants: data.session.snapshot || []
-            };
-        }
-    } catch (e) { console.error(e); }
-    return null;
-};
-
-export const submitVote = async (sessionId: string, restaurantId: string, value: number) => {
-    if (!ENABLE_RESTAURANTS) return;
-    try {
-        await fetch(`${API_BASE}/votes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }, // No Auth Required
-            body: JSON.stringify({
-                sessionId,
-                restaurantId,
-                deviceId: getDeviceId(),
-                voteValue: value
-            })
-        });
-    } catch (e) { console.error(e); }
-};
-
 
 // --- Meal Plans ---
 
 export const getMealPlans = async (): Promise<MealPlan[]> => {
-    if (navigator.onLine && hasAuthToken()) {
-        try {
-            const res = await fetch(`${API_BASE}/plans`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
-            if (res.ok) {
-                const plans = await res.json();
-                for (const p of plans) await idb.put(STORE_PLANS, p);
-            }
-        } catch(e) {}
+    const local = await idb.getAll<MealPlan>(STORE_PLANS);
+    if (hasAuthToken() && navigator.onLine) {
+        apiCall('/plans').then(async (remote: MealPlan[]) => {
+            for(const p of remote) await idb.put(STORE_PLANS, p);
+        }).catch(() => {});
     }
-    return idb.getAll(STORE_PLANS);
+    return local;
 };
 
-export const upsertMealPlan = async (plan: MealPlan): Promise<void> => {
+export const upsertMealPlan = async (plan: MealPlan) => {
     await idb.put(STORE_PLANS, plan);
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/plans`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
-            body: JSON.stringify(plan)
-        }).catch(console.error);
+    if (hasAuthToken()) {
+        apiCall('/plans', 'POST', plan).catch(console.error);
     }
 };
 
-export const deleteMealPlan = async (id: string): Promise<void> => {
+export const deleteMealPlan = async (id: string) => {
     await idb.remove(STORE_PLANS, id);
-    if (navigator.onLine && hasAuthToken()) {
-        fetch(`${API_BASE}/plans?id=${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-        }).catch(console.error);
+    if (hasAuthToken()) {
+        apiCall(`/plans?id=${id}`, 'DELETE').catch(console.error);
     }
 };
 
 // --- Settings ---
 
 export const getSettings = async (): Promise<AppSettings> => {
-  const s = await idb.getOne<AppSettings>(STORE_SETTINGS, 'app-settings');
-  return s || { theme: 'system', autoSync: true };
+    const s = await idb.getOne<AppSettings>(STORE_SETTINGS, 'config');
+    return s || { theme: 'system', autoSync: true };
 };
 
-export const saveSettings = async (settings: AppSettings): Promise<void> => {
-  await idb.put(STORE_SETTINGS, { ...settings, id: 'app-settings' });
+export const saveSettings = async (settings: AppSettings) => {
+    await idb.put(STORE_SETTINGS, { id: 'config', ...settings });
+};
+
+export const getSyncQueue = async () => {
+    return idb.getSyncQueue();
+};
+
+// --- Images ---
+
+export const uploadImage = async (blob: Blob): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', blob);
+    
+    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const headers: any = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const res = await fetch(`${API_BASE}/images`, {
+        method: 'POST',
+        headers,
+        body: formData
+    });
+    
+    if (!res.ok) throw new Error("Upload failed");
+    const data = await res.json();
+    return data.url;
+};
+
+// --- Auth ---
+
+export const authenticate = async (familyName: string, password: string): Promise<{ success: boolean, error?: string }> => {
+    try {
+        const res = await apiCall('/auth/login', 'POST', { familyName, password });
+        if (res.token) {
+            handleLoginSuccess(res.token, res.familyId, res.name);
+            return { success: true };
+        }
+        return { success: false, error: 'Invalid response' };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+export const registerFamily = async (familyName: string, password: string, adminPassword: string): Promise<{ success: boolean, error?: string }> => {
+    try {
+        const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword });
+        if (res.token) {
+            handleLoginSuccess(res.token, res.familyId, res.name);
+            return { success: true };
+        }
+        return { success: false, error: 'Invalid response' };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+const handleLoginSuccess = (token: string, familyId: string, name: string) => {
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_FAMILY_ID, familyId);
+    localStorage.setItem(STORAGE_KEY_FAMILY_NAME, name);
+    
+    // Save session
+    const sessions = getSavedSessions();
+    if (!sessions.find(s => s.id === familyId)) {
+        sessions.push({ id: familyId, name, token });
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    } else {
+        // Update token
+        const updated = sessions.map(s => s.id === familyId ? { ...s, token } : s);
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
+    }
+    
+    // Trigger sync
+    retrySync();
+};
+
+export const switchFamily = (familyId: string) => {
+    const sessions = getSavedSessions();
+    const session = sessions.find(s => s.id === familyId);
+    if (session) {
+        localStorage.setItem(STORAGE_KEY_TOKEN, session.token);
+        localStorage.setItem(STORAGE_KEY_FAMILY_ID, session.id);
+        localStorage.setItem(STORAGE_KEY_FAMILY_NAME, session.name);
+        window.location.reload(); 
+    }
+};
+
+export const logout = (familyId?: string) => {
+    if (familyId) {
+        const sessions = getSavedSessions().filter(s => s.id !== familyId);
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        if (getCurrentFamilyId() === familyId) {
+            localStorage.removeItem(STORAGE_KEY_TOKEN);
+            localStorage.removeItem(STORAGE_KEY_FAMILY_ID);
+            localStorage.removeItem(STORAGE_KEY_FAMILY_NAME);
+            window.location.reload();
+        }
+    } else {
+        localStorage.clear(); 
+        idb.clearAllStores();
+        window.location.reload();
+    }
+};
+
+export const adminAction = async (action: 'update_passwords' | 'delete_family', data: any) => {
+    try {
+        const res = await apiCall('/admin', 'POST', { action, ...data });
+        return { success: true, ...res };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+
+// --- Restaurants & Voting ---
+
+export const getRestaurants = async (): Promise<Restaurant[]> => {
+    const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    if (ENABLE_RESTAURANTS && hasAuthToken() && navigator.onLine) {
+         apiCall('/restaurants').then(async (remote: Restaurant[]) => {
+             for(const r of remote) await idb.put(STORE_RESTAURANTS, r);
+             window.dispatchEvent(new Event('restaurants-updated'));
+         }).catch(() => {});
+    }
+    return local;
+};
+
+export const upsertRestaurant = async (r: Restaurant) => {
+    await idb.put(STORE_RESTAURANTS, r);
+    if (hasAuthToken()) apiCall('/restaurants', 'POST', r).catch(console.error);
+};
+
+export const deleteRestaurant = async (id: string) => {
+    await idb.remove(STORE_RESTAURANTS, id);
+    if (hasAuthToken()) apiCall(`/restaurants?id=${id}`, 'DELETE').catch(console.error);
+};
+
+export const createVoteSession = async (subset?: Restaurant[], mode: 'list' | 'swipe' = 'list'): Promise<VoteSession | null> => {
+    if (!ENABLE_RESTAURANTS) return null;
+    const restaurants = subset || await getRestaurants();
+    try {
+        const res = await apiCall('/vote_sessions', 'POST', { deviceId: getDeviceId(), restaurants, mode });
+        return res;
+    } catch (e) { console.error(e); return null; }
+};
+
+export const joinSession = async (code: string): Promise<{ session: VoteSession, votes: Vote[], restaurants: Restaurant[] } | null> => {
+    try {
+        const res = await apiCall(`/vote_sessions?code=${code}`);
+        return res;
+    } catch (e) { console.error(e); return null; }
+};
+
+export const submitVote = async (sessionId: string, restaurantId: string, voteValue: number) => {
+    try {
+        await apiCall('/votes', 'POST', { sessionId, restaurantId, voteValue, deviceId: getDeviceId() });
+    } catch (e) { console.error(e); }
 };

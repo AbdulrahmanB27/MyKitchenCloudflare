@@ -135,6 +135,9 @@ export interface Restaurant {
   id: string;
   familyId: string; // Default 'global'
   name: string;
+  location?: string;
+  openHours?: string; // New field
+  isApproved?: boolean; // "Verified/Approved by me" check
   cuisineTags: string[];
   stars: number; // 0-3
   price: '$' | '$$' | '$$$' | '$$$$' | '';
@@ -149,6 +152,7 @@ export interface Restaurant {
 export interface VoteSession {
   id: string;
   accessCode: string; // Public 4-char code
+  mode: 'list' | 'swipe'; // New field for deciding mechanics
   createdAt: number;
   endedAt?: number;
   active: boolean;

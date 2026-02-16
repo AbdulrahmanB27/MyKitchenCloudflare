@@ -66,6 +66,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // Selection & Setup State
     const [selection, setSelection] = useState<Set<string>>(new Set());
     const [selectedMode, setSelectedMode] = useState<'list' | 'swipe'>('swipe');
+    const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
 
     // Swipe Mode Specific State
     const [swipeIndex, setSwipeIndex] = useState(0);
@@ -110,14 +111,15 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         setLoading(false);
     };
 
-    // Initialize selection when entering "decide" view or data loads
+    // Initialize selection only once when data is ready
     useEffect(() => {
-        if (!activeSession && restaurants.length > 0) {
+        if (!activeSession && restaurants.length > 0 && !hasInitializedSelection) {
             // Default select all non-archived
             const activeIds = restaurants.filter(r => !localArchive.has(r.id)).map(r => r.id);
             setSelection(new Set(activeIds));
+            setHasInitializedSelection(true);
         }
-    }, [restaurants, activeSession, localArchive]);
+    }, [restaurants, activeSession, localArchive, hasInitializedSelection]);
 
     const toggleLocalArchive = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -225,7 +227,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             if (data) {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants);
+                setSessionRestaurants(data.restaurants || []);
                 
                 const myDeviceId = localStorage.getItem('device_id');
                 const myMap = new Map<string, number>();
@@ -251,7 +253,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             if (data) {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants);
+                setSessionRestaurants(data.restaurants || []);
                 setSwipeIndex(0);
                 setSwipeFinished(false);
             }
@@ -272,7 +274,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             } else {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants);
+                setSessionRestaurants(data.restaurants || []);
                 setView('decide');
                 setJoinView(false);
             }
@@ -292,6 +294,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     // Swipe Specific
     const handleSwipeVote = async (val: number) => {
+        // Defensive check
+        if (!sessionRestaurants || !sessionRestaurants[swipeIndex]) {
+            console.warn("Swipe attempt on invalid restaurant index");
+            return;
+        }
         const currentRest = sessionRestaurants[swipeIndex];
         if (currentRest) {
             await submitVote(currentRest.id, val);
@@ -330,8 +337,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const rankedForSession = useMemo(() => {
-        const source = sessionRestaurants.length > 0 ? sessionRestaurants : restaurants;
-        if (source.length === 0) return [];
+        const currentSessionRestaurants = sessionRestaurants || [];
+        const source = currentSessionRestaurants.length > 0 ? currentSessionRestaurants : restaurants;
+        if (!source || source.length === 0) return [];
         return [...source].sort((a, b) => calculateScore(b.id) - calculateScore(a.id));
     }, [sessionRestaurants, restaurants, sessionVotes]);
 
@@ -565,7 +573,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                                 {activeSession.mode === 'swipe' && (
                                     <div className="relative w-full h-[500px] flex flex-col items-center">
-                                        {!swipeFinished && sessionRestaurants[swipeIndex] ? (
+                                        {!swipeFinished && sessionRestaurants && sessionRestaurants[swipeIndex] ? (
                                             <div className="w-full max-w-sm flex-1 flex flex-col relative">
                                                 <div className="text-center mb-4 text-xs font-bold text-text-muted uppercase tracking-widest">
                                                     Restaurant {swipeIndex + 1} of {sessionRestaurants.length}

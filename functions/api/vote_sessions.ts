@@ -8,21 +8,35 @@ interface Env {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
     try {
-        // Get active session
-        const sessionRes = await context.env.DB.prepare("SELECT * FROM vote_sessions WHERE active = 1 ORDER BY created_at DESC LIMIT 1").first();
+        const url = new URL(context.request.url);
+        const code = url.searchParams.get('code');
+
+        if (!code) return new Response(JSON.stringify({ error: "Missing code" }), { status: 400 });
+
+        // Get session by code
+        const sessionRes = await context.env.DB.prepare("SELECT * FROM vote_sessions_v2 WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
         
         if (!sessionRes) return new Response(JSON.stringify(null), { headers: { "Content-Type": "application/json" } });
 
+        // Parse data blob (contains restaurants snapshot and mode)
+        let sessionData: any = {};
+        try {
+            sessionData = JSON.parse(sessionRes.data || '{}');
+        } catch (e) {
+            // ignore
+        }
+
         // Get votes for this session
-        const { results } = await context.env.DB.prepare("SELECT * FROM votes WHERE session_id = ?").bind(sessionRes.id).all();
+        const { results } = await context.env.DB.prepare("SELECT * FROM votes_v2 WHERE session_id = ?").bind(sessionRes.id).all();
 
         return new Response(JSON.stringify({
             session: {
                 id: sessionRes.id,
-                familyId: sessionRes.family_id,
+                accessCode: sessionRes.access_code,
                 createdAt: sessionRes.created_at,
-                createdByDeviceId: sessionRes.created_by_device_id,
-                active: sessionRes.active === 1
+                active: sessionRes.active === 1,
+                mode: sessionData.mode || 'list',
+                snapshot: sessionData.restaurants || [] // Ensure this matches front-end expectation
             },
             votes: results.map((r: any) => ({
                 id: r.id,
@@ -31,7 +45,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                 deviceId: r.device_id,
                 voteValue: r.vote_value,
                 createdAt: r.created_at
-            }))
+            })),
+            restaurants: sessionData.restaurants || [] // Pass explicitly as top level too if needed by joinSession return type
         }), { headers: { "Content-Type": "application/json" } });
 
     } catch (e: any) {
@@ -44,21 +59,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const body = await context.request.json() as any;
         const now = Date.now();
         const id = crypto.randomUUID();
+        // Generate 4-char alpha code
+        const code = Math.random().toString(36).substring(2, 6).toUpperCase().replace(/[0-9O]/g, 'X'); // Simple cleanup
 
-        // Close any existing sessions first
-        await context.env.DB.prepare("UPDATE vote_sessions SET active = 0 WHERE active = 1").run();
+        const payload = {
+            restaurants: body.restaurants || [],
+            mode: body.mode || 'list'
+        };
 
-        // Create new
         await context.env.DB.prepare(
-            "INSERT INTO vote_sessions (id, family_id, created_at, created_by_device_id, active) VALUES (?, ?, ?, ?, 1)"
-        ).bind(id, 'global', now, body.deviceId || 'unknown').run();
+            "INSERT INTO vote_sessions_v2 (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
+        ).bind(id, code, JSON.stringify(payload), now).run();
 
         return new Response(JSON.stringify({ 
             id, 
-            familyId: 'global', 
+            accessCode: code,
             createdAt: now, 
-            createdByDeviceId: body.deviceId, 
-            active: true 
+            active: true,
+            mode: payload.mode,
+            snapshot: payload.restaurants
         }), { headers: { "Content-Type": "application/json" } });
 
     } catch (e: any) {

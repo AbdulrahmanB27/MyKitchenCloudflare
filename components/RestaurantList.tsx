@@ -2,13 +2,36 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, QrCode, CheckSquare, Square, Filter, Clock, BadgeCheck, X, Heart, SkipForward, RotateCcw } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, QrCode, CheckSquare, Square, Filter, Clock, BadgeCheck, X, Heart, SkipForward, RotateCcw, Trash2 } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RestaurantListProps {
     onOpenMenu: () => void;
 }
+
+const TIME_OPTIONS = (() => {
+    const times = [];
+    for (let i = 0; i < 24; i++) {
+        for (let j = 0; j < 60; j += 30) {
+            const h = i === 0 ? 12 : i > 12 ? i - 12 : i;
+            const ampm = i < 12 ? 'AM' : 'PM';
+            const m = j === 0 ? '00' : '30';
+            times.push(`${h}:${m} ${ampm}`);
+        }
+    }
+    return times;
+})();
+
+const DAYS = [
+    { id: 'Su', label: 'S', full: 'Sun' },
+    { id: 'Mo', label: 'M', full: 'Mon' },
+    { id: 'Tu', label: 'T', full: 'Tue' },
+    { id: 'We', label: 'W', full: 'Wed' },
+    { id: 'Th', label: 'T', full: 'Thu' },
+    { id: 'Fr', label: 'F', full: 'Fri' },
+    { id: 'Sa', label: 'S', full: 'Sat' },
+];
 
 const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [view, setView] = useState<'list' | 'decide'>('list');
@@ -25,6 +48,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<Restaurant>>({});
 
+    // Schedule State for Form
+    const [schedDays, setSchedDays] = useState<Set<string>>(new Set(['Mo','Tu','We','Th','Fr']));
+    const [schedStart, setSchedStart] = useState('11:00 AM');
+    const [schedEnd, setSchedEnd] = useState('9:00 PM');
+
     // Archive State
     const [localArchive, setLocalArchive] = useState<Set<string>>(new Set());
     const [showArchived, setShowArchived] = useState(false);
@@ -32,8 +60,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // Vote Session State
     const [activeSession, setActiveSession] = useState<VoteSession | null>(null);
     const [sessionVotes, setSessionVotes] = useState<Vote[]>([]);
-    const [myVotes, setMyVotes] = useState<Map<string, number>>(new Map()); // RestID -> Value
-    const [sessionRestaurants, setSessionRestaurants] = useState<Restaurant[]>([]); // For guest view
+    const [myVotes, setMyVotes] = useState<Map<string, number>>(new Map()); 
+    const [sessionRestaurants, setSessionRestaurants] = useState<Restaurant[]>([]); 
     
     // Selection & Setup State
     const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -54,6 +82,27 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         window.addEventListener('restaurants-updated', handleUpdates);
         return () => window.removeEventListener('restaurants-updated', handleUpdates);
     }, []);
+
+    // Sync Schedule to formData string
+    useEffect(() => {
+        if (!isFormOpen) return;
+        
+        let dayStr = '';
+        if (schedDays.size === 7) dayStr = 'Daily';
+        else if (schedDays.size === 5 && !schedDays.has('Sa') && !schedDays.has('Su')) dayStr = 'Weekdays';
+        else if (schedDays.size === 2 && schedDays.has('Sa') && schedDays.has('Su')) dayStr = 'Weekends';
+        else {
+            // Sort days
+            const ordered = DAYS.filter(d => schedDays.has(d.id)).map(d => d.full);
+            dayStr = ordered.join(', ');
+        }
+
+        if (schedDays.size === 0) {
+            setFormData(prev => ({ ...prev, openHours: '' }));
+        } else {
+            setFormData(prev => ({ ...prev, openHours: `${dayStr} ${schedStart} - ${schedEnd}` }));
+        }
+    }, [schedDays, schedStart, schedEnd, isFormOpen]);
 
     const loadData = async () => {
         const data = await db.getRestaurants();
@@ -88,9 +137,48 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         if (r) {
             setFormData(r);
             setEditingId(r.id);
+            
+            // Try to parse existing hours
+            if (r.openHours) {
+                try {
+                    const parts = r.openHours.split(' - ');
+                    if (parts.length === 2) {
+                        const end = parts[1].trim();
+                        // "Daily 11:00 AM" or "Mon, Tue 11:00 AM"
+                        const firstPart = parts[0];
+                        // Extract time from end of first part
+                        const timeMatch = firstPart.match(/(\d{1,2}:\d{2} [AP]M)$/);
+                        if (timeMatch) {
+                            setSchedStart(timeMatch[1]);
+                            setSchedEnd(end);
+                            
+                            const dayPart = firstPart.substring(0, firstPart.length - timeMatch[1].length).trim();
+                            if (dayPart === 'Daily') setSchedDays(new Set(DAYS.map(d => d.id)));
+                            else if (dayPart === 'Weekdays') setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
+                            else if (dayPart === 'Weekends') setSchedDays(new Set(['Sa','Su']));
+                            else {
+                                const days = new Set<string>();
+                                DAYS.forEach(d => {
+                                    if (dayPart.includes(d.full) || dayPart.includes(d.id)) days.add(d.id);
+                                });
+                                if (days.size > 0) setSchedDays(days);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Fail silently, use defaults
+                }
+            } else {
+                setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
+                setSchedStart('11:00 AM');
+                setSchedEnd('9:00 PM');
+            }
         } else {
             setFormData({ stars: 0, price: '$$', cuisineTags: [], isApproved: false });
             setEditingId(null);
+            setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
+            setSchedStart('11:00 AM');
+            setSchedEnd('9:00 PM');
         }
         setIsFormOpen(true);
     };
@@ -121,6 +209,12 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             console.error("Failed to save restaurant", err);
             alert(`Unable to save: ${err.message || "Please ensure you are logged in."}`);
         }
+    };
+
+    const toggleSchedDay = (id: string) => {
+        const next = new Set(schedDays);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        setSchedDays(next);
     };
 
     // --- Voting Logic ---
@@ -179,15 +273,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
                 setSessionRestaurants(data.restaurants);
-                
-                // If it's a swipe session, check where user left off? 
-                // For simplicity, we start at 0, but could filter out already voted ones.
-                const myDeviceId = localStorage.getItem('device_id');
-                const myVotedIds = new Set(data.votes.filter(v => v.deviceId === myDeviceId).map(v => v.restaurantId));
-                
-                // If swipe mode, we can try to skip voted items locally?
-                // Actually, let's just leave it 0-based for now or implement smart skip
-                
                 setView('decide');
                 setJoinView(false);
             }
@@ -241,7 +326,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     }, [restaurants, localArchive, showArchived, searchQuery]);
 
     const calculateScore = (restId: string) => {
-        // Simple score: Approved (+1) - Rejected (-1)
         return sessionVotes.filter(v => v.restaurantId === restId).reduce((acc, v) => acc + v.voteValue, 0);
     };
 
@@ -334,12 +418,13 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             {visibleRestaurants.map(r => (
                                 <div key={r.id} onClick={() => openForm(r)} className={`bg-surface-light dark:bg-surface-dark p-4 rounded-xl border ${localArchive.has(r.id) ? 'border-dashed border-gray-300 dark:border-gray-700 opacity-60' : 'border-border-light dark:border-border-dark'} shadow-sm hover:shadow-md transition-all cursor-pointer group relative`}>
                                     <div className="flex justify-between items-start">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5">
+                                        <div className="space-y-1 w-full pr-8">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <h3 className="font-bold text-lg text-text-main dark:text-white">{r.name}</h3>
                                                 {r.isApproved && (
                                                     <BadgeCheck size={16} className="text-blue-500 fill-blue-100 dark:fill-blue-900/30" />
                                                 )}
+                                                {r.price && <span className="text-xs font-bold text-text-muted bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded">{r.price}</span>}
                                             </div>
                                             {r.location && (
                                                 <div className="flex items-center gap-1 text-xs text-text-muted">
@@ -358,9 +443,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     <Star key={s} size={12} fill={r.stars >= s ? "currentColor" : "none"} className={r.stars >= s ? "" : "text-gray-300 dark:text-gray-600"} />
                                                 ))}
                                             </div>
-                                        </div>
-                                        <div className="text-xs font-bold text-text-muted bg-gray-100 dark:bg-white/5 px-2 py-1 rounded">
-                                            {r.price || '-'}
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-2">
@@ -387,8 +469,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             <div className="space-y-6">
                                 <div className="bg-primary/10 p-6 rounded-2xl border border-primary/20">
                                     <h3 className="text-xl font-bold text-primary mb-4">Setup Vote Session</h3>
-                                    
-                                    {/* Mode Selector */}
                                     <div className="flex gap-4 mb-6">
                                         <button onClick={() => setSelectedMode('swipe')} className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${selectedMode === 'swipe' ? 'border-primary bg-white dark:bg-white/10 shadow-md' : 'border-transparent bg-white/50 dark:bg-white/5 hover:bg-white/80'}`}>
                                             <div className="p-2 bg-pink-100 text-pink-600 rounded-full"><Heart size={24} /></div>
@@ -441,8 +521,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         ) : (
                             /* Active Session */
                             <div className="space-y-4">
-                                
-                                {/* Info Banner */}
                                 <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 text-center flex flex-col items-center gap-2">
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-bold text-text-main/50 uppercase">Code:</span>
@@ -454,7 +532,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <button onClick={startSession} className="text-xs font-bold text-text-muted hover:text-primary underline mt-2">Restart / New Session</button>
                                 </div>
 
-                                {/* LIST VIEW MODE */}
                                 {activeSession.mode === 'list' && (
                                     <div className="space-y-3">
                                         {rankedForSession.map(r => {
@@ -486,23 +563,17 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </div>
                                 )}
 
-                                {/* SWIPE VIEW MODE */}
                                 {activeSession.mode === 'swipe' && (
                                     <div className="relative w-full h-[500px] flex flex-col items-center">
                                         {!swipeFinished && sessionRestaurants[swipeIndex] ? (
                                             <div className="w-full max-w-sm flex-1 flex flex-col relative">
-                                                {/* Progress */}
                                                 <div className="text-center mb-4 text-xs font-bold text-text-muted uppercase tracking-widest">
                                                     Restaurant {swipeIndex + 1} of {sessionRestaurants.length}
                                                 </div>
-
-                                                {/* Card */}
                                                 <div className="flex-1 bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl border border-border-light dark:border-border-dark p-6 flex flex-col items-center justify-center text-center relative overflow-hidden animate-in zoom-in duration-300">
-                                                    {/* Background Pattern/Icon */}
                                                     <div className="absolute inset-0 bg-primary/5 dark:bg-white/5 flex items-center justify-center opacity-30 pointer-events-none">
                                                         <UtensilsCrossed size={120} className="text-primary/20" />
                                                     </div>
-
                                                     <div className="relative z-10 w-full space-y-4">
                                                         <div>
                                                             <div className="flex items-center justify-center gap-2 mb-2">
@@ -515,26 +586,21 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                                 <span>{sessionRestaurants[swipeIndex].cuisineTags[0]}</span>
                                                             </div>
                                                         </div>
-
                                                         {sessionRestaurants[swipeIndex].location && (
                                                             <div className="bg-white/50 dark:bg-black/20 p-2 rounded-lg text-sm text-text-muted">
                                                                 {sessionRestaurants[swipeIndex].location}
                                                             </div>
                                                         )}
-                                                        
                                                         {sessionRestaurants[swipeIndex].openHours && (
                                                             <div className="flex items-center justify-center gap-2 text-xs font-bold text-text-muted">
                                                                 <Clock size={14} /> {sessionRestaurants[swipeIndex].openHours}
                                                             </div>
                                                         )}
-
                                                         {sessionRestaurants[swipeIndex].notes && (
                                                             <p className="text-sm italic text-text-muted/80">"{sessionRestaurants[swipeIndex].notes}"</p>
                                                         )}
                                                     </div>
                                                 </div>
-
-                                                {/* Actions */}
                                                 <div className="flex justify-center gap-6 mt-8">
                                                     <button onClick={() => handleSwipeVote(-1)} className="size-16 rounded-full bg-white dark:bg-surface-dark border-2 border-red-100 dark:border-red-900/30 text-red-500 shadow-lg flex items-center justify-center hover:scale-110 hover:bg-red-50 transition-all"><X size={32} strokeWidth={3} /></button>
                                                     <button onClick={() => handleSwipeVote(0)} className="size-12 rounded-full bg-gray-100 dark:bg-white/10 text-gray-400 flex items-center justify-center hover:scale-110 transition-all mt-2"><SkipForward size={20} /></button>
@@ -558,14 +624,13 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </div>
                                 )}
 
-                                {/* Results List (Always visible in Swipe mode after finish, or just below) */}
                                 {activeSession.mode === 'swipe' && (
                                     <div className="mt-8 border-t border-border-light dark:border-border-dark pt-6">
                                         <h3 className="font-bold text-lg mb-4">Live Results</h3>
                                         <div className="space-y-2">
                                             {rankedForSession.slice(0, 5).map(r => {
                                                 const score = calculateScore(r.id);
-                                                if (score <= 0) return null; // Only show positive results in swipe summary
+                                                if (score <= 0) return null;
                                                 return (
                                                     <div key={r.id} className="flex items-center justify-between p-3 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark">
                                                         <div className="flex items-center gap-2">
@@ -625,15 +690,48 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                             <input placeholder="Location / Address" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
                             
-                            <div className="flex gap-4">
-                                <input placeholder="Open Hours (e.g. M-F 9-5)" className="flex-1 p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.openHours || ''} onChange={e => setFormData({...formData, openHours: e.target.value})} />
-                                <label className="flex items-center gap-2 cursor-pointer p-2 border rounded border-border-light dark:border-border-dark select-none">
-                                    <input type="checkbox" className="hidden" checked={formData.isApproved || false} onChange={e => setFormData({...formData, isApproved: e.target.checked})} />
-                                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${formData.isApproved ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
+                            {/* Open Hours Selector */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-text-muted">Open Hours</label>
+                                <div className="flex gap-1 justify-between bg-gray-100 dark:bg-white/5 p-2 rounded-lg">
+                                    {DAYS.map(d => (
+                                        <button 
+                                            key={d.id}
+                                            type="button"
+                                            onClick={() => toggleSchedDay(d.id)}
+                                            className={`size-8 rounded-full text-xs font-bold flex items-center justify-center transition-all ${
+                                                schedDays.has(d.id) 
+                                                    ? 'bg-primary text-white shadow-md' 
+                                                    : 'text-text-muted hover:bg-gray-200 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            {d.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2 items-center">
+                                    <select 
+                                        className="flex-1 p-2 rounded border bg-surface-light dark:bg-surface-dark dark:text-white dark:border-gray-700 text-sm"
+                                        value={schedStart}
+                                        onChange={e => setSchedStart(e.target.value)}
+                                    >
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <span className="text-text-muted text-xs font-bold">TO</span>
+                                    <select 
+                                        className="flex-1 p-2 rounded border bg-surface-light dark:bg-surface-dark dark:text-white dark:border-gray-700 text-sm"
+                                        value={schedEnd}
+                                        onChange={e => setSchedEnd(e.target.value)}
+                                    >
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2 mt-2 p-2 border rounded border-border-light dark:border-border-dark cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}>
+                                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${formData.isApproved ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
                                         {formData.isApproved && <span className="material-symbols-outlined text-white text-[14px]">check</span>}
                                     </div>
-                                    <span className="text-xs font-bold text-text-muted">Verified</span>
-                                </label>
+                                    <span className="text-xs font-bold text-text-muted select-none">Verified / Approved by Me</span>
+                                </div>
                             </div>
 
                             <input placeholder="Cuisine Tags (comma joined)" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} />
@@ -642,7 +740,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                             <div className="flex gap-2 pt-2">
                                 {editingId && (
-                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-2 text-red-500 hover:bg-red-50 rounded">Delete</button>
+                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                                        <Trash2 size={20} />
+                                    </button>
                                 )}
                                 <div className="flex-1"></div>
                                 <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-2 text-text-muted">Cancel</button>

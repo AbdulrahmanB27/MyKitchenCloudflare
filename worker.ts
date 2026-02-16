@@ -100,6 +100,7 @@ async function ensureSchema(env: Env) {
 
 // 1. Auth & Admin Handlers
 async function handleAuth(request: Request, env: Env) {
+    await ensureSchema(env); // Ensure schema on auth too, to create families table
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/auth', ''); // /login, /register
 
@@ -286,6 +287,7 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
 
 // 3. Shopping
 async function handleShopping(request: Request, env: Env) {
+    await ensureSchema(env);
     const session = await getSession(request, env);
     if (!session) return errorResponse("Unauthorized", 401);
 
@@ -327,6 +329,7 @@ async function handleShopping(request: Request, env: Env) {
 
 // 4. Plans
 async function handlePlans(request: Request, env: Env) {
+    await ensureSchema(env);
     const session = await getSession(request, env);
     if (!session) return errorResponse("Unauthorized", 401);
 
@@ -357,6 +360,7 @@ async function handlePlans(request: Request, env: Env) {
 
 // 5. Restaurants
 async function handleRestaurants(request: Request, env: Env) {
+    await ensureSchema(env); // Ensure table exists
     const session = await getSession(request, env);
     if (!session) return errorResponse("Unauthorized", 401);
 
@@ -392,6 +396,7 @@ async function handleRestaurants(request: Request, env: Env) {
 
 // 6. Vote Sessions & Votes
 async function handleVoteSessions(request: Request, env: Env) {
+    await ensureSchema(env);
     const session = await getSession(request, env);
     if (!session) return errorResponse("Unauthorized", 401);
 
@@ -423,6 +428,7 @@ async function handleVoteSessions(request: Request, env: Env) {
 }
 
 async function handleVotes(request: Request, env: Env) {
+    await ensureSchema(env);
     const session = await getSession(request, env);
     if (!session) return errorResponse("Unauthorized", 401);
 

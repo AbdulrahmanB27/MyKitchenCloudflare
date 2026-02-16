@@ -231,6 +231,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           }
 
           // 2. JSON Text Handling
+          // Only allow JSON paste if NOT editing an existing recipe, or if explicitly desired (but user asked to hide UI, so maybe disable logic too?)
+          // We'll keep logic active just in case, but hiding UI is the request. 
+          // If we want to be strict: if (initialData) return;
+          if (initialData) return;
+
           const text = e.clipboardData?.getData('text');
           if (text) {
               try {
@@ -827,12 +832,16 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         </div>
         <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-between gap-3 bg-card-light dark:bg-card-dark rounded-b-2xl">
           <div className="flex items-center gap-3">
-              <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File">
-                  <Upload size={20} />
-              </button>
-              <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text">
-                  <Clipboard size={20} />
-              </button>
+              {!initialData && (
+                  <>
+                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File">
+                        <Upload size={20} />
+                    </button>
+                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text">
+                        <Clipboard size={20} />
+                    </button>
+                  </>
+              )}
               {initialData?.id && onDelete && (
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
               )}

@@ -96,11 +96,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             await db.upsertRestaurant(r);
             await loadData();
             setIsFormOpen(false);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to save restaurant", err);
-            // If auth error, modal will likely be triggered by db service callback, 
-            // but we should ensure form doesn't close or state is handled.
-            alert("Unable to save. Please ensure you are logged in.");
+            // Show specific error to help debug (e.g., IndexedDB version mismatch)
+            alert(`Unable to save: ${err.message || "Please ensure you are logged in."}`);
         }
     };
 
@@ -338,7 +337,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <label className="text-xs font-bold text-text-muted">Stars (Personal)</label>
                                     <div className="flex gap-2 mt-2">
                                         {[1,2,3].map(s => (
-                                            <button type="button" key={s} onClick={() => setFormData({...formData, stars: s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
+                                            <button type="button" key={s} onClick={() => setFormData({...formData, stars: formData.stars === s ? 0 : s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
                                                 <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
                                             </button>
                                         ))}

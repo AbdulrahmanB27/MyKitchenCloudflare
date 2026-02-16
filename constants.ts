@@ -1,6 +1,6 @@
 
 export const DB_NAME = 'MealPrepDB';
-export const DB_VERSION = 6; // Bump version for new stores
+export const DB_VERSION = 7; // Bump version for new stores
 export const STORE_RECIPES = 'recipes';
 export const STORE_SETTINGS = 'settings';
 export const STORE_SHOPPING = 'shopping_list';

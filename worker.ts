@@ -2,7 +2,6 @@
 interface Env {
   DB: any;
   IMAGES: any;
-  FAMILY_PASSWORD: string;
   TURNSTILE_SECRET: string;
   [key: string]: any; 
 }
@@ -20,85 +19,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// --- Schema Initialization ---
-async function ensureSchema(env: Env) {
-    try {
-        await env.DB.batch([
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipes (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                category TEXT,
-                is_favorite INTEGER DEFAULT 0,
-                is_archived INTEGER DEFAULT 0,
-                share_to_family INTEGER DEFAULT 1,
-                tenant_id TEXT DEFAULT 'global',
-                data TEXT,
-                updated_at INTEGER,
-                created_at INTEGER
-            )`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                updated_at INTEGER
-            )`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (
-                id TEXT PRIMARY KEY,
-                date TEXT,
-                slot TEXT,
-                recipe_id TEXT,
-                data TEXT,
-                updated_at INTEGER
-            )`)
-        ]);
-    } catch (e) {
-        console.error("Schema init failed", e);
-    }
-}
-
-async function signToken(payload: any, secret: string) {
-    if (!secret) throw new Error("Secret required for signing");
-    const encoder = new TextEncoder();
-    const data = btoa(JSON.stringify(payload));
-    const key = await crypto.subtle.importKey(
-        'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-    );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
-    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
-    return `${data}.${signatureB64}`;
-}
-
-const checkAuth = async (request: Request, secret: string) => {
-    if (!secret) return false;
-
-    const auth = request.headers.get('Authorization');
-    if (!auth || !auth.startsWith('Bearer ')) return false;
-    
-    const token = auth.split(' ')[1];
-    const parts = token.split('.');
-    if (parts.length !== 2) return false;
-    
-    const [payloadB64, signatureB64] = parts;
-    if (!payloadB64 || !signatureB64) return false;
-
-    try {
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-            'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-        );
-        const signature = Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0));
-        const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(payloadB64));
-        
-        if (!valid) return false;
-
-        const payload = JSON.parse(atob(payloadB64));
-        if (payload.exp < Date.now()) return false; 
-
-        return true;
-    } catch (e) {
-        return false;
-    }
-};
-
 function jsonResponse(data: any, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
@@ -110,66 +30,208 @@ function errorResponse(message: string, status = 500) {
     return jsonResponse({ error: message }, status);
 }
 
+// --- Crypto Utils ---
+
+async function hashPassword(password: string, salt: string): Promise<string> {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
+    );
+    const key = await crypto.subtle.deriveKey(
+        { "name": "PBKDF2", salt: enc.encode(salt), iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { "name": "AES-GCM", "length": 256 },
+        true,
+        [ "encrypt", "decrypt" ]
+    );
+    const exported = await crypto.subtle.exportKey("raw", key);
+    return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function generateSalt(): string {
+    return crypto.randomUUID();
+}
+
+function generateToken(): string {
+    return crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+}
+
+// --- Auth Middleware ---
+
+async function getSession(request: Request, env: Env): Promise<{ familyId: string } | null> {
+    const auth = request.headers.get('Authorization');
+    if (!auth || !auth.startsWith('Bearer ')) return null;
+    
+    const token = auth.split(' ')[1];
+    
+    // Check DB for token
+    try {
+        const result = await env.DB.prepare("SELECT family_id FROM device_tokens WHERE token = ?").bind(token).first();
+        if (result) {
+            // Async update last_used could go here
+            return { familyId: result.family_id };
+        }
+    } catch (e) {
+        console.error("Session lookup failed", e);
+    }
+    return null;
+}
+
+// --- Schema Initialization ---
+async function ensureSchema(env: Env) {
+    try {
+        // Create tables if they don't exist. 
+        await env.DB.batch([
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS families (id TEXT PRIMARY KEY, name TEXT UNIQUE, password_hash TEXT, admin_password_hash TEXT, salt TEXT, created_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS device_tokens (token TEXT PRIMARY KEY, family_id TEXT, created_at INTEGER, last_used_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipes (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, category TEXT, is_favorite INTEGER DEFAULT 0, is_archived INTEGER DEFAULT 0, share_to_family INTEGER DEFAULT 1, tenant_id TEXT DEFAULT 'global', data TEXT, updated_at INTEGER, created_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (id TEXT PRIMARY KEY, family_id TEXT, data TEXT, updated_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (id TEXT PRIMARY KEY, family_id TEXT, date TEXT, slot TEXT, recipe_id TEXT, data TEXT, updated_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, family_id TEXT, created_at INTEGER, ended_at INTEGER, created_by_device_id TEXT, active INTEGER DEFAULT 1)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, family_id TEXT, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
+        ]);
+    } catch (e) {
+        console.error("Schema init failed", e);
+    }
+}
+
 // --- Handlers ---
 
-// 1. Auth
+// 1. Auth & Admin Handlers
 async function handleAuth(request: Request, env: Env) {
+    const url = new URL(request.url);
+    const path = url.pathname.replace('/api/auth', ''); // /login, /register
+
     if (request.method !== "POST") return errorResponse("Method Not Allowed", 405);
     
-    try {
-        const body: any = await request.json();
-        const password = (body.password || '').trim();
-        const turnstileToken = body.turnstileToken;
+    const body: any = await request.json();
 
-        let envPassword = env.FAMILY_PASSWORD;
-        let envTurnstile = env.TURNSTILE_SECRET;
+    // REGISTER
+    if (path === '/register') {
+        const { familyName, password, adminPassword } = body;
+        if (!familyName || !password || !adminPassword) return errorResponse("Missing fields", 400);
 
-        // Robust Env Retrieval
-        if (!envPassword) {
-            const allKeys = Object.keys(env);
-            const passKey = allKeys.find(k => k.trim() === 'FAMILY_PASSWORD');
-            if (passKey) envPassword = env[passKey];
+        try {
+            const exists = await env.DB.prepare("SELECT id FROM families WHERE name = ?").bind(familyName).first();
+            if (exists) return errorResponse("Family name already exists", 409);
+
+            const salt = generateSalt();
+            const pwHash = await hashPassword(password, salt);
+            const adminHash = await hashPassword(adminPassword, salt);
+            const familyId = crypto.randomUUID();
+            const now = Date.now();
+
+            await env.DB.prepare(
+                "INSERT INTO families (id, name, password_hash, admin_password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+            ).bind(familyId, familyName, pwHash, adminHash, salt, now).run();
+
+            // Auto-login: Issue token
+            const token = generateToken();
+            await env.DB.prepare("INSERT INTO device_tokens (token, family_id, created_at, last_used_at) VALUES (?, ?, ?, ?)").bind(token, familyId, now, now).run();
+
+            return jsonResponse({ success: true, token, familyId, name: familyName });
+        } catch (e: any) {
+            return errorResponse(e.message);
         }
-        
-        if (!envTurnstile) {
-             const allKeys = Object.keys(env);
-             const turnKey = allKeys.find(k => k.trim() === 'TURNSTILE_SECRET');
-             if (turnKey) envTurnstile = env[turnKey];
-        }
-
-        envPassword = (envPassword || '').trim();
-        envTurnstile = (envTurnstile || '').trim();
-
-        if (!envPassword) {
-            return errorResponse('Server configuration missing: Password not set.', 401);
-        }
-
-        if (password === envPassword) {
-            const payload = { 
-                sub: 'family_member', 
-                exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
-            };
-            const token = await signToken(payload, envPassword);
-            return jsonResponse({ token, success: true });
-        } else {
-            return errorResponse('Incorrect password', 401);
-        }
-    } catch (e: any) {
-        return errorResponse(`Server Error: ${e.message}`, 500);
     }
+
+    // LOGIN
+    if (path === '/login') {
+        const { familyName, password } = body;
+        if (!familyName || !password) return errorResponse("Missing credentials", 400);
+
+        try {
+            const family = await env.DB.prepare("SELECT * FROM families WHERE name = ?").bind(familyName).first();
+            if (!family) return errorResponse("Family not found", 404);
+
+            const hash = await hashPassword(password, family.salt);
+            if (hash !== family.password_hash) return errorResponse("Incorrect password", 401);
+
+            // Issue token
+            const token = generateToken();
+            const now = Date.now();
+            await env.DB.prepare("INSERT INTO device_tokens (token, family_id, created_at, last_used_at) VALUES (?, ?, ?, ?)").bind(token, family.id, now, now).run();
+
+            return jsonResponse({ success: true, token, familyId: family.id, name: family.name });
+        } catch (e: any) {
+            return errorResponse(e.message);
+        }
+    }
+
+    return errorResponse("Not Found", 404);
+}
+
+// Admin Actions
+async function handleAdmin(request: Request, env: Env) {
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
+
+    const body: any = await request.json();
+    const { action, adminPassword } = body; // action: 'update_password' | 'delete_family'
+
+    try {
+        // Verify Admin Password
+        const family = await env.DB.prepare("SELECT * FROM families WHERE id = ?").bind(session.familyId).first();
+        if (!family) return errorResponse("Family not found", 404);
+
+        const adminHashCheck = await hashPassword(adminPassword, family.salt);
+        if (adminHashCheck !== family.admin_password_hash) {
+            return errorResponse("Invalid Admin Password", 403);
+        }
+
+        if (action === 'delete_family') {
+            await env.DB.batch([
+                env.DB.prepare("DELETE FROM families WHERE id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM device_tokens WHERE family_id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM recipes WHERE family_id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM meal_plans WHERE family_id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM restaurants WHERE family_id = ?").bind(session.familyId),
+                env.DB.prepare("DELETE FROM vote_sessions WHERE family_id = ?").bind(session.familyId)
+            ]);
+            return jsonResponse({ success: true, deleted: true });
+        }
+
+        if (action === 'update_passwords') {
+            const { newFamilyPassword, newAdminPassword } = body;
+            if (!newFamilyPassword && !newAdminPassword) return errorResponse("No changes requested", 400);
+
+            let newPwHash = family.password_hash;
+            let newAdminHash = family.admin_password_hash;
+
+            if (newFamilyPassword) newPwHash = await hashPassword(newFamilyPassword, family.salt);
+            if (newAdminPassword) newAdminHash = await hashPassword(newAdminPassword, family.salt);
+
+            await env.DB.prepare("UPDATE families SET password_hash = ?, admin_password_hash = ? WHERE id = ?")
+                .bind(newPwHash, newAdminHash, session.familyId).run();
+            
+            return jsonResponse({ success: true });
+        }
+
+    } catch (e: any) {
+        return errorResponse(e.message);
+    }
+
+    return errorResponse("Invalid action", 400);
 }
 
 // 2. Recipes
 async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) {
-    // Ensure DB exists before any recipe op
     await ensureSchema(env);
+    
+    if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
     
     if (request.method === 'GET') {
         const since = url.searchParams.get("since");
-        let query = "SELECT data, updated_at FROM recipes WHERE share_to_family = 1";
-        let params: any[] = [];
+        let query = "SELECT data, updated_at FROM recipes WHERE family_id = ?";
+        let params: any[] = [session.familyId];
+        
         if (since) {
             query += " AND updated_at > ?";
             params.push(parseInt(since));
@@ -183,26 +245,16 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         } catch(e: any) { return errorResponse(e.message); }
     }
 
-    let envPassword = env.FAMILY_PASSWORD;
-    if (!envPassword) {
-        const key = Object.keys(env).find(k => k.trim() === 'FAMILY_PASSWORD');
-        if (key) envPassword = env[key];
-    }
-    
-    const authorized = await checkAuth(request, (envPassword || '').trim());
-    if (!authorized) return errorResponse("Unauthorized", 401);
-
     if (request.method === 'POST') {
         try {
             const recipe: any = await request.json();
             const now = Date.now();
             recipe.updatedAt = now;
-            // Ensure any existing deleted flag is removed on insert/update
             delete recipe.deleted;
             
             await env.DB.prepare(
-                "INSERT INTO recipes (id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
-            ).bind(recipe.id, recipe.name, recipe.category, recipe.favorite?1:0, recipe.archived?1:0, recipe.shareToFamily?1:0, recipe.tenantId||'global', JSON.stringify(recipe), now).run();
+                "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
+            ).bind(recipe.id, session.familyId, recipe.name, recipe.category, recipe.favorite?1:0, recipe.archived?1:0, 1, JSON.stringify(recipe), now).run();
             return jsonResponse({ success: true, timestamp: now });
         } catch(e: any) { return errorResponse(e.message); }
     }
@@ -212,19 +264,17 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         if (!id) return errorResponse("Missing ID", 400);
         
         const now = Date.now();
-        // Soft Delete: Insert a tombstone so other clients know to delete it
         const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
         
         try {
-            // 1. Minimize Row: Update name to 'Deleted', clear metadata, set data to small tombstone
             await env.DB.prepare(
-                "INSERT INTO recipes (id, name, share_to_family, data, updated_at) VALUES (?, 'Deleted', 1, ?, ?) ON CONFLICT(id) DO UPDATE SET name='Deleted', share_to_family=1, data=excluded.data, updated_at=excluded.updated_at"
-            ).bind(id, tombstone, now).run();
+                "INSERT INTO recipes (id, family_id, name, data, updated_at) VALUES (?, ?, 'Deleted', ?, ?) ON CONFLICT(id) DO UPDATE SET name='Deleted', data=excluded.data, updated_at=excluded.updated_at"
+            ).bind(id, session.familyId, tombstone, now).run();
 
-            // 2. Self-Cleaning: Delete tombstones older than 30 days to prevent clutter
+            // Cleanup old tombstones scoped to family
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
             ctx.waitUntil(
-                env.DB.prepare("DELETE FROM recipes WHERE name = 'Deleted' AND updated_at < ?").bind(thirtyDaysAgo).run()
+                env.DB.prepare("DELETE FROM recipes WHERE family_id = ? AND name = 'Deleted' AND updated_at < ?").bind(session.familyId, thirtyDaysAgo).run()
             );
 
             return jsonResponse({ success: true, timestamp: now });
@@ -236,20 +286,13 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
 
 // 3. Shopping
 async function handleShopping(request: Request, env: Env) {
-    await ensureSchema(env);
-    
-    let envPassword = env.FAMILY_PASSWORD;
-    if (!envPassword) {
-        const key = Object.keys(env).find(k => k.trim() === 'FAMILY_PASSWORD');
-        if (key) envPassword = env[key];
-    }
-    const authorized = await checkAuth(request, (envPassword || '').trim());
-    if (!authorized) return errorResponse("Unauthorized", 401);
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
 
     if (request.method === 'GET') {
-        const { results } = await env.DB.prepare("SELECT data FROM shopping_list").all();
+        const { results } = await env.DB.prepare("SELECT data FROM shopping_list WHERE family_id = ?").bind(session.familyId).all();
         const items = results.map((row: any) => JSON.parse(row.data));
         return jsonResponse(items);
     }
@@ -257,8 +300,8 @@ async function handleShopping(request: Request, env: Env) {
     if (request.method === 'POST') {
         const item: any = await request.json();
         await env.DB.prepare(
-            "INSERT INTO shopping_list (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
-        ).bind(item.id, JSON.stringify(item), Date.now()).run();
+            "INSERT INTO shopping_list (id, family_id, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
+        ).bind(item.id, session.familyId, JSON.stringify(item), Date.now()).run();
         return jsonResponse({ success: true });
     }
 
@@ -266,16 +309,16 @@ async function handleShopping(request: Request, env: Env) {
         const id = url.searchParams.get("id");
         const clearAll = url.searchParams.get("clearAll");
         if (clearAll === "true") {
-            await env.DB.prepare("DELETE FROM shopping_list").run();
+            await env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId).run();
         } else if (clearAll === "checked") {
-            const { results } = await env.DB.prepare("SELECT id, data FROM shopping_list").all();
+            const { results } = await env.DB.prepare("SELECT id, data FROM shopping_list WHERE family_id = ?").bind(session.familyId).all();
             const ids = results.filter((row: any) => JSON.parse(row.data).isChecked).map((row: any) => row.id);
             if (ids.length > 0) {
                 const p = ids.map(() => '?').join(',');
-                await env.DB.prepare(`DELETE FROM shopping_list WHERE id IN (${p})`).bind(...ids).run();
+                await env.DB.prepare(`DELETE FROM shopping_list WHERE id IN (${p}) AND family_id = ?`).bind(...ids, session.familyId).run();
             }
         } else if (id) {
-            await env.DB.prepare("DELETE FROM shopping_list WHERE id = ?").bind(id).run();
+            await env.DB.prepare("DELETE FROM shopping_list WHERE id = ? AND family_id = ?").bind(id, session.familyId).run();
         }
         return jsonResponse({ success: true });
     }
@@ -284,20 +327,13 @@ async function handleShopping(request: Request, env: Env) {
 
 // 4. Plans
 async function handlePlans(request: Request, env: Env) {
-    await ensureSchema(env);
-    
-    let envPassword = env.FAMILY_PASSWORD;
-    if (!envPassword) {
-        const key = Object.keys(env).find(k => k.trim() === 'FAMILY_PASSWORD');
-        if (key) envPassword = env[key];
-    }
-    const authorized = await checkAuth(request, (envPassword || '').trim());
-    if (!authorized) return errorResponse("Unauthorized", 401);
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
 
     if (request.method === 'GET') {
-        const { results } = await env.DB.prepare("SELECT data FROM meal_plans").all();
+        const { results } = await env.DB.prepare("SELECT data FROM meal_plans WHERE family_id = ?").bind(session.familyId).all();
         const plans = results.map((row: any) => JSON.parse(row.data));
         return jsonResponse(plans);
     }
@@ -305,21 +341,104 @@ async function handlePlans(request: Request, env: Env) {
     if (request.method === 'POST') {
         const plan: any = await request.json();
         await env.DB.prepare(
-            "INSERT INTO meal_plans (id, date, slot, recipe_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
-        ).bind(plan.id, plan.date, plan.slot, plan.recipeId, JSON.stringify(plan), Date.now()).run();
+            "INSERT INTO meal_plans (id, family_id, date, slot, recipe_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
+        ).bind(plan.id, session.familyId, plan.date, plan.slot, plan.recipeId, JSON.stringify(plan), Date.now()).run();
         return jsonResponse({ success: true });
     }
 
     if (request.method === 'DELETE') {
         const id = url.searchParams.get("id");
         if (!id) return errorResponse("Missing ID", 400);
-        await env.DB.prepare("DELETE FROM meal_plans WHERE id = ?").bind(id).run();
+        await env.DB.prepare("DELETE FROM meal_plans WHERE id = ? AND family_id = ?").bind(id, session.familyId).run();
         return jsonResponse({ success: true });
     }
     return errorResponse("Method Not Allowed", 405);
 }
 
-// 5. Images (Deduplicated with Hashing)
+// 5. Restaurants
+async function handleRestaurants(request: Request, env: Env) {
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
+
+    const url = new URL(request.url);
+
+    if (request.method === 'GET') {
+        const { results } = await env.DB.prepare("SELECT data FROM restaurants WHERE family_id = ? ORDER BY updated_at DESC").bind(session.familyId).all();
+        const list = results.map((row: any) => JSON.parse(row.data));
+        return jsonResponse(list);
+    }
+
+    if (request.method === 'POST') {
+        const r: any = await request.json();
+        const now = Date.now();
+        r.updatedAt = now;
+        await env.DB.prepare(
+            `INSERT INTO restaurants (id, family_id, name, cuisine_tags, stars, price, notes, go_to_order, last_visited_at, data, updated_at, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET 
+             name=excluded.name, cuisine_tags=excluded.cuisine_tags, stars=excluded.stars, price=excluded.price, notes=excluded.notes, go_to_order=excluded.go_to_order, last_visited_at=excluded.last_visited_at, data=excluded.data, updated_at=excluded.updated_at`
+        ).bind(r.id, session.familyId, r.name, JSON.stringify(r.cuisineTags||[]), r.stars||0, r.price||'', r.notes||'', r.goToOrder||'', r.lastVisitedAt||null, JSON.stringify(r), now, r.createdAt||now).run();
+        return jsonResponse({ success: true });
+    }
+
+    if (request.method === 'DELETE') {
+        const id = url.searchParams.get("id");
+        if (!id) return errorResponse("Missing ID", 400);
+        await env.DB.prepare("DELETE FROM restaurants WHERE id = ? AND family_id = ?").bind(id, session.familyId).run();
+        return jsonResponse({ success: true });
+    }
+    return errorResponse("Method Not Allowed", 405);
+}
+
+// 6. Vote Sessions & Votes
+async function handleVoteSessions(request: Request, env: Env) {
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
+
+    if (request.method === 'GET') {
+        // Get active session for family
+        const voteSession = await env.DB.prepare("SELECT * FROM vote_sessions WHERE family_id = ? AND active = 1 ORDER BY created_at DESC LIMIT 1").bind(session.familyId).first();
+        if (!voteSession) return jsonResponse(null);
+
+        const { results } = await env.DB.prepare("SELECT * FROM votes WHERE session_id = ? AND family_id = ?").bind(voteSession.id, session.familyId).all();
+        return jsonResponse({
+            session: { ...voteSession, active: voteSession.active === 1 },
+            votes: results.map((r: any) => ({
+                id: r.id, sessionId: r.session_id, restaurantId: r.restaurant_id, deviceId: r.device_id, voteValue: r.vote_value, createdAt: r.created_at
+            }))
+        });
+    }
+
+    if (request.method === 'POST') {
+        const body: any = await request.json();
+        const now = Date.now();
+        const id = crypto.randomUUID();
+        
+        await env.DB.prepare("UPDATE vote_sessions SET active = 0 WHERE family_id = ? AND active = 1").bind(session.familyId).run();
+        await env.DB.prepare("INSERT INTO vote_sessions (id, family_id, created_at, created_by_device_id, active) VALUES (?, ?, ?, ?, 1)").bind(id, session.familyId, now, body.deviceId || 'unknown').run();
+        
+        return jsonResponse({ id, familyId: session.familyId, createdAt: now, createdByDeviceId: body.deviceId, active: true });
+    }
+    return errorResponse("Method Not Allowed", 405);
+}
+
+async function handleVotes(request: Request, env: Env) {
+    const session = await getSession(request, env);
+    if (!session) return errorResponse("Unauthorized", 401);
+
+    if (request.method === 'POST') {
+        const body: any = await request.json();
+        const now = Date.now();
+        const id = crypto.randomUUID();
+        
+        await env.DB.prepare("DELETE FROM votes WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
+        await env.DB.prepare("INSERT INTO votes (id, family_id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, session.familyId, body.sessionId, body.restaurantId, body.deviceId, body.voteValue, now).run();
+        return jsonResponse({ success: true });
+    }
+    return errorResponse("Method Not Allowed", 405);
+}
+
+// 7. Images (Shared Bucket, no strict family segregation on GET for simplicity, but POST requires auth)
 async function handleImages(request: Request, env: Env) {
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
@@ -332,54 +451,37 @@ async function handleImages(request: Request, env: Env) {
         object.writeHttpMetadata(headers);
         headers.set('etag', object.httpEtag);
         headers.set('Cache-Control', 'public, max-age=31536000');
-        // Add CORS to image response too
         Object.entries(corsHeaders).forEach(([k,v]) => headers.set(k, v));
         return new Response(object.body, { headers });
     }
 
     if (request.method === 'POST') {
-        let envPassword = env.FAMILY_PASSWORD;
-        if (!envPassword) {
-            const k = Object.keys(env).find(k => k.trim() === 'FAMILY_PASSWORD');
-            if (k) envPassword = env[k];
-        }
-        const authorized = await checkAuth(request, (envPassword || '').trim());
-        if (!authorized) return errorResponse("Unauthorized", 401);
+        const session = await getSession(request, env);
+        if (!session) return errorResponse("Unauthorized", 401);
 
         const formData = await request.formData();
         const file = formData.get('file');
         if (!file || !(file instanceof File)) return errorResponse("No file uploaded", 400);
 
         try {
-            // Calculate SHA-256 hash of the file content
             const arrayBuffer = await file.arrayBuffer();
             const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
             const hashArray = Array.from(new Uint8Array(digest));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
-            // Determine extension (default to jpg if blob)
             let extension = file.name.split('.').pop();
-            if (!extension || extension === file.name || extension === 'blob') {
-                extension = file.type === 'image/png' ? 'png' : 'jpg';
-            }
-            
+            if (!extension || extension === file.name || extension === 'blob') extension = file.type === 'image/png' ? 'png' : 'jpg';
             const uniqueKey = `${hashHex}.${extension}`;
             
-            // Deduplication: Check if an image with this hash already exists
             const existing = await env.IMAGES.head(uniqueKey);
-            
             if (!existing) {
-                // If new content, upload it
                 await env.IMAGES.put(uniqueKey, arrayBuffer, { httpMetadata: { contentType: file.type } });
             }
-            // If exists, simply return the URL for the existing file (deduplication)
-
             return jsonResponse({ url: `/api/images?key=${uniqueKey}` });
         } catch (e: any) {
             return errorResponse(`Upload failed: ${e.message}`, 500);
         }
     }
-
     return errorResponse("Method Not Allowed", 405);
 }
 
@@ -389,20 +491,23 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
 
-        // Handle CORS Preflight globally
         if (request.method === "OPTIONS") {
             return new Response(null, { headers: corsHeaders });
         }
 
+        // New Routes
         if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
+        if (url.pathname.startsWith('/api/admin')) return handleAdmin(request, env);
+        
+        // Updated Routes (now use token-based session)
         if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
         if (url.pathname.startsWith('/api/shopping')) return handleShopping(request, env);
         if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
+        if (url.pathname.startsWith('/api/restaurants')) return handleRestaurants(request, env);
+        if (url.pathname.startsWith('/api/vote_sessions')) return handleVoteSessions(request, env);
+        if (url.pathname.startsWith('/api/votes')) return handleVotes(request, env);
         if (url.pathname.startsWith('/api/images')) return handleImages(request, env);
 
-        if (url.pathname.startsWith('/api/')) {
-             return new Response("Not Found", { status: 404, headers: corsHeaders });
-        }
-        return new Response("Not Found", { status: 404 });
+        return new Response("Not Found", { status: 404, headers: corsHeaders });
     }
 }

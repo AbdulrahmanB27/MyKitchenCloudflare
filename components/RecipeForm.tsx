@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 
@@ -41,7 +41,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     prepTime: 0,
     cookTime: 0,
     servings: 1,
-    yieldUnit: '', // Default empty, placeholder handles "servings"
+    yieldUnit: '', 
     video: { url: '', note: '' },
     storageNotes: '',
     source: { name: '', url: '', author: '' },
@@ -49,9 +49,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     nutrition: { calories: undefined, protein: undefined, carbs: undefined, fat: undefined },
     favorite: false,
     archived: false,
-    shareToFamily: true, // Default to true
+    shareToFamily: true, 
     reviews: []
   });
+
+  // Sharing State
+  const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]);
+  const currentFamilyId = db.getCurrentFamilyId();
+  const pinnedFamilyId = db.getPinnedFamilyId();
 
   // Intermediate state for range inputs (string based)
   const [prepTimeStr, setPrepTimeStr] = useState('');
@@ -59,6 +65,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   // Upload State
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // JSON Import State
+  const [showJsonModal, setShowJsonModal] = useState(false);
+  const [jsonText, setJsonText] = useState('');
 
   // Text Area State for Array fields
   const [rawTags, setRawTags] = useState('');
@@ -84,6 +95,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       
       setPrepTimeStr(formatTimeRange(data.prepTime, data.prepTimeMax));
       setCookTimeStr(formatTimeRange(data.cookTime, data.cookTimeMax));
+
+      // Handle Sharing Default
+      if (data.shareToFamily) {
+          // If editing an existing recipe that is shared, try to keep it shared to the current context if IDs match
+          // But recipes from DB don't store which family they belong to in the blob usually, 
+          // though we might have context. For simplicity, if editing, we default to current context if it matches context
+          // actually data.shareToFamily is just a boolean.
+          if (currentFamilyId) setTargetFamilyId(currentFamilyId);
+          else if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
+      } else {
+          setTargetFamilyId('private');
+      }
 
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
@@ -142,43 +165,98 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
 
   useEffect(() => {
-    if (initialData) {
-      loadRecipeData(initialData);
-    } else {
-        // Defaults for new recipe
+    const sessions = db.getSavedSessions();
+    setAvailableSessions(sessions);
+    
+    // Default logic for new recipe
+    if (!initialData) {
+        if (pinnedFamilyId) {
+            setTargetFamilyId(pinnedFamilyId);
+        } else if (currentFamilyId) {
+            setTargetFamilyId(currentFamilyId);
+        } else {
+            setTargetFamilyId('private');
+        }
+
         setIngredientBlocks([{ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
         setInstructionBlocks([{ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] }]);
         
-        // Auto-fill "Added By" from previous use
+        // Auto-fill "Added By"
         const lastAuthor = localStorage.getItem('mykitchen_last_author');
         if (lastAuthor) {
             setFormData(prev => ({ ...prev, addedBy: lastAuthor }));
         }
+    } else {
+        loadRecipeData(initialData);
     }
-  }, [initialData]);
+  }, [initialData, currentFamilyId, pinnedFamilyId]);
 
-  // Handle Paste Event for Images
+  const processImportedData = (data: any) => {
+      let recipeData = data;
+      if (Array.isArray(data)) recipeData = data[0];
+      else if (data.recipes && Array.isArray(data.recipes)) recipeData = data.recipes[0];
+      
+      // Basic Validation
+      if (!recipeData.name) throw new Error("Missing recipe name");
+
+      const newData = { ...recipeData };
+      if (!initialData) {
+          newData.id = uuidv4();
+          newData.createdAt = Date.now();
+      } else {
+          newData.id = initialData.id;
+      }
+      newData.updatedAt = Date.now();
+      
+      loadRecipeData(newData);
+  };
+
+  // Handle Paste Event for Images & JSON
   useEffect(() => {
       const handlePaste = (e: ClipboardEvent) => {
           if (isUploading) return;
           const items = e.clipboardData?.items;
           if (!items) return;
 
+          // 1. Image Handling
           for (let i = 0; i < items.length; i++) {
               if (items[i].type.indexOf('image') !== -1) {
                   const file = items[i].getAsFile();
                   if (file) {
-                      e.preventDefault(); // Prevent pasting the binary code if focused in text field
+                      e.preventDefault(); 
                       processImageFile(file);
-                      return; // Only process one image
+                      return; 
                   }
+              }
+          }
+
+          // 2. JSON Text Handling
+          const text = e.clipboardData?.getData('text');
+          if (text) {
+              try {
+                  const parsed = JSON.parse(text);
+                  // Heuristic: Check if it looks like a recipe
+                  const isRecipe = (r: any) => r.name && (Array.isArray(r.ingredients) || Array.isArray(r.instructions));
+                  
+                  let candidate = parsed;
+                  if (Array.isArray(parsed) && parsed.length > 0) candidate = parsed[0];
+                  else if (parsed.recipes && Array.isArray(parsed.recipes)) candidate = parsed.recipes[0];
+
+                  if (isRecipe(candidate)) {
+                      if (confirm("Detected Recipe JSON in clipboard. Import it?")) {
+                          e.preventDefault();
+                          processImportedData(parsed);
+                      }
+                  }
+              } catch (e) {
+                  // Not JSON, ignore
               }
           }
       };
 
       window.addEventListener('paste', handlePaste);
       return () => window.removeEventListener('paste', handlePaste);
-  }, [isUploading]);
+  }, [isUploading, initialData]);
 
   const parseTimeInput = (val: string) => {
       const parts = val.split('-').map(s => parseInt(s.trim()));
@@ -209,8 +287,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
+
     const flatIngredients: Ingredient[] = [];
     ingredientBlocks.forEach(block => {
         block.ingredients.forEach(ing => {
@@ -240,7 +320,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     const prep = parseTimeInput(prepTimeStr);
     const cook = parseTimeInput(cookTimeStr);
 
-    // Save author preference
     if (formData.addedBy) {
         localStorage.setItem('mykitchen_last_author', formData.addedBy);
     }
@@ -267,7 +346,28 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       createdAt: initialData?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
-    onSave(recipe);
+
+    // --- Save Logic ---
+    try {
+        if (targetFamilyId === 'private') {
+            recipe.shareToFamily = false;
+            onSave(recipe); // Local save via App handler
+        } else if (targetFamilyId === currentFamilyId) {
+            recipe.shareToFamily = true;
+            onSave(recipe); // Normal sync flow via App handler
+        } else {
+            // Cross-Post to another family
+            // We do NOT call onSave (which saves locally), because we don't want this recipe appearing in current view
+            const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
+            await db.crossPostRecipe(recipe, targetFamilyId);
+            alert(`Recipe saved to ${targetName}. It will not appear in your current list.`);
+            onClose();
+        }
+    } catch (err: any) {
+        console.error(err);
+        alert(`Failed to save: ${err.message}`);
+        setIsSaving(false);
+    }
   };
 
   const handleChange = (field: keyof Recipe, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
@@ -281,33 +381,30 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   
   const processImageFile = (file: File) => {
       if (isUploading) return;
-      setIsUploading(true); // Lock immediately
+      setIsUploading(true); 
 
       const reader = new FileReader();
       reader.onload = (event) => {
           const img = new Image();
           img.onload = async () => {
-              // 1. Resize/Compress via Canvas
               const canvas = document.createElement('canvas');
               let width = img.width;
               let height = img.height;
-              const MAX_SIZE = 1200; // Larger max size for R2
+              const MAX_SIZE = 1200; 
               if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
               canvas.width = width; canvas.height = height;
               const ctx = canvas.getContext('2d');
               if (ctx) { 
                   ctx.drawImage(img, 0, 0, width, height); 
                   
-                  // 2. Convert to Blob
                   canvas.toBlob(async (blob) => {
                       if (blob) {
                           try {
-                              // 3. Upload to R2 via API
                               const url = await db.uploadImage(blob);
                               handleChange('image', url);
                           } catch (e) {
                               console.error(e);
-                              alert("Failed to upload image. Please ensure you are logged in (Shared Family Mode).");
+                              alert("Failed to upload image. Ensure you are logged in.");
                           } finally {
                               setIsUploading(false);
                           }
@@ -340,22 +437,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         try {
             const content = e.target?.result as string;
             const imported = JSON.parse(content);
-            let recipeData = imported;
-            if (Array.isArray(imported)) recipeData = imported[0];
-            else if (imported.recipes && Array.isArray(imported.recipes)) recipeData = imported.recipes[0];
-            
-            const newData = { ...recipeData };
-            // Populate form with imported data. 
-            // If in Add mode, generate new ID. If Edit mode, keep current ID.
-            if (!initialData) {
-                newData.id = uuidv4();
-                newData.createdAt = Date.now();
-            } else {
-                newData.id = initialData.id;
-            }
-            newData.updatedAt = Date.now();
-            
-            loadRecipeData(newData);
+            processImportedData(imported);
         } catch (err) {
             console.error(err);
             alert('Failed to parse recipe JSON.');
@@ -363,6 +445,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  };
+
+  const handleJsonImport = () => {
+      try {
+          const imported = JSON.parse(jsonText);
+          processImportedData(imported);
+          setShowJsonModal(false);
+          setJsonText('');
+      } catch (e) {
+          alert("Invalid JSON format.");
+      }
   };
 
   // Block Logic...
@@ -392,9 +485,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           ...b,
           ingredients: b.ingredients.map(i => i.id === ingId ? { 
               ...i, 
-              // Check against undefined only; if it's null (from DB) or empty string, treat as "has value", so toggle should remove it (set to undefined)
-              // Wait, if we want to Add it, it should be undefined. 
-              // If it has any value (including null from legacy), we toggle it OFF.
               secondaryAmount: i.secondaryAmount === undefined ? '' : undefined,
               secondaryUnit: i.secondaryUnit === undefined ? '' : undefined
           } : i)
@@ -422,16 +512,29 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
           
           <section className="space-y-4">
-             {/* Basics Section ... (Unchanged) */}
+             {/* Basics & Share Control */}
              <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
                  <h3 className="text-lg font-bold text-primary">Basics</h3>
-                 <label className="flex items-center gap-2 cursor-pointer bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
-                     <div className={`w-4 h-4 rounded border flex items-center justify-center ${formData.shareToFamily ? 'bg-primary border-primary' : 'border-primary bg-transparent'}`}>
-                         {formData.shareToFamily && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                 
+                 {/* Family Selector */}
+                 <div className="relative group">
+                     <select 
+                        value={targetFamilyId} 
+                        onChange={(e) => setTargetFamilyId(e.target.value)}
+                        className="appearance-none pl-9 pr-8 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                     >
+                         <option value="private">Private (Device Only)</option>
+                         {availableSessions.map(s => (
+                             <option key={s.id} value={s.id}>{s.name} {s.id === currentFamilyId ? '(Current)' : ''}</option>
+                         ))}
+                     </select>
+                     <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                         {targetFamilyId === 'private' ? <Lock size={14} /> : <Users size={14} />}
                      </div>
-                     <input type="checkbox" className="hidden" checked={formData.shareToFamily} onChange={e => handleChange('shareToFamily', e.target.checked)} />
-                     <span className="text-xs font-bold text-primary flex items-center gap-1"><Users size={14} /> Share to Family</span>
-                 </label>
+                     <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                         <ChevronDown size={14} />
+                     </div>
+                 </div>
              </div>
              
              <div className="grid md:grid-cols-2 gap-4">
@@ -475,7 +578,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                 </div>
              </div>
              
-             {/* Media Inputs (R2 Integration) */}
+             {/* Media Inputs */}
              <div className="pt-2">
                  <label className="label">Image</label>
                  <div className="flex gap-2">
@@ -618,7 +721,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Ingredient Group</button>
           </section>
 
-          {/* Instructions Section ... (Unchanged) */}
+          {/* Instructions Section */}
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Instructions</h3>
              {instructionBlocks.map((block, bIdx) => (
@@ -677,7 +780,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </section>
 
           {/* Nutrition, Storage, Attribution sections (unchanged) ... */}
-          {/* ... keeping the rest of the file identical to preserve context ... */}
           <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
              <h3 className="text-lg font-bold text-primary">Nutrition & Storage</h3>
              <div className="grid grid-cols-4 gap-2">
@@ -725,8 +827,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         </div>
         <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-between gap-3 bg-card-light dark:bg-card-dark rounded-b-2xl">
           <div className="flex items-center gap-3">
-              <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Import Recipe JSON">
+              <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File">
                   <Upload size={20} />
+              </button>
+              <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text">
+                  <Clipboard size={20} />
               </button>
               {initialData?.id && onDelete && (
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
@@ -734,10 +839,33 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
           <div className="flex gap-3 items-center">
               <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg">Cancel</button>
-              <button type="submit" disabled={isUploading} className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2 disabled:opacity-50"><Save size={18} /> Save</button>
+              <button type="submit" disabled={isUploading || isSaving} className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2 disabled:opacity-50">
+                  {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
+                  Save
+              </button>
           </div>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
+        
+        {/* JSON Paste Modal */}
+        {showJsonModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowJsonModal(false)}>
+                <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-lg shadow-2xl border border-border-light dark:border-border-dark flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+                    <h3 className="text-lg font-bold text-text-main dark:text-white">Paste Recipe JSON</h3>
+                    <textarea 
+                        value={jsonText}
+                        onChange={e => setJsonText(e.target.value)}
+                        className="w-full h-64 p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark font-mono text-xs resize-none focus:ring-2 focus:ring-primary outline-none"
+                        placeholder='Paste JSON content here...'
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-muted hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
+                        <button onClick={handleJsonImport} className="px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-green-600">Import</button>
+                    </div>
+                </div>
+            </div>
+        )}
       </form>
       <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: #4e9767; margin-bottom: 0.25rem; } .dark .label { color: #8bc49e; } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #e7f3eb; background-color: #f8fcf9; color: #0e1b12; outline: none; } .dark .input { border-color: #2a4030; background-color: #1a2c20; color: white; }`}</style>
     </div>

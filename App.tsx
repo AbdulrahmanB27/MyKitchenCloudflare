@@ -12,7 +12,7 @@ import Recommendations from './components/Recommendations';
 import RestaurantList from './components/RestaurantList';
 import AuthModal from './components/AuthModal';
 import ExportModal, { ExportOptions } from './components/ExportModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -45,6 +45,7 @@ const App: React.FC = () => {
   
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalView, setAuthModalView] = useState<'login' | 'register' | 'switch'>('login');
   const [showExportModal, setShowExportModal] = useState(false);
   
   // State to hold a recipe that is waiting for authentication to be saved
@@ -172,7 +173,10 @@ const App: React.FC = () => {
     init();
 
     // Listen for auth requests from DB service
-    db.setAuthCallback(() => setShowAuthModal(true));
+    db.setAuthCallback(() => {
+        setAuthModalView('login');
+        setShowAuthModal(true);
+    });
 
     // Listen for background sync updates
     const handleUpdates = () => loadData();
@@ -300,6 +304,7 @@ const App: React.FC = () => {
   const handleSaveRecipe = async (recipe: Recipe) => {
     if (recipe.shareToFamily && !db.hasAuthToken()) {
         setPendingRecipeSave(recipe);
+        setAuthModalView('login');
         setShowAuthModal(true);
         return;
     }
@@ -324,6 +329,7 @@ const App: React.FC = () => {
   const handleDeleteRecipe = async (id: string) => {
     const recipe = recipes.find(r => r.id === id);
     if (recipe?.shareToFamily && !db.hasAuthToken()) {
+        setAuthModalView('login');
         setShowAuthModal(true);
         return;
     }
@@ -343,6 +349,7 @@ const App: React.FC = () => {
   };
 
   const syncStatus = getSyncStatus();
+  const currentFamilyName = db.getCurrentFamilyName();
 
   // --- Render ---
 
@@ -358,7 +365,7 @@ const App: React.FC = () => {
         <div className={`p-6 flex items-center h-[72px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
             {!isSidebarCollapsed ? (
                 <div>
-                    <h1 className="text-xl font-bold dark:text-white whitespace-nowrap">MyKitchen</h1>
+                    <h1 className="text-xl font-bold dark:text-white whitespace-nowrap truncate w-40" title={currentFamilyName}>{currentFamilyName}</h1>
                     <button onClick={toggleAutoSync} className={`text-xs whitespace-nowrap flex items-center gap-1 ${syncStatus.color} hover:underline`} title="Click to toggle auto-sync">
                         {syncStatus.icon} {syncStatus.text}
                     </button>
@@ -461,6 +468,13 @@ const App: React.FC = () => {
             <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-3'}`}>
                 <button onClick={handleImportClick} className="text-gray-500 hover:text-primary transition-colors" title="Import Recipes"><Upload size={18} /></button>
                 <button onClick={() => setShowExportModal(true)} className="text-gray-500 hover:text-primary transition-colors" title="Backup/Export"><Download size={18} /></button>
+                <button 
+                    onClick={() => { setAuthModalView('switch'); setShowAuthModal(true); }} 
+                    className="text-gray-500 hover:text-primary transition-colors" 
+                    title="Switch Family / Logout"
+                >
+                    <Users size={18}/>
+                </button>
             </div>
             <button onClick={toggleTheme} className="text-gray-500 hover:text-primary transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
@@ -568,7 +582,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {showAuthModal && <AuthModal onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
+      {showAuthModal && <AuthModal initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
@@ -83,17 +84,24 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        const r: Restaurant = {
-            ...formData as Restaurant,
-            id: editingId || uuidv4(),
-            familyId: 'global',
-            createdAt: formData.createdAt || Date.now(),
-            updatedAt: Date.now(),
-            cuisineTags: typeof formData.cuisineTags === 'string' ? (formData.cuisineTags as string).split(',').map(t => t.trim()).filter(Boolean) : (formData.cuisineTags || [])
-        };
-        await db.upsertRestaurant(r);
-        await loadData();
-        setIsFormOpen(false);
+        try {
+            const r: Restaurant = {
+                ...formData as Restaurant,
+                id: editingId || uuidv4(),
+                familyId: 'global',
+                createdAt: formData.createdAt || Date.now(),
+                updatedAt: Date.now(),
+                cuisineTags: typeof formData.cuisineTags === 'string' ? (formData.cuisineTags as string).split(',').map(t => t.trim()).filter(Boolean) : (formData.cuisineTags || [])
+            };
+            await db.upsertRestaurant(r);
+            await loadData();
+            setIsFormOpen(false);
+        } catch (err) {
+            console.error("Failed to save restaurant", err);
+            // If auth error, modal will likely be triggered by db service callback, 
+            // but we should ensure form doesn't close or state is handled.
+            alert("Unable to save. Please ensure you are logged in.");
+        }
     };
 
     // --- Voting Logic ---
@@ -116,9 +124,15 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     const startSession = async () => {
         setLoading(true);
-        await db.createVoteSession();
-        await refreshSession();
-        setLoading(false);
+        try {
+            await db.createVoteSession();
+            await refreshSession();
+        } catch (e) {
+            console.error("Error starting session", e);
+            alert("Failed to start session. Check your connection.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const submitVote = async (restId: string, val: number) => {
@@ -241,7 +255,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 <div className="space-y-4">
                                     <h3 className="text-xl font-bold text-primary">No Active Vote</h3>
                                     <p className="text-sm text-text-muted">Start a session so the family can vote on where to eat.</p>
-                                    <button onClick={startSession} disabled={loading} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform">
+                                    <button onClick={startSession} disabled={loading} className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 mx-auto">
                                         {loading ? <Loader className="animate-spin" /> : 'Start New Session'}
                                     </button>
                                 </div>
@@ -308,7 +322,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-text-muted">Price</label>
-                                    <select className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value as any})}>
+                                    <select 
+                                        className="w-full p-2 rounded border bg-surface-light dark:bg-surface-dark text-text-main dark:text-white dark:border-gray-700" 
+                                        value={formData.price || ''} 
+                                        onChange={e => setFormData({...formData, price: e.target.value as any})}
+                                    >
                                         <option value="">-</option>
                                         <option value="$">$</option>
                                         <option value="$$">$$</option>
@@ -319,9 +337,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 <div>
                                     <label className="text-xs font-bold text-text-muted">Stars (Personal)</label>
                                     <div className="flex gap-2 mt-2">
-                                        {[0,1,2,3].map(s => (
-                                            <button type="button" key={s} onClick={() => setFormData({...formData, stars: s})} className={`${(formData.stars || 0) >= s && s > 0 ? 'text-yellow-500' : 'text-gray-300'}`}>
-                                                <Star size={24} fill={(formData.stars || 0) >= s && s > 0 ? "currentColor" : "none"} />
+                                        {[1,2,3].map(s => (
+                                            <button type="button" key={s} onClick={() => setFormData({...formData, stars: s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
+                                                <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
                                             </button>
                                         ))}
                                     </div>

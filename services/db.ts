@@ -5,16 +5,85 @@ import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTA
 import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = '/api';
+const STORAGE_KEY_TOKEN = 'family_auth_token';
+const STORAGE_KEY_SESSIONS = 'family_sessions';
+const STORAGE_KEY_CURRENT_ID = 'current_family_id';
+const STORAGE_KEY_NAME = 'family_name';
+const STORAGE_KEY_PINNED_ID = 'pinned_family_id';
 
 // --- Auth State ---
 let authCallback: (() => void) | null = null;
 export const setAuthCallback = (cb: () => void) => { authCallback = cb; };
 
-const getAuthToken = () => localStorage.getItem('family_auth_token');
-export const setAuthToken = (token: string) => localStorage.setItem('family_auth_token', token);
+const getAuthToken = () => localStorage.getItem(STORAGE_KEY_TOKEN);
+export const setAuthToken = (token: string) => localStorage.setItem(STORAGE_KEY_TOKEN, token);
 export const hasAuthToken = () => !!getAuthToken();
+export const getCurrentFamilyName = () => localStorage.getItem(STORAGE_KEY_NAME) || 'MyKitchen';
+export const getCurrentFamilyId = () => localStorage.getItem(STORAGE_KEY_CURRENT_ID);
+export const getPinnedFamilyId = () => localStorage.getItem(STORAGE_KEY_PINNED_ID);
+export const setPinnedFamilyId = (id: string) => localStorage.setItem(STORAGE_KEY_PINNED_ID, id);
 
-// Device ID for Voting
+export const getSavedSessions = () => {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY_SESSIONS) || '[]');
+    } catch { return []; }
+};
+
+const saveSession = (id: string, name: string, token: string) => {
+    const sessions = getSavedSessions();
+    const existingIndex = sessions.findIndex((s: any) => s.id === id);
+    
+    if (existingIndex >= 0) {
+        sessions[existingIndex] = { id, name, token };
+    } else {
+        sessions.push({ id, name, token });
+    }
+    
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_CURRENT_ID, id);
+    localStorage.setItem(STORAGE_KEY_NAME, name);
+};
+
+export const switchFamily = async (familyId: string) => {
+    const sessions = getSavedSessions();
+    const session = sessions.find((s: any) => s.id === familyId);
+    if (session) {
+        localStorage.setItem(STORAGE_KEY_TOKEN, session.token);
+        localStorage.setItem(STORAGE_KEY_CURRENT_ID, session.id);
+        localStorage.setItem(STORAGE_KEY_NAME, session.name);
+        
+        // Clear local data to prevent bleeding between families
+        await idb.clearAllStores();
+        window.location.reload(); 
+    }
+};
+
+export const logout = (familyId?: string) => {
+    // If no specific ID, remove the current one
+    const targetId = familyId || localStorage.getItem(STORAGE_KEY_CURRENT_ID);
+    
+    if (targetId) {
+        const sessions = getSavedSessions().filter((s: any) => s.id !== targetId);
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        
+        // If we removed the active session
+        if (localStorage.getItem(STORAGE_KEY_CURRENT_ID) === targetId) {
+             if (sessions.length > 0) {
+                 switchFamily(sessions[0].id);
+             } else {
+                 localStorage.removeItem(STORAGE_KEY_TOKEN);
+                 localStorage.removeItem(STORAGE_KEY_CURRENT_ID);
+                 localStorage.removeItem(STORAGE_KEY_NAME);
+                 localStorage.removeItem('sync_last_updated_at');
+                 idb.clearAllStores().then(() => window.location.reload());
+             }
+        } else {
+            window.dispatchEvent(new Event('sessions-updated'));
+        }
+    }
+};
+
 const getDeviceId = () => {
     let id = localStorage.getItem('device_id');
     if (!id) {
@@ -24,50 +93,64 @@ const getDeviceId = () => {
     return id;
 };
 
-// --- Sync State ---
-const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
+// --- Auth API ---
 
-// Return object with success status and optional error message
-export const authenticate = async (password: string, turnstileToken: string): Promise<{ success: boolean; error?: string }> => {
+export const registerFamily = async (familyName: string, password: string, adminPassword: string): Promise<{ success: boolean; error?: string }> => {
     try {
-        console.log(`Authenticating against ${API_BASE}/auth...`);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
-
-        const res = await fetch(`${API_BASE}/auth`, {
+        const res = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, turnstileToken }),
-            signal: controller.signal
+            body: JSON.stringify({ familyName, password, adminPassword })
         });
-        clearTimeout(timeoutId);
-        
-        if (res.status === 404) {
-            console.error("API endpoint not found (404).");
-            return { success: false, error: 'API not found. Ensure backend is running (npx wrangler dev).' };
-        }
-
-        const text = await res.text();
-        
-        let data;
-        try {
-            data = text ? JSON.parse(text) : {};
-        } catch (e) {
-            console.error("Auth response was not JSON:", text);
-            return { success: false, error: `Server Error (${res.status}): Non-JSON response.` };
-        }
-        
-        if (res.ok && data.token) {
-            setAuthToken(data.token);
+        const data = await res.json();
+        if (res.ok && data.success) {
+            saveSession(data.familyId, data.name, data.token);
             return { success: true };
-        } else {
-            return { success: false, error: data.error || `Authentication failed (${res.status})` };
         }
+        return { success: false, error: data.error || 'Registration failed' };
     } catch (e: any) {
-        console.error("Auth network error", e);
-        return { success: false, error: e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Network error occurred') };
+        return { success: false, error: e.message };
     }
 };
+
+export const authenticate = async (familyName: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ familyName, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            saveSession(data.familyId, data.name, data.token);
+            return { success: true };
+        }
+        return { success: false, error: data.error || 'Login failed' };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+export const adminAction = async (action: 'update_passwords' | 'delete_family', payload: any): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const res = await fetch(`${API_BASE}/admin`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAuthToken()}`
+            },
+            body: JSON.stringify({ action, ...payload })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) return { success: true };
+        return { success: false, error: data.error };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+// --- Sync State ---
+const SYNC_KEY_LAST_UPDATED = 'sync_last_updated_at';
 
 // --- Images (R2) ---
 
@@ -140,6 +223,31 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     }
 };
 
+// Allows saving a recipe to a specific family ID without affecting local DB or current context
+export const crossPostRecipe = async (recipe: Recipe, familyId: string) => {
+    const sessions = getSavedSessions();
+    const session = sessions.find((s:any) => s.id === familyId);
+    if (!session) throw new Error("Target family session not found");
+
+    const res = await fetch(`${API_BASE}/recipes`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`
+        },
+        body: JSON.stringify({ ...recipe, shareToFamily: true })
+    });
+    
+    if (!res.ok) {
+        if (res.status === 401) {
+            // Token might be invalid, could handle re-auth here but complex
+            throw new Error("Authentication failed for target family");
+        }
+        throw new Error("Failed to save to remote family");
+    }
+    return await res.json();
+};
+
 export const deleteRecipe = async (id: string): Promise<void> => {
     // 1. Delete from IDB
     await idb.remove(STORE_RECIPES, id);
@@ -163,15 +271,39 @@ export const deleteRecipe = async (id: string): Promise<void> => {
 // --- Shopping List (Local Only) ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
+    // If online, sync first
+    if (navigator.onLine && hasAuthToken()) {
+        try {
+            const res = await fetch(`${API_BASE}/shopping`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` }});
+            if (res.ok) {
+                const items = await res.json();
+                // Simple replace strategy for shopping list for now
+                for (const item of items) await idb.put(STORE_SHOPPING, item);
+            }
+        } catch(e) {}
+    }
     return idb.getAll<ShoppingItem>(STORE_SHOPPING);
 };
 
 export const upsertShoppingItem = async (item: ShoppingItem): Promise<void> => {
     await idb.put(STORE_SHOPPING, item);
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/shopping`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
+            body: JSON.stringify(item)
+        }).catch(console.error);
+    }
 };
 
 export const deleteShoppingItem = async (id: string): Promise<void> => {
     await idb.remove(STORE_SHOPPING, id);
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/shopping?id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        }).catch(console.error);
+    }
 };
 
 export const clearShoppingList = async (onlyChecked: boolean = false): Promise<void> => {
@@ -180,6 +312,12 @@ export const clearShoppingList = async (onlyChecked: boolean = false): Promise<v
         if (!onlyChecked || item.isChecked) {
             await idb.remove(STORE_SHOPPING, item.id);
         }
+    }
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/shopping?clearAll=${onlyChecked ? 'checked' : 'true'}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        }).catch(console.error);
     }
 };
 
@@ -203,22 +341,28 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
         let lastUpdated = localStorage.getItem(SYNC_KEY_LAST_UPDATED) || '0';
         if (localRecipes.length === 0) lastUpdated = '0';
 
-        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`);
+        const res = await fetch(`${API_BASE}/recipes?since=${lastUpdated}`, {
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        });
+        
+        if (res.status === 401) {
+            if (mode === 'manual' && authCallback) authCallback();
+            return;
+        }
+
         if (res.ok) {
             const updates: Recipe[] = await res.json();
             if (updates.length > 0) {
                 let maxTs = parseInt(lastUpdated);
                 for (const r of updates) {
                     if (r.deleted) {
-                        // Handle Soft Delete: Remove from local DB
                         await idb.remove(STORE_RECIPES, r.id);
                     } else {
-                        // Handle Update/Insert - PRESERVE LOCAL FAVORITE STATUS
                         const existing = await idb.getOne<Recipe>(STORE_RECIPES, r.id);
                         if (existing) {
-                            r.favorite = existing.favorite; // Keep local favorite preference
+                            r.favorite = existing.favorite; 
                         } else {
-                            r.favorite = false; // Default for new
+                            r.favorite = false; 
                         }
                         await idb.put(STORE_RECIPES, r);
                     }
@@ -234,14 +378,11 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
 
     // 2. Process Outgoing Queue
     const queue = await idb.getSyncQueue();
-    // Filter queue to only recipes for now
     const recipeQueue = queue.filter(q => !q.store || q.store === STORE_RECIPES);
 
     if (recipeQueue.length > 0) {
         if (!hasAuthToken()) {
-            if (mode === 'manual' && authCallback) {
-                authCallback();
-            }
+            if (mode === 'manual' && authCallback) authCallback();
             return;
         }
 
@@ -267,9 +408,8 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
 
                 if (res && res.ok) {
                     await idb.removeFromSyncQueue(item.id);
-                    hasChanges = true; // Queue size changed, update UI
+                    hasChanges = true; 
                 } else if (res && (res.status === 401 || res.status === 403)) {
-                    localStorage.removeItem('family_auth_token');
                     if (mode === 'manual' && authCallback) authCallback();
                     break;
                 }
@@ -286,8 +426,6 @@ const syncRecipes = async (mode: 'auto' | 'manual' = 'auto') => {
 
 // --- Restaurants (Module) ---
 
-const RESTAURANT_SYNC_KEY = 'restaurants_last_sync';
-
 export const getRestaurants = async (): Promise<Restaurant[]> => {
     if (!ENABLE_RESTAURANTS) return [];
     
@@ -295,7 +433,7 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
     let list = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
     
     // 2. Trigger Sync
-    if (navigator.onLine) {
+    if (navigator.onLine && hasAuthToken()) {
         syncRestaurants().catch(console.error);
     }
     
@@ -328,7 +466,6 @@ export const upsertRestaurant = async (rest: Restaurant): Promise<void> => {
         if (!res.ok) throw new Error("Failed to save to server");
     } catch (e) {
         console.error("Restaurant save failed", e);
-        // Revert? Or Queue? For now, we rely on the next sync to fix consistency
     }
 };
 
@@ -355,18 +492,9 @@ export const deleteRestaurant = async (id: string): Promise<void> => {
 const syncRestaurants = async () => {
     if (!ENABLE_RESTAURANTS) return;
     try {
-        const res = await fetch(`${API_BASE}/restaurants`);
+        const res = await fetch(`${API_BASE}/restaurants`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
         if (res.ok) {
             const data: Restaurant[] = await res.json();
-            // Replace local with server for simplicity in this module
-            // Ideally we do diffing, but this is "lightweight"
-            
-            // However, to keep it snappy, we should just upsert
-            // Soft deletes are handled by API returning everything? 
-            // The API logic should probably filter deleted. 
-            // If we receive a full list, we can just sync.
-            // Let's assume API returns all active restaurants.
-            
             const currentIds = new Set(data.map(r => r.id));
             const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
             
@@ -374,7 +502,6 @@ const syncRestaurants = async () => {
                 await idb.put(STORE_RESTAURANTS, r);
             }
             
-            // Remove locals that are not in server list (simple sync)
             for (const l of local) {
                 if (!currentIds.has(l.id)) {
                     await idb.remove(STORE_RESTAURANTS, l.id);
@@ -395,7 +522,7 @@ export const createVoteSession = async (): Promise<VoteSession | null> => {
     try {
         const res = await fetch(`${API_BASE}/vote_sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
             body: JSON.stringify({ deviceId: getDeviceId() })
         });
         if (res.ok) return await res.json();
@@ -408,7 +535,7 @@ export const createVoteSession = async (): Promise<VoteSession | null> => {
 export const getActiveSession = async (): Promise<{ session: VoteSession, votes: Vote[] } | null> => {
      if (!ENABLE_RESTAURANTS) return null;
      try {
-         const res = await fetch(`${API_BASE}/vote_sessions?active=true`);
+         const res = await fetch(`${API_BASE}/vote_sessions?active=true`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
          if (res.ok) return await res.json();
      } catch (e) { console.error(e); }
      return null;
@@ -419,7 +546,7 @@ export const submitVote = async (sessionId: string, restaurantId: string, value:
     try {
         await fetch(`${API_BASE}/votes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
             body: JSON.stringify({
                 sessionId,
                 restaurantId,
@@ -431,18 +558,40 @@ export const submitVote = async (sessionId: string, restaurantId: string, value:
 };
 
 
-// --- Meal Plans (Local Only) ---
+// --- Meal Plans ---
 
 export const getMealPlans = async (): Promise<MealPlan[]> => {
+    if (navigator.onLine && hasAuthToken()) {
+        try {
+            const res = await fetch(`${API_BASE}/plans`, { headers: { 'Authorization': `Bearer ${getAuthToken()}` } });
+            if (res.ok) {
+                const plans = await res.json();
+                for (const p of plans) await idb.put(STORE_PLANS, p);
+            }
+        } catch(e) {}
+    }
     return idb.getAll(STORE_PLANS);
 };
 
 export const upsertMealPlan = async (plan: MealPlan): Promise<void> => {
     await idb.put(STORE_PLANS, plan);
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/plans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
+            body: JSON.stringify(plan)
+        }).catch(console.error);
+    }
 };
 
 export const deleteMealPlan = async (id: string): Promise<void> => {
     await idb.remove(STORE_PLANS, id);
+    if (navigator.onLine && hasAuthToken()) {
+        fetch(`${API_BASE}/plans?id=${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+        }).catch(console.error);
+    }
 };
 
 // --- Settings ---

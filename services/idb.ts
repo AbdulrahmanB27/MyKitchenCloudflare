@@ -69,6 +69,17 @@ export const remove = async (storeName: string, id: string): Promise<void> => {
   });
 };
 
+export const clearAllStores = async (): Promise<void> => {
+    const db = await initDB();
+    const stores = [STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_RESTAURANTS, STORE_SYNC_QUEUE];
+    const tx = db.transaction(stores, 'readwrite');
+    stores.forEach(s => tx.objectStore(s).clear());
+    return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject();
+    });
+};
+
 // Specific Sync Queue Logic
 export const addToSyncQueue = async (item: SyncQueueItem) => {
     await put(STORE_SYNC_QUEUE, item);

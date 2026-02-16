@@ -1,6 +1,6 @@
 
 {
-  "name": "My Meal Prep Recipes",
+  "name": "MyKitchen",
   "short_name": "MyKitchen",
   "description": "Offline-first recipe manager for meal prep.",
   "start_url": "/",

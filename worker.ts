@@ -115,7 +115,8 @@ async function handleAuth(request: Request, env: Env) {
         if (!familyName || !password || !adminPassword) return errorResponse("Missing fields", 400);
 
         try {
-            const exists = await env.DB.prepare("SELECT id FROM families WHERE name = ?").bind(familyName).first();
+            // Check for existing family name (case-insensitive)
+            const exists = await env.DB.prepare("SELECT id FROM families WHERE lower(name) = lower(?)").bind(familyName).first();
             if (exists) return errorResponse("Family name already exists", 409);
 
             const salt = generateSalt();
@@ -144,7 +145,8 @@ async function handleAuth(request: Request, env: Env) {
         if (!familyName || !password) return errorResponse("Missing credentials", 400);
 
         try {
-            const family = await env.DB.prepare("SELECT * FROM families WHERE name = ?").bind(familyName).first();
+            // Case-insensitive lookup for login convenience
+            const family = await env.DB.prepare("SELECT * FROM families WHERE lower(name) = lower(?)").bind(familyName).first();
             if (!family) return errorResponse("Family not found", 404);
 
             const hash = await hashPassword(password, family.salt);
@@ -170,7 +172,7 @@ async function handleAdmin(request: Request, env: Env) {
     if (!session) return errorResponse("Unauthorized", 401);
 
     const body: any = await request.json();
-    const { action, adminPassword } = body; // action: 'update_password' | 'delete_family'
+    const { action, adminPassword } = body; // action: 'update_password' | 'delete_family' | 'rename_family'
 
     try {
         // Verify Admin Password
@@ -190,7 +192,6 @@ async function handleAdmin(request: Request, env: Env) {
                 env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM meal_plans WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM restaurants WHERE family_id = ?").bind(session.familyId),
-                // Note: We might leave vote_sessions or delete them. They are now public/unlinked.
             ]);
             return jsonResponse({ success: true, deleted: true });
         }
@@ -209,6 +210,18 @@ async function handleAdmin(request: Request, env: Env) {
                 .bind(newPwHash, newAdminHash, session.familyId).run();
             
             return jsonResponse({ success: true });
+        }
+
+        if (action === 'rename_family') {
+            const { newFamilyName } = body;
+            if (!newFamilyName || newFamilyName.length < 2) return errorResponse("Invalid name", 400);
+            
+            // Check uniqueness (case-insensitive)
+            const exists = await env.DB.prepare("SELECT id FROM families WHERE lower(name) = lower(?)").bind(newFamilyName).first();
+            if (exists) return errorResponse("Family name already exists", 409);
+
+            await env.DB.prepare("UPDATE families SET name = ? WHERE id = ?").bind(newFamilyName, session.familyId).run();
+            return jsonResponse({ success: true, newName: newFamilyName });
         }
 
     } catch (e: any) {
@@ -231,7 +244,7 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
     
     if (request.method === 'GET') {
         const since = url.searchParams.get("since");
-        let query = "SELECT data, updated_at FROM recipes WHERE family_id = ?";
+        let query = "SELECT data, updated_at, family_id FROM recipes WHERE family_id = ?";
         let params: any[] = [session.familyId];
         
         if (since) {
@@ -242,7 +255,13 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         
         try {
             const { results } = await env.DB.prepare(query).bind(...params).all();
-            const recipes = results.map((row: any) => JSON.parse(row.data));
+            // Inject the actual family_id from the DB column into the JSON blob
+            // This ensures the frontend knows EXACTLY which family this recipe belongs to
+            const recipes = results.map((row: any) => {
+                const r = JSON.parse(row.data);
+                r.familyId = row.family_id; 
+                return r;
+            });
             return jsonResponse(recipes);
         } catch(e: any) { return errorResponse(e.message); }
     }
@@ -381,7 +400,15 @@ async function handleRestaurants(request: Request, env: Env) {
             `INSERT INTO restaurants (id, family_id, name, cuisine_tags, stars, price, notes, go_to_order, last_visited_at, data, updated_at, created_at) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET 
-             name=excluded.name, cuisine_tags=excluded.cuisine_tags, stars=excluded.stars, price=excluded.price, notes=excluded.notes, go_to_order=excluded.go_to_order, last_visited_at=excluded.last_visited_at, data=excluded.data, updated_at=excluded.updated_at`
+             name=excluded.name, 
+             cuisine_tags=excluded.cuisine_tags, 
+             stars=excluded.stars, 
+             price=excluded.price, 
+             notes=excluded.notes, 
+             go_to_order=excluded.go_to_order, 
+             last_visited_at=excluded.last_visited_at, 
+             data=excluded.data, 
+             updated_at=excluded.updated_at`
         ).bind(r.id, session.familyId, r.name, JSON.stringify(r.cuisineTags||[]), r.stars||0, r.price||'', r.notes||'', r.goToOrder||'', r.lastVisitedAt||null, JSON.stringify(r), now, r.createdAt||now).run();
         return jsonResponse({ success: true });
     }

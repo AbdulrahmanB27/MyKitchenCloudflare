@@ -1,3 +1,4 @@
+
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote } from '../types';
 import * as idb from './idb';
 import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS } from '../constants';
@@ -51,7 +52,7 @@ export const setAuthCallback = (cb: () => void) => {
 
 // --- API Helper ---
 
-export const apiCall = async (endpoint: string, method: string = 'GET', body?: any) => {
+export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean }) => {
     const token = localStorage.getItem(STORAGE_KEY_TOKEN);
     const headers: HeadersInit = {
         'Content-Type': 'application/json'
@@ -66,13 +67,23 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
 
     if (res.status === 401) {
         // Token expired or invalid
-        if (authCallback) authCallback();
-        throw new Error("Unauthorized");
+        // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
+        // This prevents the login modal from popping up on app load if the session is stale.
+        localStorage.removeItem(STORAGE_KEY_TOKEN);
+        
+        if (!options?.skipAuthRedirect && authCallback) {
+            authCallback();
+        }
+        const err: any = new Error("Unauthorized");
+        err.status = 401;
+        throw err;
     }
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(err.error || res.statusText);
+        const error: any = new Error(err.error || res.statusText);
+        error.status = res.status;
+        throw error;
     }
 
     if (res.status === 204) return null;
@@ -89,17 +100,27 @@ export const retrySync = async () => {
 
     for (const item of queue) {
         try {
+            // Sync actions should generally be silent if they fail auth, 
+            // as they run in background.
+            const opts = { skipAuthRedirect: true };
             if (item.store === STORE_RECIPES) {
-                if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data);
-                if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE');
+                if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
+                if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE', undefined, opts);
             } else if (item.store === STORE_SHOPPING) {
-                if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data);
-                if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE');
+                if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data, opts);
+                if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE', undefined, opts);
             }
             // ... handle other stores
             await idb.removeFromSyncQueue(item.id);
-        } catch (e) {
+        } catch (e: any) {
             console.error("Sync failed for item", item, e);
+            // If the error is a client-side error (4xx) but NOT 401 (auth issue),
+            // it means the data is likely bad or invalid (e.g. 400 Bad Request, 404 Not Found).
+            // We should remove it from the queue so it doesn't block future syncs forever.
+            if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
+                console.warn(`Removing invalid item ${item.id} from queue (Status: ${e.status})`);
+                await idb.removeFromSyncQueue(item.id);
+            }
         }
     }
     // Trigger refresh
@@ -113,7 +134,7 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     
     // Background sync if online
     if (hasAuthToken() && navigator.onLine) {
-        apiCall('/recipes').then(async (remote: Recipe[]) => {
+        apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: Recipe[]) => {
             for (const r of remote) {
                 await idb.put(STORE_RECIPES, r);
             }
@@ -128,6 +149,12 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
 };
 
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
+    // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
+    const currentFamilyId = getCurrentFamilyId();
+    if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
+        recipe.familyId = currentFamilyId;
+    }
+
     await idb.put(STORE_RECIPES, recipe);
     
     if (options?.localOnly) return; 
@@ -175,7 +202,7 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
     const local = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
     if (hasAuthToken() && navigator.onLine) {
-        apiCall('/shopping').then(async (remote: ShoppingItem[]) => {
+        apiCall('/shopping', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: ShoppingItem[]) => {
              for(const i of remote) await idb.put(STORE_SHOPPING, i);
         }).catch(() => {});
     }
@@ -215,7 +242,7 @@ export const clearShoppingList = async (purchasedOnly: boolean) => {
 export const getMealPlans = async (): Promise<MealPlan[]> => {
     const local = await idb.getAll<MealPlan>(STORE_PLANS);
     if (hasAuthToken() && navigator.onLine) {
-        apiCall('/plans').then(async (remote: MealPlan[]) => {
+        apiCall('/plans', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: MealPlan[]) => {
             for(const p of remote) await idb.put(STORE_PLANS, p);
         }).catch(() => {});
     }
@@ -348,7 +375,8 @@ export const logout = (familyId?: string) => {
     }
 };
 
-export const adminAction = async (action: 'update_passwords' | 'delete_family', data: any) => {
+// Generic admin action handler
+export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family', data: any) => {
     try {
         const res = await apiCall('/admin', 'POST', { action, ...data });
         return { success: true, ...res };
@@ -363,7 +391,7 @@ export const adminAction = async (action: 'update_passwords' | 'delete_family', 
 export const getRestaurants = async (): Promise<Restaurant[]> => {
     const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
     if (ENABLE_RESTAURANTS && hasAuthToken() && navigator.onLine) {
-         apiCall('/restaurants').then(async (remote: Restaurant[]) => {
+         apiCall('/restaurants', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: Restaurant[]) => {
              for(const r of remote) await idb.put(STORE_RESTAURANTS, r);
              window.dispatchEvent(new Event('restaurants-updated'));
          }).catch(() => {});
@@ -400,5 +428,11 @@ export const joinSession = async (code: string): Promise<{ session: VoteSession,
 export const submitVote = async (sessionId: string, restaurantId: string, voteValue: number) => {
     try {
         await apiCall('/votes', 'POST', { sessionId, restaurantId, voteValue, deviceId: getDeviceId() });
+    } catch (e) { console.error(e); }
+};
+
+export const endSession = async (sessionId: string) => {
+    try {
+        await apiCall(`/vote_sessions?id=${sessionId}`, 'DELETE');
     } catch (e) { console.error(e); }
 };

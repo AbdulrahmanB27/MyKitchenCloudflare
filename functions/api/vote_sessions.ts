@@ -84,3 +84,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }
 };
+
+export const onRequestDelete: PagesFunction<Env> = async (context) => {
+    try {
+        const url = new URL(context.request.url);
+        const id = url.searchParams.get('id');
+
+        if (!id) return new Response(JSON.stringify({ error: "Missing session ID" }), { status: 400 });
+
+        // Delete votes first (foreign key conceptual) then session
+        await context.env.DB.prepare("DELETE FROM votes_v2 WHERE session_id = ?").bind(id).run();
+        await context.env.DB.prepare("DELETE FROM vote_sessions_v2 WHERE id = ?").bind(id).run();
+
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+    } catch (e: any) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    }
+};

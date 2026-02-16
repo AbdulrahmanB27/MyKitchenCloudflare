@@ -16,9 +16,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [adminPassword, setAdminPassword] = useState('');
     
     // Admin Actions State
-    const [adminAction, setAdminAction] = useState<'update'|'delete'>('update');
+    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'>('update');
     const [newFamilyPassword, setNewFamilyPassword] = useState('');
     const [newAdminPassword, setNewAdminPassword] = useState('');
+    const [newFamilyName, setNewFamilyName] = useState('');
 
     const [savedSessions, setSavedSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -48,6 +49,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                 if (result.success) {
                     db.logout(); // Force logout
                     return; 
+                }
+            } else if (adminAction === 'rename') {
+                result = await db.adminAction('rename_family', { adminPassword, newFamilyName });
+                if (result.success && result.newName) {
+                    // Update local storage and UI immediately
+                    localStorage.setItem('current_family_name', result.newName);
+                    
+                    // Update saved sessions list in local storage
+                    const currentId = db.getCurrentFamilyId();
+                    const sessions = db.getSavedSessions().map(s => 
+                        s.id === currentId ? { ...s, name: result.newName } : s
+                    );
+                    localStorage.setItem('family_sessions', JSON.stringify(sessions));
+                    
+                    alert('Family renamed successfully.');
+                    window.location.reload(); // Refresh to show new name everywhere
+                    return;
                 }
             } else {
                 result = await db.adminAction('update_passwords', { adminPassword, newFamilyPassword, newAdminPassword });
@@ -144,8 +162,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         {mode === 'admin' ? (
                             <>
                                 <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-lg mb-4">
-                                    <button type="button" onClick={() => setAdminAction('update')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'update' ? 'bg-white dark:bg-gray-700 shadow text-primary' : 'text-text-muted'}`}>Update Passwords</button>
-                                    <button type="button" onClick={() => setAdminAction('delete')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'delete' ? 'bg-red-500 text-white shadow' : 'text-text-muted'}`}>Delete Family</button>
+                                    <button type="button" onClick={() => setAdminAction('update')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'update' ? 'bg-white dark:bg-gray-700 shadow text-primary' : 'text-text-muted'}`}>Update Pwds</button>
+                                    <button type="button" onClick={() => setAdminAction('rename')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'rename' ? 'bg-white dark:bg-gray-700 shadow text-primary' : 'text-text-muted'}`}>Rename</button>
+                                    <button type="button" onClick={() => setAdminAction('delete')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'delete' ? 'bg-red-500 text-white shadow' : 'text-text-muted'}`}>Delete</button>
                                 </div>
 
                                 <input 
@@ -162,6 +181,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         <input type="password" value={newFamilyPassword} onChange={(e) => setNewFamilyPassword(e.target.value)} placeholder="New Family Password (Optional)" className="input-field" />
                                         <input type="password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} placeholder="New Admin Password (Optional)" className="input-field" />
                                     </>
+                                )}
+
+                                {adminAction === 'rename' && (
+                                    <input type="text" value={newFamilyName} onChange={(e) => setNewFamilyName(e.target.value)} placeholder="New Family Name" className="input-field" required />
                                 )}
                                 
                                 {adminAction === 'delete' && (
@@ -219,7 +242,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             disabled={loading}
                             className={`w-full py-3 rounded-xl font-bold text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${mode === 'admin' && adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-600'}`}
                         >
-                            {loading ? <Loader className="animate-spin" size={18} /> : (mode === 'login' ? 'Login' : mode === 'register' ? 'Create Family' : adminAction === 'delete' ? 'Delete Forever' : 'Update')}
+                            {loading ? <Loader className="animate-spin" size={18} /> : (mode === 'login' ? 'Login' : mode === 'register' ? 'Create Family' : adminAction === 'delete' ? 'Delete Forever' : adminAction === 'rename' ? 'Rename Family' : 'Update')}
                         </button>
                         
                         {mode === 'login' && (

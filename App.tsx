@@ -164,6 +164,11 @@ const App: React.FC = () => {
             if (ENABLE_RESTAURANTS) {
                 db.getRestaurants(); 
             }
+
+            // Attempt to sync pending items if online
+            if (navigator.onLine && db.hasAuthToken()) {
+                db.retrySync();
+            }
         } catch (e) {
             console.error("Initialization failed", e);
         } finally {
@@ -187,7 +192,10 @@ const App: React.FC = () => {
 
   // Monitor Online Status
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+        setIsOnline(true);
+        if (db.hasAuthToken()) db.retrySync();
+    };
     const handleOffline = () => setIsOnline(false);
     
     window.addEventListener('online', handleOnline);
@@ -222,14 +230,24 @@ const App: React.FC = () => {
 
   // --- Computed ---
 
+  const currentFamilyId = db.getCurrentFamilyId();
+
   const filteredRecipes = useMemo(() => {
     let result = recipes;
+
+    // Filter Logic
+    if (familyFilter === 'mine') {
+        // Show local only (not shared)
+        result = result.filter(r => !r.shareToFamily);
+    } else if (familyFilter === 'family') {
+        // Show recipes specifically for the CURRENT family session
+        result = result.filter(r => r.shareToFamily && r.familyId === currentFamilyId);
+    } 
+    // 'all' shows everything in the local DB (which includes joined families that have been synced)
 
     if (!showArchived) result = result.filter(r => !r.archived);
     if (selectedCategory !== 'All') result = result.filter(r => r.category === selectedCategory);
     if (filterFavorites) result = result.filter(r => r.favorite);
-    if (familyFilter === 'mine') result = result.filter(r => !r.shareToFamily);
-    else if (familyFilter === 'family') result = result.filter(r => r.shareToFamily);
 
     if (selectedTags.size > 0) {
         result = result.filter(r => {
@@ -265,7 +283,7 @@ const App: React.FC = () => {
             default: return a.name.localeCompare(b.name);
         }
     });
-  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter]);
+  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter, currentFamilyId]);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();

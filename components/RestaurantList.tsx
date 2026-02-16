@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -36,39 +36,31 @@ const DAYS = [
 interface SwipeableCardProps { 
     restaurant: Restaurant;
     onVote: (val: number) => void;
-    currentVote?: number;
 }
 
 const SwipeableCard: React.FC<SwipeableCardProps> = ({ 
     restaurant, 
-    onVote, 
-    currentVote 
+    onVote
 }) => {
     const [offset, setOffset] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
-    const [voteState, setVoteState] = useState<number | undefined>(currentVote);
     const startX = useRef(0);
     const cardRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        setVoteState(currentVote);
-    }, [currentVote]);
-
     const handleTouchStart = (e: React.TouchEvent) => {
-        if (voteState !== undefined) return; // Already voted
         startX.current = e.touches[0].clientX;
         setIsDragging(true);
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging || voteState !== undefined) return;
+        if (!isDragging) return;
         const currentX = e.touches[0].clientX;
         const delta = currentX - startX.current;
         setOffset(delta);
     };
 
     const handleTouchEnd = () => {
-        if (!isDragging || voteState !== undefined) return;
+        if (!isDragging) return;
         setIsDragging(false);
         
         const threshold = 100; // px
@@ -82,13 +74,11 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
     };
 
     const handleVote = (val: number) => {
-        setVoteState(val);
-        // Animate off screen slightly to indicate locked state
-        setOffset(val * 20); 
-        onVote(val);
-        
-        // Reset offset to 0 after animation for clean look
-        setTimeout(() => setOffset(0), 300);
+        setOffset(val * 500); // Fly off screen
+        setTimeout(() => {
+            onVote(val);
+            setOffset(0); // Reset for next card (if reused, though likely unmounted)
+        }, 200);
     };
 
     // Derived styles for swipe feedback
@@ -97,23 +87,10 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
     const rotation = offset / 20;
 
     return (
-        <div className="relative w-full mb-6 touch-pan-y select-none">
-            {/* Background Layers for Color */}
-            <div className="absolute inset-0 rounded-2xl bg-green-500 flex items-center justify-start pl-8 transition-opacity duration-200" style={{ opacity: opacityRight }}>
-                <ThumbsUp className="text-white w-12 h-12" strokeWidth={3} />
-            </div>
-            <div className="absolute inset-0 rounded-2xl bg-red-500 flex items-center justify-end pr-8 transition-opacity duration-200" style={{ opacity: opacityLeft }}>
-                <ThumbsDown className="text-white w-12 h-12" strokeWidth={3} />
-            </div>
-
-            {/* Card */}
+        <div className="absolute inset-0 flex items-center justify-center p-4">
             <div 
                 ref={cardRef}
-                className={`
-                    relative bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden
-                    ${voteState === 1 ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/10' : ''}
-                    ${voteState === -1 ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/10 opacity-70' : ''}
-                `}
+                className="w-full max-w-sm aspect-[3/4] bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl border border-border-light dark:border-border-dark overflow-hidden relative touch-pan-y select-none"
                 style={{ 
                     transform: `translateX(${offset}px) rotate(${rotation}deg)`,
                     transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'
@@ -122,42 +99,47 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             >
-                <div className="p-5 space-y-3">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="text-xl font-bold text-text-main dark:text-white leading-tight">{restaurant.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
-                                {restaurant.isApproved && <BadgeCheck size={16} className="text-blue-500" />}
-                                <span className="text-xs font-bold text-text-muted px-2 py-0.5 bg-gray-100 dark:bg-white/10 rounded">{restaurant.price || '$$'}</span>
-                                {restaurant.cuisineTags.slice(0, 2).map(t => (
-                                    <span key={t} className="text-[10px] uppercase font-bold text-text-muted border border-border-light dark:border-white/10 px-1.5 py-0.5 rounded">{t}</span>
-                                ))}
-                            </div>
+                {/* Overlay Indicators */}
+                <div className="absolute inset-0 bg-green-500/20 z-10 pointer-events-none flex items-center justify-center transition-opacity" style={{ opacity: opacityRight }}>
+                    <div className="bg-green-500 text-white p-4 rounded-full shadow-lg transform scale-150">
+                        <ThumbsUp size={48} strokeWidth={3} />
+                    </div>
+                </div>
+                <div className="absolute inset-0 bg-red-500/20 z-10 pointer-events-none flex items-center justify-center transition-opacity" style={{ opacity: opacityLeft }}>
+                    <div className="bg-red-500 text-white p-4 rounded-full shadow-lg transform scale-150">
+                        <ThumbsDown size={48} strokeWidth={3} />
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex flex-col h-full p-6">
+                    <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
+                        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                            <UtensilsCrossed size={48} className="text-primary" />
                         </div>
-                        {voteState !== undefined && (
-                            <div className={`p-2 rounded-full ${voteState === 1 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                                {voteState === 1 ? <ThumbsUp size={20} /> : <ThumbsDown size={20} />}
-                            </div>
+                        <h2 className="text-3xl font-bold font-display text-text-main dark:text-white leading-tight">{restaurant.name}</h2>
+                        
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {restaurant.price && <span className="px-3 py-1 bg-gray-100 dark:bg-white/10 rounded-full text-sm font-bold">{restaurant.price}</span>}
+                            {restaurant.cuisineTags.slice(0,3).map(t => (
+                                <span key={t} className="px-3 py-1 border border-border-light dark:border-white/10 rounded-full text-xs font-bold text-text-muted uppercase tracking-wide">{t}</span>
+                            ))}
+                        </div>
+
+                        {restaurant.notes && (
+                            <p className="text-sm italic text-gray-500 dark:text-gray-400 mt-2">"{restaurant.notes}"</p>
                         )}
                     </div>
 
-                    {restaurant.openHours && (
-                        <div className="flex items-center gap-2 text-xs text-text-muted bg-gray-50 dark:bg-black/20 p-2 rounded">
-                            <Clock size={14} /> {restaurant.openHours}
-                        </div>
-                    )}
-                    
-                    {restaurant.notes && (
-                        <p className="text-sm italic text-gray-500 dark:text-gray-400">"{restaurant.notes}"</p>
-                    )}
-
-                    {voteState === undefined && (
-                        <div className="pt-4 flex justify-between items-center text-xs font-bold text-text-muted uppercase tracking-wider opacity-50">
-                            <div className="flex items-center gap-1"><ArrowRight className="rotate-180" size={14} /> Dislike</div>
-                            <div>Scroll to Skip</div>
-                            <div className="flex items-center gap-1">Like <ArrowRight size={14} /></div>
-                        </div>
-                    )}
+                    <div className="flex justify-between items-center pt-6 border-t border-border-light dark:border-border-dark w-full">
+                        <button onClick={() => handleVote(-1)} className="p-4 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 transition-colors">
+                            <X size={32} />
+                        </button>
+                        <div className="text-xs font-bold text-text-muted uppercase tracking-widest opacity-50">Swipe</div>
+                        <button onClick={() => handleVote(1)} className="p-4 rounded-full bg-green-100 dark:bg-green-900/20 text-green-500 hover:bg-green-200 transition-colors">
+                            <Heart size={32} fill="currentColor" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -213,23 +195,30 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
         const handleUpdates = () => loadData();
         window.addEventListener('restaurants-updated', handleUpdates);
+        
+        // Check URL for join code
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('join');
+        if (code && code.length === 4) {
+            setJoinCode(code);
+            handleJoinSession(code);
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+
         return () => window.removeEventListener('restaurants-updated', handleUpdates);
     }, []);
 
     // Sync Schedule to formData string
     useEffect(() => {
         if (!isFormOpen) return;
-        
         let dayStr = '';
         if (schedDays.size === 7) dayStr = 'Daily';
         else if (schedDays.size === 5 && !schedDays.has('Sa') && !schedDays.has('Su')) dayStr = 'Weekdays';
         else if (schedDays.size === 2 && schedDays.has('Sa') && schedDays.has('Su')) dayStr = 'Weekends';
         else {
-            // Sort days
             const ordered = DAYS.filter(d => schedDays.has(d.id)).map(d => d.full);
             dayStr = ordered.join(', ');
         }
-
         if (schedDays.size === 0) {
             setFormData(prev => ({ ...prev, openHours: '' }));
         } else {
@@ -246,7 +235,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // Initialize selection only once when data is ready
     useEffect(() => {
         if (!activeSession && restaurants.length > 0 && !hasInitializedSelection) {
-            // Default select all non-archived
             const activeIds = restaurants.filter(r => !localArchive.has(r.id)).map(r => r.id);
             setSelection(new Set(activeIds));
             setHasInitializedSelection(true);
@@ -262,12 +250,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     // --- Form Handlers ---
-
     const openForm = (r?: Restaurant) => {
-        if (!db.hasAuthToken()) {
-            setShowAuth(true);
-            return;
-        }
+        if (!db.hasAuthToken()) { setShowAuth(true); return; }
         if (r) {
             setFormData(r);
             setEditingId(r.id);
@@ -278,14 +262,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                     const parts = r.openHours.split(' - ');
                     if (parts.length === 2) {
                         const end = parts[1].trim();
-                        // "Daily 11:00 AM" or "Mon, Tue 11:00 AM"
                         const firstPart = parts[0];
-                        // Extract time from end of first part
                         const timeMatch = firstPart.match(/(\d{1,2}:\d{2} [AP]M)$/);
                         if (timeMatch) {
                             setSchedStart(timeMatch[1]);
                             setSchedEnd(end);
-                            
                             const dayPart = firstPart.substring(0, firstPart.length - timeMatch[1].length).trim();
                             if (dayPart === 'Daily') setSchedDays(new Set(DAYS.map(d => d.id)));
                             else if (dayPart === 'Weekdays') setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
@@ -300,7 +281,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         }
                     }
                 } catch (e) {
-                    // Fail silently, use defaults
+                    // Fail silently
                 }
             } else {
                 setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
@@ -340,8 +321,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             await loadData();
             setIsFormOpen(false);
         } catch (err: any) {
-            console.error("Failed to save restaurant", err);
-            alert(`Unable to save: ${err.message || "Please ensure you are logged in."}`);
+            alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -359,7 +339,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             if (data) {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants || []);
+                // Update restaurants if strictly necessary, usually snapshot is constant
+                if (data.restaurants && data.restaurants.length > 0) {
+                    setSessionRestaurants(data.restaurants);
+                }
                 
                 const myDeviceId = localStorage.getItem('device_id');
                 const myMap = new Map<string, number>();
@@ -370,26 +353,22 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const startSession = async () => {
-        if (selection.size === 0) {
-            alert("Please select at least one restaurant.");
-            return;
-        }
+        if (selection.size === 0) { alert("Please select at least one restaurant."); return; }
         setLoading(true);
         try {
             const subset = restaurants.filter(r => selection.has(r.id));
+            if (subset.length === 0) throw new Error("Selection invalid.");
+
             const session = await db.createVoteSession(subset, selectedMode);
             if (!session) throw new Error("Failed to create session.");
             
-            // Auto join
-            const data = await db.joinSession(session.accessCode);
-            if (data) {
-                setActiveSession(data.session);
-                setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants || []);
-                setSwipeIndex(0);
-                setSwipeFinished(false);
-                setIsHost(true);
-            }
+            setActiveSession(session);
+            setSessionRestaurants(subset);
+            setSessionVotes([]);
+            setSwipeIndex(0);
+            setSwipeFinished(false);
+            setIsHost(true);
+            setView('decide');
         } catch (e: any) {
             alert(`Failed to start session: ${e.message}`);
         } finally {
@@ -397,17 +376,20 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         }
     };
 
-    const handleJoinSession = async () => {
-        if (joinCode.length !== 4) return alert("Please enter a 4-character code.");
+    const handleJoinSession = async (codeOverride?: string) => {
+        const code = codeOverride || joinCode;
+        if (code.length !== 4) return alert("Please enter a 4-character code.");
         setLoading(true);
         try {
-            const data = await db.joinSession(joinCode);
+            const data = await db.joinSession(code);
             if (!data) {
                 alert("Session not found or inactive.");
             } else {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
                 setSessionRestaurants(data.restaurants || []);
+                setSwipeIndex(0); // Start from beginning of stack
+                setSwipeFinished(false);
                 setView('decide');
                 setJoinView(false);
                 setIsHost(false);
@@ -419,14 +401,27 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         }
     };
 
-    // Reset local state completely to "Cancel" the view
     const handleBackToList = () => {
+        // If host, end the session completely
+        if (isHost && activeSession) {
+            if (confirm("End this session for everyone?")) {
+                db.endSession(activeSession.id);
+            } else {
+                return; // User cancelled exit
+            }
+        }
+        
+        // Reset local state
         setActiveSession(null);
         setSessionVotes([]);
         setSessionRestaurants([]);
         setMyVotes(new Map());
         setIsHost(false);
         setView('list');
+        setSwipeIndex(0);
+        setSwipeFinished(false);
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
     };
 
     const handleEndSession = async () => {
@@ -439,15 +434,26 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const submitVote = async (restId: string, val: number) => {
         if (!activeSession) return;
         setMyVotes(prev => new Map(prev).set(restId, val));
+        
+        // Optimistic update for Swipe Mode
+        if (activeSession.mode === 'swipe') {
+            if (swipeIndex < sessionRestaurants.length - 1) {
+                setSwipeIndex(prev => prev + 1);
+            } else {
+                setSwipeFinished(true);
+            }
+        }
+
         await db.submitVote(activeSession.id, restId, val);
-        await refreshSession();
+        refreshSession();
     };
 
+    // Auto-Sync Polling
     useEffect(() => {
         let interval: number;
         if (view === 'decide' && activeSession) {
-            refreshSession();
-            interval = window.setInterval(refreshSession, 3000);
+            refreshSession(); // Initial fetch
+            interval = window.setInterval(refreshSession, 2000); // Poll every 2s
         }
         return () => clearInterval(interval);
     }, [view, activeSession?.id]);
@@ -470,11 +476,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const rankedForSession = useMemo(() => {
-        const currentSessionRestaurants = sessionRestaurants || [];
-        const source = currentSessionRestaurants.length > 0 ? currentSessionRestaurants : restaurants;
-        if (!source || source.length === 0) return [];
+        const source = sessionRestaurants.length > 0 ? sessionRestaurants : [];
+        if (source.length === 0) return [];
         return [...source].sort((a, b) => calculateScore(b.id) - calculateScore(a.id));
-    }, [sessionRestaurants, restaurants, sessionVotes]);
+    }, [sessionRestaurants, sessionVotes]);
 
     // --- Selection Handlers ---
     const toggleSelect = (id: string) => {
@@ -504,7 +509,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         maxLength={4}
                         autoFocus
                     />
-                    <button onClick={handleJoinSession} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
+                    <button onClick={() => handleJoinSession()} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
                         {loading ? <Loader className="animate-spin mx-auto" /> : 'Join'}
                     </button>
                 </div>
@@ -515,10 +520,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     return (
         <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-background-light dark:bg-background-dark">
             <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
-                <div className="max-w-4xl mx-auto space-y-6">
+                <div className="max-w-4xl mx-auto space-y-6 h-full flex flex-col">
                     
                     {/* Header */}
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center justify-between gap-4 flex-none">
                         <div className="flex items-center gap-4">
                             <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
                                 <span className="material-symbols-outlined">menu</span>
@@ -533,10 +538,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     Join Code
                                 </button>
                             )}
-                            {/* Improved Back/Cancel Button */}
                             {view === 'decide' && (
                                 <button onClick={handleBackToList} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                                    Back to List
+                                    {isHost ? 'End Session' : 'Exit Session'}
                                 </button>
                             )}
                             {view === 'list' && (
@@ -549,7 +553,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                     {view === 'list' ? (
                         <>
-                            <div className="flex flex-col md:flex-row gap-4">
+                            <div className="flex flex-col md:flex-row gap-4 flex-none">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
                                     <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search restaurants..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
@@ -573,31 +577,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     )}
                                                     {r.price && <span className="text-xs font-bold text-text-muted bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded">{r.price}</span>}
                                                 </div>
-                                                {r.location && (
-                                                    <div className="flex items-center gap-1 text-xs text-text-muted">
-                                                        <span className="material-symbols-outlined text-[14px]">location_on</span>
-                                                        {r.location}
-                                                    </div>
-                                                )}
-                                                {r.openHours && (
-                                                    <div className="flex items-center gap-1 text-xs text-text-muted">
-                                                        <Clock size={12} />
-                                                        {r.openHours}
-                                                    </div>
-                                                )}
-                                                <div className="flex gap-1 text-yellow-500 text-xs mt-1">
-                                                    {[1,2,3].map(s => (
-                                                        <Star key={s} size={12} fill={r.stars >= s ? "currentColor" : "none"} className={r.stars >= s ? "" : "text-gray-300 dark:text-gray-600"} />
-                                                    ))}
-                                                </div>
+                                                {r.location && <div className="flex items-center gap-1 text-xs text-text-muted"><span className="material-symbols-outlined text-[14px]">location_on</span>{r.location}</div>}
                                             </div>
                                         </div>
                                         <div className="flex flex-wrap gap-1 mt-2">
-                                            {r.cuisineTags.map(t => (
-                                                <span key={t} className="text-[10px] uppercase font-bold text-text-muted border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded">
-                                                    {t}
-                                                </span>
-                                            ))}
+                                            {r.cuisineTags.map(t => <span key={t} className="text-[10px] uppercase font-bold text-text-muted border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded">{t}</span>)}
                                         </div>
                                         {r.notes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">{r.notes}</p>}
                                         
@@ -611,7 +595,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-6 animate-in fade-in pb-20">
+                        <div className="space-y-6 animate-in fade-in h-full flex flex-col">
                             {!activeSession ? (
                                 <div className="space-y-6">
                                     <div className="bg-primary/10 p-6 rounded-2xl border border-primary/20">
@@ -667,31 +651,23 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 </div>
                             ) : (
                                 /* Active Session */
-                                <div className="space-y-4">
-                                    <div className="bg-primary/10 p-6 rounded-2xl border border-primary/20 flex flex-row items-center justify-between gap-4">
+                                <div className="flex-1 flex flex-col gap-4">
+                                    <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 flex flex-row items-center justify-between gap-4 flex-none">
                                         <div className="flex flex-col items-start gap-1">
                                             <span className="text-xs font-bold text-primary/70 uppercase tracking-widest">Join Code</span>
-                                            <span className="text-6xl font-display font-bold text-primary tracking-widest">{activeSession.accessCode}</span>
-                                            <div className="flex gap-2 mt-2">
-                                                <button onClick={refreshSession} className="px-3 py-1.5 bg-white dark:bg-black/20 text-primary border border-primary/20 rounded-lg text-xs font-bold hover:bg-primary/10 transition-colors flex items-center gap-1">
-                                                    <RefreshCw size={12} /> Sync
-                                                </button>
-                                                {isHost && (
-                                                    <button onClick={handleEndSession} className="px-3 py-1.5 bg-white dark:bg-black/20 text-red-500 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">End Session</button>
-                                                )}
-                                            </div>
+                                            <span className="text-4xl md:text-5xl font-display font-bold text-primary tracking-widest">{activeSession.accessCode}</span>
                                         </div>
                                         <div className="p-2 bg-white rounded-xl shadow-sm shrink-0">
-                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&format=svg&color=17cf54&margin=0&data=${encodeURIComponent(`${window.location.origin}?join=${activeSession.accessCode}`)}`} alt="QR" className="w-24 h-24" />
+                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&format=svg&color=17cf54&margin=0&data=${encodeURIComponent(`${window.location.origin}?join=${activeSession.accessCode}`)}`} alt="QR" className="w-20 h-20" />
                                         </div>
                                     </div>
 
                                     {(activeSession.mode === 'list' || !activeSession.mode) && (
-                                        <div className="space-y-3">
+                                        <div className="space-y-3 overflow-y-auto pb-20">
                                             {rankedForSession.length === 0 && (
                                                 <div className="text-center p-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark text-text-muted">
                                                     <Loader className="animate-spin mx-auto mb-2" />
-                                                    <p>Loading restaurants or session is empty...</p>
+                                                    <p>Loading restaurants...</p>
                                                 </div>
                                             )}
                                             {rankedForSession.map(r => {
@@ -724,41 +700,46 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     )}
 
                                     {activeSession.mode === 'swipe' && (
-                                        <div className="flex flex-col gap-4">
-                                            <div className="text-center text-sm text-text-muted pb-2 border-b border-border-light dark:border-border-dark">
-                                                Swipe Right to Like • Left to Dislike • Scroll to Skip
-                                            </div>
-                                            <div className="space-y-4 pb-20">
-                                                {(sessionRestaurants || []).map(r => (
-                                                    <SwipeableCard 
-                                                        key={r.id} 
-                                                        restaurant={r} 
-                                                        onVote={(val) => submitVote(r.id, val)} 
-                                                        currentVote={myVotes.get(r.id)} 
-                                                    />
-                                                ))}
-                                                {(sessionRestaurants || []).length === 0 && (
-                                                    <div className="text-center p-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark text-text-muted">
-                                                        <Loader className="animate-spin mx-auto mb-2" />
-                                                        <p>Loading or empty session...</p>
+                                        <div className="flex-1 relative overflow-hidden flex flex-col">
+                                            <div className="flex-1 relative">
+                                                {sessionRestaurants.length === 0 ? (
+                                                    <div className="absolute inset-0 flex items-center justify-center text-text-muted">
+                                                        <Loader className="animate-spin mr-2"/> Loading Feed...
                                                     </div>
+                                                ) : swipeFinished ? (
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-4">
+                                                        <div className="p-4 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-full">
+                                                            <CheckCircle size={48} />
+                                                        </div>
+                                                        <h3 className="text-2xl font-bold dark:text-white">All Caught Up!</h3>
+                                                        <p className="text-text-muted">Waiting for others to vote...</p>
+                                                        <button onClick={() => { setSwipeIndex(0); setSwipeFinished(false); }} className="flex items-center gap-2 text-primary hover:underline">
+                                                            <RotateCcw size={16} /> Review Again
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <SwipeableCard 
+                                                        key={sessionRestaurants[swipeIndex].id}
+                                                        restaurant={sessionRestaurants[swipeIndex]} 
+                                                        onVote={(val) => submitVote(sessionRestaurants[swipeIndex].id, val)}
+                                                    />
                                                 )}
                                             </div>
-                                        </div>
-                                    )}
-
-                                    {activeSession.mode === 'swipe' && (
-                                        <div className="fixed bottom-0 left-0 right-0 bg-surface-light/95 dark:bg-surface-dark/95 backdrop-blur-md border-t border-border-light dark:border-border-dark p-4 z-20">
-                                            <div className="max-w-4xl mx-auto flex items-center justify-between">
-                                                <h3 className="font-bold text-sm">Live Top Picks</h3>
-                                                <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[70%]">
+                                            
+                                            {/* Live Ticker */}
+                                            <div className="flex-none p-4 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h3 className="font-bold text-xs uppercase text-text-muted">Leaderboard</h3>
+                                                    <span className="text-xs text-text-muted">{swipeIndex + 1} / {sessionRestaurants.length}</span>
+                                                </div>
+                                                <div className="flex gap-2 overflow-x-auto no-scrollbar">
                                                     {rankedForSession.filter(r => calculateScore(r.id) > 0).slice(0, 3).map(r => (
                                                         <div key={r.id} className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded text-xs font-bold text-primary whitespace-nowrap">
                                                             <span>{r.name}</span>
                                                             <span className="bg-white dark:bg-black/20 px-1 rounded">+{calculateScore(r.id)}</span>
                                                         </div>
                                                     ))}
-                                                    {rankedForSession.every(r => calculateScore(r.id) <= 0) && <span className="text-xs text-text-muted">Waiting for votes...</span>}
+                                                    {rankedForSession.every(r => calculateScore(r.id) <= 0) && <span className="text-xs text-text-muted">Vote to see results...</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -784,7 +765,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             {/* Form Modal */}
             {isFormOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
-                    <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+                    <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold dark:text-white">{editingId ? 'Edit Restaurant' : 'Add Restaurant'}</h2>
                         <form onSubmit={handleSave} className="space-y-4">
                             <input required placeholder="Name" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
@@ -805,20 +786,27 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-text-muted">Stars (Personal)</label>
-                                    <div className="flex gap-2 mt-2">
-                                        {[1,2,3].map(s => (
-                                            <button type="button" key={s} onClick={() => setFormData({...formData, stars: formData.stars === s ? 0 : s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
-                                                <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
-                                            </button>
-                                        ))}
+                                    <label className="text-xs font-bold text-text-muted">Stars</label>
+                                    <div className="flex gap-2 mt-2 items-center justify-between">
+                                        <div className="flex gap-2">
+                                            {[1,2,3].map(s => (
+                                                <button type="button" key={s} onClick={() => setFormData({...formData, stars: formData.stars === s ? 0 : s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
+                                                    <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center gap-1 cursor-pointer" onClick={() => setFormData({...formData, isApproved: !formData.isApproved})} title="Verified / Approved">
+                                            <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${formData.isApproved ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
+                                                {formData.isApproved && <span className="material-symbols-outlined text-white text-[14px]">check</span>}
+                                            </div>
+                                            <BadgeCheck size={16} className={formData.isApproved ? 'text-blue-500' : 'text-gray-400'} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <input placeholder="Location / Address" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
+                            <input placeholder="Location" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
                             
-                            {/* Open Hours Selector */}
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-text-muted">Open Hours</label>
                                 <div className="flex gap-1 justify-between bg-gray-100 dark:bg-white/5 p-2 rounded-lg">
@@ -854,21 +842,15 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
-                                <div className="flex items-center gap-2 mt-2 p-2 border rounded border-border-light dark:border-border-dark cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}>
-                                    <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${formData.isApproved ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
-                                        {formData.isApproved && <span className="material-symbols-outlined text-white text-[14px]">check</span>}
-                                    </div>
-                                    <span className="text-xs font-bold text-text-muted select-none">Verified / Approved by Me</span>
-                                </div>
                             </div>
 
                             <input placeholder="Cuisine Tags (comma joined)" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} />
-                            <textarea placeholder="Notes (e.g. Get the burger)" rows={3} className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
-                            <input placeholder="Order Link (Optional)" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.goToOrder || ''} onChange={e => setFormData({...formData, goToOrder: e.target.value})} />
+                            <textarea placeholder="Notes" rows={3} className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
+                            <input placeholder="Order Link" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.goToOrder || ''} onChange={e => setFormData({...formData, goToOrder: e.target.value})} />
 
                             <div className="flex gap-2 pt-2">
                                 {editingId && (
-                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
                                         <Trash2 size={20} />
                                     </button>
                                 )}

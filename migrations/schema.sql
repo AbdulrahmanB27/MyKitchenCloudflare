@@ -57,20 +57,19 @@ CREATE TABLE restaurants (
   created_at INTEGER
 );
 
-DROP TABLE IF EXISTS vote_sessions;
-CREATE TABLE vote_sessions (
+DROP TABLE IF EXISTS vote_sessions_v2;
+CREATE TABLE vote_sessions_v2 (
   id TEXT PRIMARY KEY,
-  family_id TEXT,
+  access_code TEXT,
+  data TEXT,
   created_at INTEGER,
   ended_at INTEGER,
-  created_by_device_id TEXT,
   active INTEGER DEFAULT 1
 );
 
-DROP TABLE IF EXISTS votes;
-CREATE TABLE votes (
+DROP TABLE IF EXISTS votes_v2;
+CREATE TABLE votes_v2 (
   id TEXT PRIMARY KEY,
-  family_id TEXT,
   session_id TEXT,
   restaurant_id TEXT,
   device_id TEXT,

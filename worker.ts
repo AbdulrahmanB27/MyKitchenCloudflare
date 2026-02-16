@@ -88,9 +88,9 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (id TEXT PRIMARY KEY, family_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (id TEXT PRIMARY KEY, family_id TEXT, date TEXT, slot TEXT, recipe_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
-            // Updated vote_sessions with access_code and data (snapshot)
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
+            // Migrated to v2 to support access_code and snapshots without needing complex migration scripts
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions_v2 (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes_v2 (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
         ]);
     } catch (e) {
         console.error("Schema init failed", e);
@@ -406,10 +406,10 @@ async function handleVoteSessions(request: Request, env: Env) {
         const code = url.searchParams.get('code');
         if (!code) return errorResponse("Missing code", 400);
 
-        const session = await env.DB.prepare("SELECT * FROM vote_sessions WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
+        const session = await env.DB.prepare("SELECT * FROM vote_sessions_v2 WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
         if (!session) return errorResponse("Session not found", 404);
 
-        const { results } = await env.DB.prepare("SELECT * FROM votes WHERE session_id = ?").bind(session.id).all();
+        const { results } = await env.DB.prepare("SELECT * FROM votes_v2 WHERE session_id = ?").bind(session.id).all();
         
         return jsonResponse({
             session: { 
@@ -436,7 +436,7 @@ async function handleVoteSessions(request: Request, env: Env) {
 
         // Note: We don't link to family_id strictly anymore, session is ephemeral/standalone
         await env.DB.prepare(
-            "INSERT INTO vote_sessions (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
+            "INSERT INTO vote_sessions_v2 (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
         ).bind(id, code, JSON.stringify(restaurantData), now).run();
         
         return jsonResponse({ 
@@ -459,8 +459,8 @@ async function handleVotes(request: Request, env: Env) {
         const now = Date.now();
         const id = crypto.randomUUID();
         
-        await env.DB.prepare("DELETE FROM votes WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
-        await env.DB.prepare("INSERT INTO votes (id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+        await env.DB.prepare("DELETE FROM votes_v2 WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
+        await env.DB.prepare("INSERT INTO votes_v2 (id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(id, body.sessionId, body.restaurantId, body.deviceId, body.voteValue, now).run();
         return jsonResponse({ success: true });
     }

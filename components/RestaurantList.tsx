@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -42,75 +42,104 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
     restaurant, 
     onVote
 }) => {
-    const [offset, setOffset] = useState(0);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
-    const startX = useRef(0);
+    const [result, setResult] = useState<'like' | 'nope' | 'skip' | null>(null);
+    
+    const startPos = useRef({ x: 0, y: 0 });
     const cardRef = useRef<HTMLDivElement>(null);
 
-    const handleTouchStart = (e: React.TouchEvent) => {
-        startX.current = e.touches[0].clientX;
+    const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
         setIsDragging(true);
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        startPos.current = { x: clientX, y: clientY };
     };
 
-    const handleTouchMove = (e: React.TouchEvent) => {
+    const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
         if (!isDragging) return;
-        const currentX = e.touches[0].clientX;
-        const delta = currentX - startX.current;
-        setOffset(delta);
+        
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        
+        const deltaX = clientX - startPos.current.x;
+        const deltaY = clientY - startPos.current.y;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            setOffset({ x: deltaX, y: deltaY * 0.2 }); 
+        } else {
+            setOffset({ x: deltaX * 0.2, y: deltaY });
+        }
     };
 
     const handleTouchEnd = () => {
         if (!isDragging) return;
         setIsDragging(false);
         
-        const threshold = 100; // px
-        if (offset > threshold) {
-            handleVote(1);
-        } else if (offset < -threshold) {
-            handleVote(-1);
+        const threshold = 100; 
+        
+        if (offset.x > threshold) {
+            finishVote(1); // Like
+        } else if (offset.x < -threshold) {
+            finishVote(-1); // Nope
+        } else if (Math.abs(offset.y) > threshold) {
+            finishVote(0); // Skip
         } else {
-            setOffset(0);
+            setOffset({ x: 0, y: 0 });
         }
     };
 
-    const handleVote = (val: number) => {
-        setOffset(val * 500); // Fly off screen
+    const finishVote = (val: number) => {
+        let endX = 0;
+        let endY = 0;
+        
+        if (val === 1) { endX = 500; setResult('like'); }
+        else if (val === -1) { endX = -500; setResult('nope'); }
+        else { endY = offset.y > 0 ? 500 : -500; setResult('skip'); }
+
+        setOffset({ x: endX, y: endY });
+        
         setTimeout(() => {
             onVote(val);
-            setOffset(0); // Reset for next card
         }, 200);
     };
 
-    // Derived styles for swipe feedback
-    const opacityRight = Math.min(Math.max(offset / 150, 0), 1);
-    const opacityLeft = Math.min(Math.max(-offset / 150, 0), 1);
-    const rotation = offset / 20;
+    const opacityRight = Math.min(Math.max(offset.x / 100, 0), 1);
+    const opacityLeft = Math.min(Math.max(-offset.x / 100, 0), 1);
+    const opacitySkip = Math.min(Math.max(Math.abs(offset.y) / 100, 0), 1);
+    const rotation = offset.x / 15;
 
     return (
         <div className="absolute inset-0 flex items-center justify-center p-4">
             <div 
                 ref={cardRef}
-                className="w-full max-w-sm aspect-[3/4] bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl border border-border-light dark:border-border-dark overflow-hidden relative touch-pan-y select-none"
+                className="w-full max-w-sm aspect-[3/4] bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl border border-border-light dark:border-border-dark overflow-hidden relative touch-none select-none cursor-grab active:cursor-grabbing"
                 style={{ 
-                    transform: `translateX(${offset}px) rotate(${rotation}deg)`,
-                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                    transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
+                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                    opacity: result ? 0 : 1
                 }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
+                onMouseDown={handleTouchStart}
+                onMouseMove={handleTouchMove}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
             >
-                {/* Overlay Indicators */}
                 <div className="absolute top-8 left-8 z-20 border-4 border-green-500 rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none" style={{ opacity: opacityRight }}>
                     <span className="text-green-500 font-extrabold text-3xl uppercase tracking-widest">Like</span>
                 </div>
                 <div className="absolute top-8 right-8 z-20 border-4 border-red-500 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none" style={{ opacity: opacityLeft }}>
                     <span className="text-red-500 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
                 </div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 border-4 border-blue-400 rounded-lg px-4 py-1 transition-opacity pointer-events-none" style={{ opacity: opacitySkip }}>
+                    <span className="text-blue-400 font-extrabold text-3xl uppercase tracking-widest">Skip</span>
+                </div>
 
-                {/* Image Section */}
-                <div className="relative h-[60%] w-full bg-gray-200 dark:bg-gray-800">
+                <div className="relative h-[60%] w-full bg-gray-200 dark:bg-gray-800 pointer-events-none">
                     {restaurant.image ? (
-                        <div className="w-full h-full bg-cover bg-center pointer-events-none" style={{ backgroundImage: `url("${restaurant.image}")` }} />
+                        <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${restaurant.image}")` }} />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary">
                             <UtensilsCrossed size={64} />
@@ -131,8 +160,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                     </div>
                 </div>
 
-                {/* Content Section */}
-                <div className="h-[40%] p-6 flex flex-col justify-between bg-surface-light dark:bg-surface-dark relative">
+                <div className="h-[40%] p-6 flex flex-col justify-between bg-surface-light dark:bg-surface-dark relative pointer-events-none">
                     <div>
                         <div className="flex justify-between items-start gap-2">
                             <h2 className="text-2xl font-display font-extrabold text-text-main dark:text-white leading-tight line-clamp-2">{restaurant.name}</h2>
@@ -158,15 +186,14 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                 </div>
             </div>
             
-            {/* Floating Action Buttons */}
-            <div className="absolute bottom-8 left-0 right-0 px-8 flex items-center justify-center gap-6 sm:gap-10 pointer-events-none">
-                <button onClick={() => handleVote(-1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200">
+            <div className="absolute bottom-8 left-0 right-0 px-8 flex items-center justify-center gap-6 sm:gap-10 pointer-events-auto z-30">
+                <button onClick={() => finishVote(-1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200">
                     <X className="text-red-500" size={32} />
                 </button>
-                <button onClick={() => handleVote(0)} className="group pointer-events-auto relative flex items-center justify-center size-12 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 -mt-4">
+                <button onClick={() => finishVote(0)} className="group pointer-events-auto relative flex items-center justify-center size-12 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 -mt-4">
                     <ArrowRight className="text-blue-400" size={24} />
                 </button>
-                <button onClick={() => handleVote(1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-primary shadow-xl shadow-primary/30 hover:scale-110 active:scale-95 transition-all duration-200">
+                <button onClick={() => finishVote(1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-primary shadow-xl shadow-primary/30 hover:scale-110 active:scale-95 transition-all duration-200">
                     <Heart className="text-white fill-white" size={32} />
                 </button>
             </div>
@@ -213,15 +240,12 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [sessionRestaurants, setSessionRestaurants] = useState<Restaurant[]>([]); 
     const [isHost, setIsHost] = useState(false);
     
-    // Sync Ref to avoid stale closures in interval
     const sessionCodeRef = useRef<string | null>(null);
     
-    // Selection & Setup State
     const [selection, setSelection] = useState<Set<string>>(new Set());
     const [selectedMode, setSelectedMode] = useState<'list' | 'swipe'>('swipe');
     const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
 
-    // Swipe Mode Specific State
     const [swipeIndex, setSwipeIndex] = useState(0);
     const [swipeFinished, setSwipeFinished] = useState(false);
 
@@ -240,7 +264,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         const handleUpdates = () => loadData();
         window.addEventListener('restaurants-updated', handleUpdates);
         
-        // Check URL for join code
         const params = new URLSearchParams(window.location.search);
         const code = params.get('join');
         if (code && code.length === 4) {
@@ -254,12 +277,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         return () => window.removeEventListener('restaurants-updated', handleUpdates);
     }, []);
 
-    // Keep ref updated
     useEffect(() => {
         sessionCodeRef.current = activeSession?.accessCode || null;
     }, [activeSession]);
 
-    // Sync Schedule to formData string
     useEffect(() => {
         if (!isFormOpen) return;
         let dayStr = '';
@@ -283,7 +304,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         setLoading(false);
     };
 
-    // Initialize selection only once when data is ready
     useEffect(() => {
         if (!activeSession && restaurants.length > 0 && !hasInitializedSelection) {
             const activeIds = restaurants.filter(r => !localArchive.has(r.id)).map(r => r.id);
@@ -300,12 +320,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         db.safeSetItem('archived_restaurants', JSON.stringify(Array.from(next)));
     };
 
-    // --- Form Handlers ---
     const openForm = (r?: Restaurant) => {
         if (r) {
             setFormData(r);
             setEditingId(r.id);
-            // Default to current context logic if editing existing
             if (currentFamilyId) setTargetFamilyId(currentFamilyId);
             else setTargetFamilyId('private');
         } else {
@@ -314,8 +332,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
             setSchedStart('11:00 AM');
             setSchedEnd('9:00 PM');
-            
-            // Set default family logic for new item
             if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
             else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
             else setTargetFamilyId('private');
@@ -337,7 +353,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             const r: Restaurant = {
                 ...formData as Restaurant,
                 id: editingId || uuidv4(),
-                // familyId will be handled by upsertRestaurant based on logic below or passed explicitly
                 familyId: 'global', 
                 createdAt: formData.createdAt || Date.now(),
                 updatedAt: Date.now(),
@@ -345,16 +360,12 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             };
 
             if (targetFamilyId === 'private') {
-                // Save locally only
                 await db.upsertRestaurant(r, { localOnly: true });
             } else if (targetFamilyId === currentFamilyId) {
-                // Normal sync to current family
                 await db.upsertRestaurant(r); 
             } else {
-                // Cross-post to another family
                 await db.crossPostRestaurant(r, targetFamilyId);
                 alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}.`);
-                // Do NOT await loadData() because we didn't save it to the current context
                 setIsFormOpen(false);
                 return;
             }
@@ -386,11 +397,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         setSchedDays(next);
     };
 
-    // --- Voting Logic ---
-
     const refreshSession = async () => {
         const code = sessionCodeRef.current;
-        if (code) {
+        if (code && code !== 'LOCAL') {
             try {
                 const data = await db.joinSession(code);
                 if (data) {
@@ -415,13 +424,13 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     const startSession = async () => {
         if (selection.size === 0) { alert("Please select at least one restaurant."); return; }
+        
         setLoading(true);
         
         try {
             const subset = restaurants.filter(r => selection.has(r.id));
             if (subset.length === 0) throw new Error("Selection invalid.");
 
-            // Optimistic update
             setSessionRestaurants(subset);
             setView('decide');
             setSessionVotes([]);
@@ -429,20 +438,27 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             setSwipeFinished(false);
             setIsHost(true);
 
-            // Create session in background
-            const session = await db.createVoteSession(subset, selectedMode);
+            // Attempt create on server, fallback to local if fails (offline)
+            let session = await db.createVoteSession(subset, selectedMode);
+            
             if (!session) {
-                // Revert if failed
-                alert("Failed to create session.");
-                setView('list');
-                return;
+                // Local Fallback
+                session = {
+                    id: 'local-' + Date.now(),
+                    accessCode: 'LOCAL',
+                    mode: selectedMode,
+                    active: true,
+                    createdAt: Date.now(),
+                    snapshot: subset
+                };
             }
             
             setActiveSession(session);
         } catch (e: any) {
+            console.error(e);
             alert(`Failed to start session: ${e.message}`);
             setView('list');
-            setIsHost(false); // Reset host status on error
+            setIsHost(false);
         } finally {
             setLoading(false);
         }
@@ -465,6 +481,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 setView('decide');
                 setJoinView(false);
                 setIsHost(false);
+                if (data.session.mode) setSelectedMode(data.session.mode);
             }
         } catch (e) {
             alert("Failed to join.");
@@ -474,7 +491,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const handleBackToList = () => {
-        if (isHost && activeSession) {
+        if (isHost && activeSession && activeSession.accessCode !== 'LOCAL') {
             if (confirm("End this session for everyone?")) {
                 db.endSession(activeSession.id);
             } else {
@@ -492,23 +509,15 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         setSwipeFinished(false);
         try {
             window.history.replaceState({}, '', window.location.pathname);
-        } catch (e) {
-            // Ignore security errors in restricted envs
-        }
-    };
-
-    const handleEndSession = async () => {
-        if (activeSession && confirm('Are you sure you want to end this session for everyone?')) {
-            await db.endSession(activeSession.id);
-            handleBackToList();
-        }
+        } catch (e) {}
     };
 
     const submitVote = async (restId: string, val: number) => {
         if (!activeSession) return;
         setMyVotes(prev => new Map(prev).set(restId, val));
         
-        if (activeSession.mode === 'swipe') {
+        const currentMode = activeSession.mode || selectedMode;
+        if (currentMode === 'swipe') {
             if (swipeIndex < sessionRestaurants.length - 1) {
                 setSwipeIndex(prev => prev + 1);
             } else {
@@ -516,8 +525,23 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             }
         }
 
-        await db.submitVote(activeSession.id, restId, val);
-        refreshSession();
+        if (activeSession.accessCode === 'LOCAL') {
+            // Local mode: Update sessionVotes locally to drive rankings
+            setSessionVotes(prev => {
+                const others = prev.filter(v => v.restaurantId !== restId);
+                return [...others, {
+                    id: 'local-v-' + Date.now(),
+                    sessionId: activeSession.id,
+                    restaurantId: restId,
+                    deviceId: 'local',
+                    voteValue: val,
+                    createdAt: Date.now()
+                }];
+            });
+        } else {
+            await db.submitVote(activeSession.id, restId, val);
+            refreshSession();
+        }
     };
 
     useEffect(() => {
@@ -598,7 +622,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     return (
         <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-background-light dark:bg-background-dark">
             
-            {/* STICKY HEADER */}
             <header className="sticky top-0 z-40 w-full bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-border-light dark:border-border-dark transition-colors duration-300">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-20 gap-4">
@@ -647,13 +670,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 </div>
             </header>
 
-            {/* MAIN CONTENT AREA */}
             <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 scroll-smooth">
                 <div className="max-w-7xl mx-auto h-full flex flex-col">
                     
                     {view === 'list' ? (
                         <>
-                            {/* Horizontal Filters */}
                             <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-6 sticky top-0 z-30 bg-background-light dark:bg-background-dark pt-2 -mx-4 px-4 sm:mx-0 sm:px-0 mask-image-linear-gradient">
                                 {allCuisines.map(tag => (
                                     <button 
@@ -670,7 +691,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 </button>
                             </div>
 
-                            {/* Restaurant Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-24">
                                 {visibleRestaurants.map(r => (
                                     <div key={r.id} onClick={() => openForm(r)} className="bg-surface-light dark:bg-surface-dark rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative flex flex-col h-full border-2 border-transparent hover:border-primary/20 cursor-pointer">
@@ -722,8 +742,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         </>
                     ) : (
                         <div className="h-full flex flex-col">
-                            {!activeSession ? (
-                                // SETUP SCREEN
+                            {loading && !activeSession ? (
+                                <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4 animate-in fade-in">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse"></div>
+                                        <Loader className="animate-spin text-primary relative z-10" size={48} />
+                                    </div>
+                                    <div className="text-center space-y-2">
+                                        <h3 className="text-2xl font-bold text-text-main dark:text-white">Starting Session...</h3>
+                                        <p className="text-text-muted">Connecting to the kitchen server.</p>
+                                    </div>
+                                </div>
+                            ) : !activeSession ? (
                                 <div className="w-full max-w-md mx-auto bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl overflow-hidden flex flex-col h-[85vh] max-h-[800px] relative border border-border-light dark:border-border-dark">
                                     <header className="pt-8 px-6 pb-2 shrink-0 text-center">
                                         <div className="inline-flex items-center justify-center size-12 rounded-full bg-primary/10 text-primary mb-4">
@@ -771,20 +801,28 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             <span className="text-sm font-semibold text-text-muted bg-gray-100 dark:bg-white/5 px-3 py-1 rounded-full animate-pulse">
                                                 ✨ {selection.size} restaurants selected
                                             </span>
-                                            <button onClick={startSession} disabled={selection.size === 0 || loading} className="w-full bg-primary hover:bg-green-600 text-white font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
-                                                {loading ? <Loader className="animate-spin" /> : 'Start Session'}
+                                            <button onClick={startSession} disabled={selection.size === 0} className="w-full bg-primary hover:bg-green-600 text-white font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
+                                                Start Session
                                                 <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                /* ACTIVE SESSION */
                                 <div className="flex-1 flex flex-col h-full max-w-3xl mx-auto w-full">
                                     <div className="flex-none px-4 py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 bg-white/80 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark shadow-sm">
-                                            <span className="size-2 rounded-full bg-green-400 animate-pulse"></span>
-                                            <span className="text-xs font-semibold tracking-wide uppercase text-text-muted">Code: {activeSession.accessCode}</span>
+                                            {activeSession.accessCode === 'LOCAL' ? (
+                                                <>
+                                                    <WifiOff size={14} className="text-orange-500" />
+                                                    <span className="text-xs font-semibold tracking-wide uppercase text-text-muted">Offline Mode</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="size-2 rounded-full bg-green-400 animate-pulse"></span>
+                                                    <span className="text-xs font-semibold tracking-wide uppercase text-text-muted">Code: {activeSession.accessCode}</span>
+                                                </>
+                                            )}
                                         </div>
                                         <div className="font-bold text-text-muted tracking-widest text-sm">
                                             <span className="text-text-main dark:text-white text-lg">{Math.min(swipeIndex + 1, sessionRestaurants.length)}</span> / {sessionRestaurants.length}
@@ -845,11 +883,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             })}
                                         </div>
                                     ) : (
-                                        // SWIPE STACK
                                         <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center relative pb-24">
                                             {sessionRestaurants.length === 0 ? (
                                                 <div className="text-center text-text-muted">
-                                                    {loading ? <><Loader className="animate-spin inline mr-2"/> Loading...</> : "No restaurants found for session."}
+                                                    No restaurants found for session.
                                                 </div>
                                             ) : swipeFinished ? (
                                                 <div className="text-center space-y-4 animate-in zoom-in">
@@ -864,16 +901,16 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 </div>
                                             ) : (
                                                 <div className="relative w-full aspect-[3/4]">
-                                                    {/* Next Card Placeholder */}
                                                     {swipeIndex + 1 < sessionRestaurants.length && (
                                                         <div className="absolute inset-0 bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl transform scale-95 translate-y-4 opacity-50 border border-border-light dark:border-border-dark"></div>
                                                     )}
-                                                    {/* Active Card */}
-                                                    <SwipeableCard 
-                                                        key={sessionRestaurants[swipeIndex]?.id || 'loading'}
-                                                        restaurant={sessionRestaurants[swipeIndex]} 
-                                                        onVote={(val) => submitVote(sessionRestaurants[swipeIndex].id, val)}
-                                                    />
+                                                    {sessionRestaurants[swipeIndex] && (
+                                                        <SwipeableCard 
+                                                            key={sessionRestaurants[swipeIndex]?.id || 'loading'}
+                                                            restaurant={sessionRestaurants[swipeIndex]} 
+                                                            onVote={(val) => submitVote(sessionRestaurants[swipeIndex].id, val)}
+                                                        />
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -885,147 +922,235 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 </div>
             </main>
 
-            {/* Bottom Floating Actions */}
             {view === 'list' && (
-                <>
-                    {/* Gradient Fade for scroll content underneath */}
-                    <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background-light dark:from-background-dark to-transparent pointer-events-none z-20"></div>
-
-                    {/* Centered Decide Button */}
-                    <div className="absolute bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
-                        <button onClick={() => setView('decide')} className="pointer-events-auto flex items-center justify-center h-14 px-8 rounded-full bg-primary hover:bg-green-600 text-white shadow-xl shadow-primary/30 hover:scale-105 transition-all duration-300 gap-3 group">
-                            <UtensilsCrossed size={24} className="animate-pulse" />
-                            <span className="text-lg font-display font-bold tracking-wide">Help us Decide!</span>
-                        </button>
-                    </div>
-
-                    {/* Right Add Button */}
-                    <button onClick={() => openForm()} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30 pointer-events-auto">
+                <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-30">
+                    <button 
+                        onClick={startSession}
+                        className="size-14 bg-white dark:bg-surface-dark text-primary border-2 border-primary/20 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+                        title="Help us Decide"
+                    >
+                        <Play size={24} fill="currentColor" />
+                    </button>
+                    <button 
+                        onClick={() => openForm()}
+                        className="size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform"
+                        title="Add Restaurant"
+                    >
                         <Plus size={28} />
                     </button>
-                </>
-            )}
-
-            {/* Form Modal */}
-            {isFormOpen && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
-                    <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto border border-border-light dark:border-border-dark shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-bold dark:text-white">{editingId ? 'Edit Restaurant' : 'Add Restaurant'}</h2>
-                        
-                        <form onSubmit={handleSave} className="space-y-4">
-                            {/* Basics & Share Control */}
-                            <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
-                                <h3 className="text-sm font-bold text-primary">Basics</h3>
-                                
-                                {/* Family Selector */}
-                                <div className="relative group">
-                                    <select 
-                                        value={targetFamilyId} 
-                                        onChange={(e) => setTargetFamilyId(e.target.value)}
-                                        className="appearance-none pl-9 pr-8 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                    >
-                                        <option value="private">Private (Device Only)</option>
-                                        {availableSessions.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} {s.id === currentFamilyId ? '(Current)' : ''}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
-                                        {targetFamilyId === 'private' ? <Lock size={14} /> : <Users size={14} />}
-                                    </div>
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
-                                        <ChevronDown size={14} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted uppercase">Name</label>
-                                <input required placeholder="Restaurant Name" className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 focus:ring-2 focus:ring-primary outline-none dark:text-white" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-text-muted uppercase">Price</label>
-                                    <select 
-                                        className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 text-text-main dark:text-white outline-none" 
-                                        value={formData.price || ''} 
-                                        onChange={e => setFormData({...formData, price: e.target.value as any})}
-                                    >
-                                        <option value="">-</option>
-                                        <option value="$">$</option>
-                                        <option value="$$">$$</option>
-                                        <option value="$$$">$$$</option>
-                                        <option value="$$$$">$$$$</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-text-muted uppercase">Rating & Verification</label>
-                                    <div className="flex items-center gap-4 mt-2">
-                                        <div className="flex gap-1">
-                                            {[1,2,3].map(s => (
-                                                <button type="button" key={s} onClick={() => setFormData({...formData, stars: formData.stars === s ? 0 : s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
-                                                    <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
-                                                </button>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Verified Toggle Inline */}
-                                        <button 
-                                            type="button"
-                                            onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}
-                                            className="flex items-center justify-center p-1 focus:outline-none"
-                                            title="Toggle Verified Status"
-                                        >
-                                            <CheckCircle 
-                                                size={24} 
-                                                className={`transition-colors ${formData.isApproved ? 'text-blue-500 fill-blue-500/10' : 'text-gray-300 hover:text-gray-400'}`}
-                                            />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted uppercase">Image URL or Upload</label>
-                                <div className="flex gap-2">
-                                    <input placeholder="https://..." className="flex-1 p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} disabled={isUploading} />
-                                    <label className={`p-3 border border-border-light dark:border-border-dark rounded-xl cursor-pointer transition-colors flex items-center justify-center ${isUploading ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-white/5 bg-background-light dark:bg-black/20'}`}>
-                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
-                                        {isUploading ? <Loader className="animate-spin text-primary" size={20} /> : <Upload size={20} className="text-primary" />}
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted uppercase">Location</label>
-                                <input placeholder="e.g. Downtown" className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted uppercase">Tags</label>
-                                <input placeholder="Italian, Pizza, Casual..." className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted uppercase">Notes</label>
-                                <textarea placeholder="Best pasta in town..." rows={3} className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white resize-none" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                {editingId && (
-                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
-                                        <Trash2 size={20} />
-                                    </button>
-                                )}
-                                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 py-3 text-text-muted font-bold hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">Cancel</button>
-                                <button type="submit" className="flex-1 py-3 bg-primary hover:bg-green-600 text-white rounded-xl font-bold shadow-lg">Save</button>
-                            </div>
-                        </form>
-                    </div>
                 </div>
             )}
 
-            {showAuth && <AuthModal onClose={() => setShowAuth(false)} onSuccess={() => setShowAuth(false)} />}
+            {showAuth && (
+                <AuthModal 
+                    onClose={() => setShowAuth(false)} 
+                    onSuccess={() => setShowAuth(false)} 
+                    initialView="login"
+                />
+            )}
+
+            {isFormOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}></div>
+                    <form onSubmit={handleSave} className="relative w-full max-w-4xl bg-surface-light dark:bg-surface-dark rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transform transition-all border border-primary/10 dark:border-border-dark" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-primary/10 dark:border-border-dark bg-white dark:bg-surface-dark">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-primary text-white p-2 rounded-xl shadow-sm shadow-primary/30">
+                                    <UtensilsCrossed size={20} />
+                                </div>
+                                <h2 className="text-xl font-display font-bold text-text-main dark:text-white">
+                                    {editingId ? 'Edit Gem' : 'Add New Gem'}
+                                </h2>
+                            </div>
+                            <button type="button" onClick={() => setIsFormOpen(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-text-muted">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-gray-50/50 dark:bg-[#0e1b12]">
+                            <div className="grid grid-cols-12 gap-6">
+                                
+                                {/* Left Column */}
+                                <div className="col-span-12 lg:col-span-8 space-y-6">
+                                    
+                                    {/* Basic Info Card */}
+                                    <div className="bg-white dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="col-span-1 md:col-span-2">
+                                                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Name</label>
+                                                <input required type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-xl border-gray-200 dark:border-border-dark bg-gray-50 dark:bg-black/20 px-4 py-3 text-sm focus:border-primary focus:ring-primary text-text-main dark:text-white placeholder-gray-400 font-medium transition-all outline-none border" placeholder="Restaurant Name" />
+                                            </div>
+                                            <div className="col-span-1 md:col-span-2">
+                                                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Cuisine Tags</label>
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                                                    <input type="text" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} className="w-full pl-10 rounded-xl border-gray-200 dark:border-border-dark bg-gray-50 dark:bg-black/20 px-4 py-3 text-sm focus:border-primary focus:ring-primary text-text-main dark:text-white placeholder-gray-400 font-medium transition-all outline-none border" placeholder="Italian, Pizza, Fast Food..." />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Rating & Price Card */}
+                                    <div className="bg-white dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark">
+                                        <div className="flex flex-col sm:flex-row gap-6">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Rating</label>
+                                                <div className="flex items-center gap-2">
+                                                    {[1, 2, 3].map(s => (
+                                                        <button key={s} type="button" onClick={() => setFormData({...formData, stars: s === formData.stars ? 0 : s})} className={`group p-2 rounded-xl border transition-all flex flex-col items-center gap-1 min-w-[70px] ${formData.stars && formData.stars >= s ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-900/50' : 'bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+                                                            <Star size={24} className={`transition-all ${formData.stars && formData.stars >= s ? 'text-yellow-500 fill-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                            <span className={`text-[10px] font-bold ${formData.stars && formData.stars >= s ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-400'}`}>
+                                                                {s === 1 ? 'Good' : s === 2 ? 'Great' : 'Super'}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                    <div className="w-px h-10 bg-gray-200 dark:bg-border-dark mx-2"></div>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}
+                                                        className={`group flex flex-col items-center gap-1 p-2 rounded-xl transition-all min-w-[60px] ${formData.isApproved ? 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/50' : 'border border-transparent hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                                                    >
+                                                        <div className={`size-6 flex items-center justify-center transition-all ${formData.isApproved ? 'text-blue-500' : 'text-gray-300 dark:text-gray-600'}`}>
+                                                            <BadgeCheck size={24} fill={formData.isApproved ? "currentColor" : "none"} className={formData.isApproved ? "text-blue-500" : "text-gray-300"} />
+                                                        </div>
+                                                        <span className={`text-[10px] font-bold ${formData.isApproved ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400'}`}>Verified</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="w-px bg-gray-100 dark:bg-border-dark hidden sm:block"></div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Price</label>
+                                                <div className="inline-flex bg-gray-50 dark:bg-black/20 p-1.5 rounded-xl border border-gray-200 dark:border-border-dark">
+                                                    {['$', '$$', '$$$', '$$$$'].map(p => (
+                                                        <button 
+                                                            key={p} 
+                                                            type="button"
+                                                            onClick={() => setFormData({...formData, price: p as any})} 
+                                                            className={`px-3 py-2 text-xs font-bold rounded-lg transition-all ${formData.price === p ? 'bg-white dark:bg-surface-dark text-text-main dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                                                        >
+                                                            {p}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Schedule Card */}
+                                    <div className="bg-white dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark">
+                                        <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Operating Hours</label>
+                                        <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
+                                            {DAYS.map(day => (
+                                                <button 
+                                                    key={day.id}
+                                                    type="button" 
+                                                    onClick={() => toggleSchedDay(day.id)}
+                                                    className={`size-9 shrink-0 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-primary text-white border-primary shadow-md shadow-primary/30' : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-border-dark text-gray-400 hover:border-primary/50'}`}
+                                                >
+                                                    {day.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-border-dark">
+                                            <Clock size={16} className="text-text-muted" />
+                                            <div className="flex items-center gap-2 text-sm flex-1">
+                                                <select value={schedStart} onChange={e => setSchedStart(e.target.value)} className="bg-transparent border-none text-right font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer p-0">
+                                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                                </select>
+                                                <span className="text-gray-400 font-medium">to</span>
+                                                <select value={schedEnd} onChange={e => setSchedEnd(e.target.value)} className="bg-transparent border-none font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer p-0">
+                                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                {/* Right Column */}
+                                <div className="col-span-12 lg:col-span-4 space-y-6">
+                                    
+                                    {/* Location Card */}
+                                    <div className="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark overflow-hidden h-48 relative group">
+                                        <div className="absolute inset-0 bg-gray-100 dark:bg-black/40 flex items-center justify-center bg-[url('https://maps.googleapis.com/maps/api/staticmap?center=40.7128,-74.0060&zoom=13&size=600x300&sensor=false&style=feature:all|element:labels|visibility:off')] bg-cover opacity-50">
+                                            <MapPin size={32} className="text-gray-400" />
+                                        </div>
+                                        <div className="absolute bottom-0 inset-x-0 p-3 bg-white/95 dark:bg-surface-dark/95 backdrop-blur border-t border-gray-100 dark:border-border-dark">
+                                            <div className="flex items-center gap-2">
+                                                <MapPin size={16} className="text-primary shrink-0" />
+                                                <input type="text" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full bg-transparent border-none p-0 text-xs font-bold text-text-main dark:text-white placeholder-gray-400 focus:ring-0" placeholder="Enter address..." />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Cover Photo */}
+                                    <div className="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark p-5">
+                                        <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Cover Photo</label>
+                                        
+                                        <div className="relative group">
+                                            {formData.image ? (
+                                                <div className="h-32 w-full rounded-xl bg-cover bg-center border border-gray-200 dark:border-border-dark" style={{ backgroundImage: `url("${formData.image}")` }}>
+                                                    <button type="button" onClick={() => setFormData({...formData, image: ''})} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <label className={`h-32 border-2 border-dashed border-gray-200 dark:border-border-dark rounded-xl flex flex-col items-center justify-center text-center hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer bg-gray-50 dark:bg-black/20 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                                                    {isUploading ? <Loader className="animate-spin text-primary" size={24}/> : <ImageIcon size={24} className="text-gray-400 mb-2"/>}
+                                                    <p className="text-[10px] text-gray-500 font-medium">{isUploading ? 'Uploading...' : 'Drop image or click'}</p>
+                                                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                                                </label>
+                                            )}
+                                            <div className="mt-3">
+                                                <input type="text" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full text-[10px] p-2 rounded-lg bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-border-dark text-text-muted placeholder-gray-400 focus:outline-none focus:border-primary/50" placeholder="Or paste image URL..." />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Notes */}
+                                    <div className="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark p-5">
+                                        <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Must Try Dish / Notes</label>
+                                        <textarea rows={3} value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full rounded-xl border-gray-200 dark:border-border-dark bg-gray-50 dark:bg-black/20 px-3 py-2 text-sm focus:border-primary focus:ring-primary dark:focus:ring-primary text-text-main dark:text-white placeholder-gray-400 transition-shadow resize-none outline-none border" placeholder="e.g. Spicy Rigatoni..." />
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-primary/10 dark:border-border-dark bg-white dark:bg-surface-dark flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <label className="inline-flex items-center cursor-pointer select-none group">
+                                    <input 
+                                        type="checkbox" 
+                                        className="sr-only peer" 
+                                        checked={targetFamilyId === 'private'}
+                                        onChange={e => setTargetFamilyId(e.target.checked ? 'private' : (currentFamilyId || 'private'))}
+                                    />
+                                    <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                                    <span className="ms-3 text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-text-main dark:group-hover:text-white transition-colors">Private List</span>
+                                </label>
+                                {editingId && (
+                                    <button type="button" onClick={() => handleDelete(editingId)} className="ml-4 text-red-400 hover:text-red-500 text-sm font-bold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
+                                        <Trash2 size={16} /> Delete
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex gap-3 w-full sm:w-auto">
+                                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="flex-1 sm:flex-none px-8 py-3 rounded-xl text-sm font-bold bg-primary text-white hover:bg-green-600 shadow-lg shadow-primary/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+                                    {editingId ? 'Update Gem' : 'Save Gem'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
         </div>
     );
 };

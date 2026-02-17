@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -31,6 +31,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   // Review State
   const [isRatingOpen, setIsRatingOpen] = useState(false);
 
+  // Share State
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareTargetId, setShareTargetId] = useState('');
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]);
+
   // Stopwatch Timers State: Map of step.id -> Timer Data
   const [activeTimers, setActiveTimers] = useState<{ [key: string]: ActiveTimer }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -41,6 +46,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         try {
             const data = await db.getRecipe(recipeId);
             setRecipe(data || null);
+            setAvailableSessions(db.getSavedSessions());
         } catch (e) {
             console.error("Error loading recipe", e);
         } finally {
@@ -231,6 +237,17 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     }
   };
 
+  const handleCrossPost = async () => {
+      if (!shareTargetId) return;
+      try {
+          await db.crossPostRecipe(recipe, shareTargetId);
+          alert(`Copied "${recipe.name}" to the selected family.`);
+          setIsShareOpen(false);
+      } catch (e: any) {
+          alert(`Failed to share: ${e.message}`);
+      }
+  };
+
   const persistUpdate = async (updated: Recipe, localOnly = false) => {
       await db.upsertRecipe(updated, { localOnly });
       setRecipe(updated);
@@ -406,6 +423,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <h2 className="text-lg font-bold font-display text-text-main dark:text-white line-clamp-1">{recipe.name}</h2>
             </div>
             <div className="flex items-center gap-2">
+                {availableSessions.length > 1 && (
+                    <button onClick={() => setIsShareOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors" title="Share to Family">
+                        <Share size={18} />
+                    </button>
+                )}
                 <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors">
                     <span className="material-symbols-outlined text-[18px]">star</span> Rate
                 </button>
@@ -444,6 +466,42 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     <button onClick={() => setIsRatingOpen(false)} className="w-full py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
                         Cancel
                     </button>
+                </div>
+            </div>
+        )}
+
+        {/* Share Modal */}
+        {isShareOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
+                <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
+                    <h3 className="text-lg font-bold font-display mb-4 dark:text-white flex items-center gap-2">
+                        <Users size={20} className="text-primary"/> Share Copy
+                    </h3>
+                    <p className="text-sm text-text-muted mb-4">Select a family to send a copy of this recipe to:</p>
+                    
+                    <div className="space-y-2 mb-4">
+                        {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).map(s => (
+                            <button 
+                                key={s.id}
+                                onClick={() => setShareTargetId(s.id)}
+                                className={`w-full p-3 rounded-lg border text-left font-bold transition-all ${shareTargetId === s.id ? 'border-primary bg-primary/10 text-primary' : 'border-border-light dark:border-border-dark dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                            >
+                                {s.name}
+                            </button>
+                        ))}
+                        {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).length === 0 && (
+                            <p className="text-sm text-text-muted italic">No other families logged in.</p>
+                        )}
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button onClick={() => setIsShareOpen(false)} className="flex-1 py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={handleCrossPost} disabled={!shareTargetId} className="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-bold shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Share
+                        </button>
+                    </div>
                 </div>
             </div>
         )}

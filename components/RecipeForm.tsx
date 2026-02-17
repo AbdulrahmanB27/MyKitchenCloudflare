@@ -182,7 +182,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         setInstructionBlocks([{ id: uuidv4(), name: '', steps: [{ id: uuidv4(), text: '' }] }]);
         
         // Auto-fill "Added By"
-        const lastAuthor = localStorage.getItem('mykitchen_last_author');
+        const lastAuthor = db.safeGetItem('mykitchen_last_author');
         if (lastAuthor) {
             setFormData(prev => ({ ...prev, addedBy: lastAuthor }));
         }
@@ -326,7 +326,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     const cook = parseTimeInput(cookTimeStr);
 
     if (formData.addedBy) {
-        localStorage.setItem('mykitchen_last_author', formData.addedBy);
+        db.safeSetItem('mykitchen_last_author', formData.addedBy);
     }
 
     const recipe: Recipe = {
@@ -507,7 +507,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const toggleStepOptional = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, optional: !s.optional }) }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
       <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-card-light dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-light dark:border-border-dark">
         <div className="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark">

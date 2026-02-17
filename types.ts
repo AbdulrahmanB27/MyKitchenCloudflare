@@ -144,6 +144,7 @@ export interface Restaurant {
   price: '$' | '$$' | '$$$' | '$$$$' | '';
   notes: string;
   goToOrder: string;
+  image?: string; // Added for new UI
   lastVisitedAt?: number;
   createdAt: number;
   updatedAt: number;

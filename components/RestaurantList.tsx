@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -77,7 +77,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
         setOffset(val * 500); // Fly off screen
         setTimeout(() => {
             onVote(val);
-            setOffset(0); // Reset for next card (if reused, though likely unmounted)
+            setOffset(0); // Reset for next card
         }, 200);
     };
 
@@ -100,47 +100,75 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                 onTouchEnd={handleTouchEnd}
             >
                 {/* Overlay Indicators */}
-                <div className="absolute inset-0 bg-green-500/20 z-10 pointer-events-none flex items-center justify-center transition-opacity" style={{ opacity: opacityRight }}>
-                    <div className="bg-green-500 text-white p-4 rounded-full shadow-lg transform scale-150">
-                        <ThumbsUp size={48} strokeWidth={3} />
-                    </div>
+                <div className="absolute top-8 left-8 z-20 border-4 border-green-500 rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none" style={{ opacity: opacityRight }}>
+                    <span className="text-green-500 font-extrabold text-3xl uppercase tracking-widest">Like</span>
                 </div>
-                <div className="absolute inset-0 bg-red-500/20 z-10 pointer-events-none flex items-center justify-center transition-opacity" style={{ opacity: opacityLeft }}>
-                    <div className="bg-red-500 text-white p-4 rounded-full shadow-lg transform scale-150">
-                        <ThumbsDown size={48} strokeWidth={3} />
+                <div className="absolute top-8 right-8 z-20 border-4 border-red-500 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none" style={{ opacity: opacityLeft }}>
+                    <span className="text-red-500 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
+                </div>
+
+                {/* Image Section */}
+                <div className="relative h-[60%] w-full bg-gray-200 dark:bg-gray-800">
+                    {restaurant.image ? (
+                        <div className="w-full h-full bg-cover bg-center pointer-events-none" style={{ backgroundImage: `url("${restaurant.image}")` }} />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary">
+                            <UtensilsCrossed size={64} />
+                        </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-2">
+                        {restaurant.price && (
+                            <span className="px-3 py-1 bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold rounded-full shadow-sm">
+                                {restaurant.price}
+                            </span>
+                        )}
+                        {restaurant.cuisineTags.slice(0, 2).map(t => (
+                            <span key={t} className="px-3 py-1 bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold rounded-full shadow-sm">
+                                {t}
+                            </span>
+                        ))}
                     </div>
                 </div>
 
-                {/* Content */}
-                <div className="flex flex-col h-full p-6">
-                    <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
-                        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                            <UtensilsCrossed size={48} className="text-primary" />
+                {/* Content Section */}
+                <div className="h-[40%] p-6 flex flex-col justify-between bg-surface-light dark:bg-surface-dark relative">
+                    <div>
+                        <div className="flex justify-between items-start gap-2">
+                            <h2 className="text-2xl font-display font-extrabold text-text-main dark:text-white leading-tight line-clamp-2">{restaurant.name}</h2>
+                            {restaurant.stars > 0 && (
+                                <div className="flex items-center bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-lg shrink-0">
+                                    <Star size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
+                                    <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{restaurant.stars}</span>
+                                </div>
+                            )}
                         </div>
-                        <h2 className="text-3xl font-bold font-display text-text-main dark:text-white leading-tight">{restaurant.name}</h2>
-                        
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {restaurant.price && <span className="px-3 py-1 bg-gray-100 dark:bg-white/10 rounded-full text-sm font-bold">{restaurant.price}</span>}
-                            {restaurant.cuisineTags.slice(0,3).map(t => (
-                                <span key={t} className="px-3 py-1 border border-border-light dark:border-white/10 rounded-full text-xs font-bold text-text-muted uppercase tracking-wide">{t}</span>
-                            ))}
-                        </div>
-
+                        {restaurant.location && (
+                            <div className="mt-2 flex items-center gap-1 text-text-muted text-sm font-medium">
+                                <MapPin size={16} />
+                                <span className="line-clamp-1">{restaurant.location}</span>
+                            </div>
+                        )}
                         {restaurant.notes && (
-                            <p className="text-sm italic text-gray-500 dark:text-gray-400 mt-2">"{restaurant.notes}"</p>
+                            <div className="mt-4 p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
+                                <p className="text-sm text-gray-600 dark:text-gray-300 italic line-clamp-2">"{restaurant.notes}"</p>
+                            </div>
                         )}
                     </div>
-
-                    <div className="flex justify-between items-center pt-6 border-t border-border-light dark:border-border-dark w-full">
-                        <button onClick={() => handleVote(-1)} className="p-4 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 transition-colors">
-                            <X size={32} />
-                        </button>
-                        <div className="text-xs font-bold text-text-muted uppercase tracking-widest opacity-50">Swipe</div>
-                        <button onClick={() => handleVote(1)} className="p-4 rounded-full bg-green-100 dark:bg-green-900/20 text-green-500 hover:bg-green-200 transition-colors">
-                            <Heart size={32} fill="currentColor" />
-                        </button>
-                    </div>
                 </div>
+            </div>
+            
+            {/* Floating Action Buttons */}
+            <div className="absolute bottom-8 left-0 right-0 px-8 flex items-center justify-center gap-6 sm:gap-10 pointer-events-none">
+                <button onClick={() => handleVote(-1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200">
+                    <X className="text-red-500" size={32} />
+                </button>
+                <button onClick={() => handleVote(0)} className="group pointer-events-auto relative flex items-center justify-center size-12 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 -mt-4">
+                    <ArrowRight className="text-blue-400" size={24} />
+                </button>
+                <button onClick={() => handleVote(1)} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-primary shadow-xl shadow-primary/30 hover:scale-110 active:scale-95 transition-all duration-200">
+                    <Heart className="text-white fill-white" size={32} />
+                </button>
             </div>
         </div>
     );
@@ -160,6 +188,13 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<Restaurant>>({});
+    const [isUploading, setIsUploading] = useState(false);
+
+    // Share/Sync State
+    const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
+    const [availableSessions, setAvailableSessions] = useState<any[]>([]);
+    const currentFamilyId = db.getCurrentFamilyId();
+    const pinnedFamilyId = db.getPinnedFamilyId();
 
     // Schedule State for Form
     const [schedDays, setSchedDays] = useState<Set<string>>(new Set(['Mo','Tu','We','Th','Fr']));
@@ -169,6 +204,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // Archive State
     const [localArchive, setLocalArchive] = useState<Set<string>>(new Set());
     const [showArchived, setShowArchived] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<string>('All');
 
     // Vote Session State
     const [activeSession, setActiveSession] = useState<VoteSession | null>(null);
@@ -176,6 +212,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [myVotes, setMyVotes] = useState<Map<string, number>>(new Map()); 
     const [sessionRestaurants, setSessionRestaurants] = useState<Restaurant[]>([]); 
     const [isHost, setIsHost] = useState(false);
+    
+    // Sync Ref to avoid stale closures in interval
+    const sessionCodeRef = useRef<string | null>(null);
     
     // Selection & Setup State
     const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -188,9 +227,14 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     useEffect(() => {
         loadData();
-        const savedArchive = localStorage.getItem('archived_restaurants');
+        const sessions = db.getSavedSessions();
+        setAvailableSessions(sessions);
+
+        const savedArchive = db.safeGetItem('archived_restaurants');
         if (savedArchive) {
-            setLocalArchive(new Set(JSON.parse(savedArchive)));
+            try {
+                setLocalArchive(new Set(JSON.parse(savedArchive)));
+            } catch (e) {}
         }
 
         const handleUpdates = () => loadData();
@@ -202,11 +246,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         if (code && code.length === 4) {
             setJoinCode(code);
             handleJoinSession(code);
-            window.history.replaceState({}, '', window.location.pathname);
+            try {
+                window.history.replaceState({}, '', window.location.pathname);
+            } catch (e) {}
         }
 
         return () => window.removeEventListener('restaurants-updated', handleUpdates);
     }, []);
+
+    // Keep ref updated
+    useEffect(() => {
+        sessionCodeRef.current = activeSession?.accessCode || null;
+    }, [activeSession]);
 
     // Sync Schedule to formData string
     useEffect(() => {
@@ -246,54 +297,28 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         const next = new Set(localArchive);
         if (next.has(id)) next.delete(id); else next.add(id);
         setLocalArchive(next);
-        localStorage.setItem('archived_restaurants', JSON.stringify(Array.from(next)));
+        db.safeSetItem('archived_restaurants', JSON.stringify(Array.from(next)));
     };
 
     // --- Form Handlers ---
     const openForm = (r?: Restaurant) => {
-        if (!db.hasAuthToken()) { setShowAuth(true); return; }
         if (r) {
             setFormData(r);
             setEditingId(r.id);
-            
-            // Try to parse existing hours
-            if (r.openHours) {
-                try {
-                    const parts = r.openHours.split(' - ');
-                    if (parts.length === 2) {
-                        const end = parts[1].trim();
-                        const firstPart = parts[0];
-                        const timeMatch = firstPart.match(/(\d{1,2}:\d{2} [AP]M)$/);
-                        if (timeMatch) {
-                            setSchedStart(timeMatch[1]);
-                            setSchedEnd(end);
-                            const dayPart = firstPart.substring(0, firstPart.length - timeMatch[1].length).trim();
-                            if (dayPart === 'Daily') setSchedDays(new Set(DAYS.map(d => d.id)));
-                            else if (dayPart === 'Weekdays') setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
-                            else if (dayPart === 'Weekends') setSchedDays(new Set(['Sa','Su']));
-                            else {
-                                const days = new Set<string>();
-                                DAYS.forEach(d => {
-                                    if (dayPart.includes(d.full) || dayPart.includes(d.id)) days.add(d.id);
-                                });
-                                if (days.size > 0) setSchedDays(days);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // Fail silently
-                }
-            } else {
-                setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
-                setSchedStart('11:00 AM');
-                setSchedEnd('9:00 PM');
-            }
+            // Default to current context logic if editing existing
+            if (currentFamilyId) setTargetFamilyId(currentFamilyId);
+            else setTargetFamilyId('private');
         } else {
             setFormData({ stars: 0, price: '$$', cuisineTags: [], isApproved: false });
             setEditingId(null);
             setSchedDays(new Set(['Mo','Tu','We','Th','Fr']));
             setSchedStart('11:00 AM');
             setSchedEnd('9:00 PM');
+            
+            // Set default family logic for new item
+            if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
+            else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
+            else setTargetFamilyId('private');
         }
         setIsFormOpen(true);
     };
@@ -312,16 +337,46 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             const r: Restaurant = {
                 ...formData as Restaurant,
                 id: editingId || uuidv4(),
-                familyId: 'global',
+                // familyId will be handled by upsertRestaurant based on logic below or passed explicitly
+                familyId: 'global', 
                 createdAt: formData.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 cuisineTags: typeof formData.cuisineTags === 'string' ? (formData.cuisineTags as string).split(',').map(t => t.trim()).filter(Boolean) : (formData.cuisineTags || [])
             };
-            await db.upsertRestaurant(r);
+
+            if (targetFamilyId === 'private') {
+                // Save locally only
+                await db.upsertRestaurant(r, { localOnly: true });
+            } else if (targetFamilyId === currentFamilyId) {
+                // Normal sync to current family
+                await db.upsertRestaurant(r); 
+            } else {
+                // Cross-post to another family
+                await db.crossPostRestaurant(r, targetFamilyId);
+                alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}.`);
+                // Do NOT await loadData() because we didn't save it to the current context
+                setIsFormOpen(false);
+                return;
+            }
+
             await loadData();
             setIsFormOpen(false);
         } catch (err: any) {
             alert(`Unable to save: ${err.message}`);
+        }
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        try {
+            const url = await db.uploadImage(file);
+            setFormData(prev => ({ ...prev, image: url }));
+        } catch (error) {
+            alert("Failed to upload image.");
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -334,20 +389,26 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     // --- Voting Logic ---
 
     const refreshSession = async () => {
-        if (activeSession?.accessCode) {
-            const data = await db.joinSession(activeSession.accessCode);
-            if (data) {
-                setActiveSession(data.session);
-                setSessionVotes(data.votes);
-                // Update restaurants if strictly necessary, usually snapshot is constant
-                if (data.restaurants && data.restaurants.length > 0) {
-                    setSessionRestaurants(data.restaurants);
+        const code = sessionCodeRef.current;
+        if (code) {
+            try {
+                const data = await db.joinSession(code);
+                if (data) {
+                    setActiveSession(data.session);
+                    setSessionVotes(data.votes);
+                    
+                    const incomingRestaurants = data.restaurants || data.session.snapshot || [];
+                    if (incomingRestaurants.length > 0) {
+                        setSessionRestaurants(incomingRestaurants);
+                    }
+                    
+                    const myDeviceId = db.getDeviceId();
+                    const myMap = new Map<string, number>();
+                    data.votes.filter(v => v.deviceId === myDeviceId).forEach(v => myMap.set(v.restaurantId, v.voteValue));
+                    setMyVotes(myMap);
                 }
-                
-                const myDeviceId = localStorage.getItem('device_id');
-                const myMap = new Map<string, number>();
-                data.votes.filter(v => v.deviceId === myDeviceId).forEach(v => myMap.set(v.restaurantId, v.voteValue));
-                setMyVotes(myMap);
+            } catch (e) {
+                console.error("Sync error", e);
             }
         }
     };
@@ -355,22 +416,33 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const startSession = async () => {
         if (selection.size === 0) { alert("Please select at least one restaurant."); return; }
         setLoading(true);
+        
         try {
             const subset = restaurants.filter(r => selection.has(r.id));
             if (subset.length === 0) throw new Error("Selection invalid.");
 
-            const session = await db.createVoteSession(subset, selectedMode);
-            if (!session) throw new Error("Failed to create session.");
-            
-            setActiveSession(session);
+            // Optimistic update
             setSessionRestaurants(subset);
+            setView('decide');
             setSessionVotes([]);
             setSwipeIndex(0);
             setSwipeFinished(false);
             setIsHost(true);
-            setView('decide');
+
+            // Create session in background
+            const session = await db.createVoteSession(subset, selectedMode);
+            if (!session) {
+                // Revert if failed
+                alert("Failed to create session.");
+                setView('list');
+                return;
+            }
+            
+            setActiveSession(session);
         } catch (e: any) {
             alert(`Failed to start session: ${e.message}`);
+            setView('list');
+            setIsHost(false); // Reset host status on error
         } finally {
             setLoading(false);
         }
@@ -387,8 +459,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             } else {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
-                setSessionRestaurants(data.restaurants || []);
-                setSwipeIndex(0); // Start from beginning of stack
+                setSessionRestaurants(data.restaurants || data.session.snapshot || []);
+                setSwipeIndex(0); 
                 setSwipeFinished(false);
                 setView('decide');
                 setJoinView(false);
@@ -402,16 +474,14 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const handleBackToList = () => {
-        // If host, end the session completely
         if (isHost && activeSession) {
             if (confirm("End this session for everyone?")) {
                 db.endSession(activeSession.id);
             } else {
-                return; // User cancelled exit
+                return;
             }
         }
         
-        // Reset local state
         setActiveSession(null);
         setSessionVotes([]);
         setSessionRestaurants([]);
@@ -420,8 +490,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         setView('list');
         setSwipeIndex(0);
         setSwipeFinished(false);
-        // Clean URL
-        window.history.replaceState({}, '', window.location.pathname);
+        try {
+            window.history.replaceState({}, '', window.location.pathname);
+        } catch (e) {
+            // Ignore security errors in restricted envs
+        }
     };
 
     const handleEndSession = async () => {
@@ -435,7 +508,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         if (!activeSession) return;
         setMyVotes(prev => new Map(prev).set(restId, val));
         
-        // Optimistic update for Swipe Mode
         if (activeSession.mode === 'swipe') {
             if (swipeIndex < sessionRestaurants.length - 1) {
                 setSwipeIndex(prev => prev + 1);
@@ -448,28 +520,34 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         refreshSession();
     };
 
-    // Auto-Sync Polling
     useEffect(() => {
         let interval: number;
         if (view === 'decide' && activeSession) {
-            refreshSession(); // Initial fetch
-            interval = window.setInterval(refreshSession, 2000); // Poll every 2s
+            refreshSession(); 
+            interval = window.setInterval(refreshSession, 2000); 
         }
         return () => clearInterval(interval);
     }, [view, activeSession?.id]);
 
 
     // --- Filtering & Sorting ---
+    const allCuisines = useMemo(() => {
+        const tags = new Set<string>();
+        restaurants.forEach(r => r.cuisineTags.forEach(t => tags.add(t)));
+        return ['All', ...Array.from(tags).sort()];
+    }, [restaurants]);
+
     const visibleRestaurants = useMemo(() => {
         return restaurants.filter(r => {
             if (!showArchived && localArchive.has(r.id)) return false;
+            if (activeFilter !== 'All' && !r.cuisineTags.includes(activeFilter)) return false;
             if (searchQuery) {
                 const q = searchQuery.toLowerCase();
                 return r.name.toLowerCase().includes(q) || r.cuisineTags.some(t => t.toLowerCase().includes(q));
             }
             return true;
         }).sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
-    }, [restaurants, localArchive, showArchived, searchQuery]);
+    }, [restaurants, localArchive, showArchived, searchQuery, activeFilter]);
 
     const calculateScore = (restId: string) => {
         return sessionVotes.filter(v => v.restaurantId === restId).reduce((acc, v) => acc + v.voteValue, 0);
@@ -519,229 +597,285 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     return (
         <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-background-light dark:bg-background-dark">
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
-                <div className="max-w-4xl mx-auto space-y-6 h-full flex flex-col">
-                    
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-4 flex-none">
-                        <div className="flex items-center gap-4">
-                            <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
-                                <span className="material-symbols-outlined">menu</span>
-                            </button>
-                            <h1 className="text-2xl font-bold font-display text-text-main dark:text-white flex items-center gap-2">
-                                <UtensilsCrossed className="text-primary" /> Eat Out
-                            </h1>
+            
+            {/* STICKY HEADER */}
+            <header className="sticky top-0 z-40 w-full bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-border-light dark:border-border-dark transition-colors duration-300">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-20 gap-4">
+                        <div className="flex items-center gap-3 shrink-0">
+                            {onOpenMenu && (
+                                <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+                                    <span className="material-symbols-outlined">menu</span>
+                                </button>
+                            )}
+                            <div className="size-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/30 rotate-3">
+                                <span className="material-symbols-outlined text-2xl">restaurant_menu</span>
+                            </div>
+                            <h2 className="text-text-main dark:text-white text-2xl font-display font-bold tracking-tight hidden sm:block">Eat Out</h2>
                         </div>
-                        <div className="flex gap-2">
+                        
+                        {view === 'list' && (
+                            <div className="flex flex-1 justify-center max-w-lg mx-4">
+                                <div className="w-full relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Search size={18} className="text-text-muted group-focus-within:text-primary transition-colors"/>
+                                    </div>
+                                    <input 
+                                        value={searchQuery} 
+                                        onChange={e => setSearchQuery(e.target.value)} 
+                                        className="block w-full pl-10 pr-4 py-3 border-none rounded-2xl leading-5 bg-surface-light dark:bg-surface-dark text-text-main dark:text-white placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm transition-all" 
+                                        placeholder="Search restaurants..." 
+                                        type="text"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                             {view === 'list' && (
-                                <button onClick={() => setJoinView(true)} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted">
+                                <button onClick={() => setJoinView(true)} className="hidden sm:flex bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted">
                                     Join Code
                                 </button>
                             )}
                             {view === 'decide' && (
-                                <button onClick={handleBackToList} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                                    {isHost ? 'End Session' : 'Exit Session'}
-                                </button>
-                            )}
-                            {view === 'list' && (
-                                <button onClick={() => setView('decide')} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                                    Start Vote
+                                <button onClick={handleBackToList} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-red-500 hover:text-red-600 border-red-200 dark:border-red-900/30">
+                                    {isHost ? 'End' : 'Exit'}
                                 </button>
                             )}
                         </div>
                     </div>
+                </div>
+            </header>
 
+            {/* MAIN CONTENT AREA */}
+            <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 scroll-smooth">
+                <div className="max-w-7xl mx-auto h-full flex flex-col">
+                    
                     {view === 'list' ? (
                         <>
-                            <div className="flex flex-col md:flex-row gap-4 flex-none">
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
-                                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search restaurants..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
-                                </div>
-                                <div className="flex gap-2 items-center">
-                                    <button onClick={() => setShowArchived(!showArchived)} className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${showArchived ? 'bg-primary text-white border-primary' : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark text-text-muted'}`}>
-                                        {showArchived ? 'Hidden Shown' : 'Show Hidden'}
+                            {/* Horizontal Filters */}
+                            <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-6 sticky top-0 z-30 bg-background-light dark:bg-background-dark pt-2 -mx-4 px-4 sm:mx-0 sm:px-0 mask-image-linear-gradient">
+                                {allCuisines.map(tag => (
+                                    <button 
+                                        key={tag}
+                                        onClick={() => setActiveFilter(tag)}
+                                        className={`flex shrink-0 items-center justify-center gap-x-2 rounded-2xl px-4 py-2 border border-transparent shadow-sm hover:shadow-md transition-all ${activeFilter === tag ? 'bg-text-main dark:bg-white text-white dark:text-text-main font-bold transform -translate-y-0.5 shadow-lg' : 'bg-surface-light dark:bg-surface-dark text-text-main dark:text-white hover:border-primary/30'}`}
+                                    >
+                                        <span className="text-sm font-medium font-display">{tag}</span>
                                     </button>
-                                </div>
+                                ))}
+                                <div className="w-[1px] bg-border-light dark:border-border-dark mx-2"></div>
+                                <button onClick={() => setShowArchived(!showArchived)} className={`flex shrink-0 items-center justify-center gap-x-2 rounded-2xl px-4 py-2 border transition-all ${showArchived ? 'bg-primary text-white border-primary' : 'bg-surface-light dark:bg-surface-dark text-text-muted border-transparent shadow-sm'}`}>
+                                    <span className="text-sm font-medium font-display">Archived</span>
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+                            {/* Restaurant Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-24">
                                 {visibleRestaurants.map(r => (
-                                    <div key={r.id} onClick={() => openForm(r)} className={`bg-surface-light dark:bg-surface-dark p-4 rounded-xl border ${localArchive.has(r.id) ? 'border-dashed border-gray-300 dark:border-gray-700 opacity-60' : 'border-border-light dark:border-border-dark'} shadow-sm hover:shadow-md transition-all cursor-pointer group relative`}>
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1 w-full pr-8">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h3 className="font-bold text-lg text-text-main dark:text-white">{r.name}</h3>
-                                                    {r.isApproved && (
-                                                        <BadgeCheck size={16} className="text-blue-500 fill-blue-100 dark:fill-blue-900/30" />
-                                                    )}
-                                                    {r.price && <span className="text-xs font-bold text-text-muted bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded">{r.price}</span>}
+                                    <div key={r.id} onClick={() => openForm(r)} className="bg-surface-light dark:bg-surface-dark rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative flex flex-col h-full border-2 border-transparent hover:border-primary/20 cursor-pointer">
+                                        <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-gray-800">
+                                            {r.image ? (
+                                                <div className="w-full h-full bg-cover bg-center transform group-hover:scale-110 transition-transform duration-700" style={{ backgroundImage: `url("${r.image}")` }}></div>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <UtensilsCrossed size={48} className="text-gray-400" />
                                                 </div>
-                                                {r.location && <div className="flex items-center gap-1 text-xs text-text-muted"><span className="material-symbols-outlined text-[14px]">location_on</span>{r.location}</div>}
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); /* Favorite Logic later */ }} 
+                                                className="absolute top-4 right-4 size-10 flex items-center justify-center bg-white/90 dark:bg-black/50 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Star className="text-yellow-500 fill-yellow-500" size={20} />
+                                            </button>
+                                            <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                                                {r.cuisineTags[0] && (
+                                                    <span className="px-3 py-1 bg-white/90 dark:bg-black/80 backdrop-blur-md text-text-main dark:text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm">
+                                                        {r.cuisineTags[0]}
+                                                    </span>
+                                                )}
+                                                {r.stars > 0 && (
+                                                    <div className="flex gap-0.5 text-yellow-400 drop-shadow-md">
+                                                        {Array.from({length: r.stars}).map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex flex-wrap gap-1 mt-2">
-                                            {r.cuisineTags.map(t => <span key={t} className="text-[10px] uppercase font-bold text-text-muted border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded">{t}</span>)}
-                                        </div>
-                                        {r.notes && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">{r.notes}</p>}
-                                        
-                                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={(e) => toggleLocalArchive(r.id, e)} className="p-1.5 bg-white dark:bg-black/50 rounded-full shadow-sm hover:bg-gray-100 text-text-muted">
-                                                {localArchive.has(r.id) ? <span className="material-symbols-outlined text-[16px]">visibility</span> : <span className="material-symbols-outlined text-[16px]">visibility_off</span>}
-                                            </button>
+                                        <div className="p-5 flex flex-col flex-1">
+                                            <div className="flex justify-between items-start gap-2 mb-1">
+                                                <h3 className="text-text-main dark:text-white text-xl font-display font-bold leading-tight">{r.name}</h3>
+                                                <span className="text-text-main dark:text-gray-400 font-bold text-sm">{r.price}</span>
+                                            </div>
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm mb-4 line-clamp-2">{r.notes || "No notes available."}</p>
+                                            <div className="mt-auto flex items-center justify-between pt-4 border-t border-border-light dark:border-border-dark">
+                                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                                    <MapPin size={16} />
+                                                    <span className="text-xs font-semibold max-w-[100px] truncate">{r.location || 'Unknown loc'}</span>
+                                                </div>
+                                                {r.isApproved && <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">Verified</span>}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-6 animate-in fade-in h-full flex flex-col">
+                        <div className="h-full flex flex-col">
                             {!activeSession ? (
-                                <div className="space-y-6">
-                                    <div className="bg-primary/10 p-6 rounded-2xl border border-primary/20">
-                                        <h3 className="text-xl font-bold text-primary mb-4">Setup Vote Session</h3>
-                                        <div className="flex gap-4 mb-6">
-                                            <button onClick={() => setSelectedMode('swipe')} className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${selectedMode === 'swipe' ? 'border-primary bg-white dark:bg-white/10 shadow-md' : 'border-transparent bg-white/50 dark:bg-white/5 hover:bg-white/80'}`}>
-                                                <div className="p-2 bg-pink-100 text-pink-600 rounded-full"><Heart size={24} /></div>
-                                                <span className="font-bold text-sm">Feed Mode</span>
-                                                <span className="text-xs text-text-muted">Swipe Social Style</span>
-                                            </button>
-                                            <button onClick={() => setSelectedMode('list')} className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${selectedMode === 'list' ? 'border-primary bg-white dark:bg-white/10 shadow-md' : 'border-transparent bg-white/50 dark:bg-white/5 hover:bg-white/80'}`}>
-                                                <div className="p-2 bg-blue-100 text-blue-600 rounded-full"><ThumbsUp size={24} /></div>
-                                                <span className="font-bold text-sm">List Mode</span>
-                                                <span className="text-xs text-text-muted">Vote on all</span>
-                                            </button>
+                                // SETUP SCREEN
+                                <div className="w-full max-w-md mx-auto bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl overflow-hidden flex flex-col h-[85vh] max-h-[800px] relative border border-border-light dark:border-border-dark">
+                                    <header className="pt-8 px-6 pb-2 shrink-0 text-center">
+                                        <div className="inline-flex items-center justify-center size-12 rounded-full bg-primary/10 text-primary mb-4">
+                                            <UtensilsCrossed size={24} />
                                         </div>
-
-                                        <h4 className="font-bold text-sm text-text-muted uppercase mb-2">Pool Selection ({selection.size})</h4>
-                                        <div className="flex gap-2 mb-4">
-                                            <button onClick={selectAll} className="text-xs font-bold text-primary hover:underline">Select All</button>
-                                            <span className="text-text-muted">•</span>
-                                            <button onClick={selectNone} className="text-xs font-bold text-primary hover:underline">Select None</button>
-                                        </div>
-
-                                        <div className="max-h-60 overflow-y-auto bg-white dark:bg-black/20 rounded-xl border border-border-light dark:border-border-dark mb-4">
-                                            {visibleRestaurants.length > 0 ? (
-                                                visibleRestaurants.map(r => (
-                                                    <div 
-                                                        key={r.id} 
-                                                        onClick={() => toggleSelect(r.id)}
-                                                        className="flex items-center gap-3 p-3 border-b border-border-light dark:border-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
-                                                    >
-                                                        <div className={`size-5 rounded border flex items-center justify-center transition-colors ${selection.has(r.id) ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
-                                                            {selection.has(r.id) && <span className="material-symbols-outlined text-white text-[16px]">check</span>}
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <span className="text-sm font-bold text-text-main dark:text-white block">{r.name}</span>
-                                                        </div>
-                                                        {r.isApproved && <BadgeCheck size={14} className="text-blue-500" />}
+                                        <h1 className="font-display text-3xl font-extrabold text-text-main dark:text-white tracking-tight mb-2">Swipe to Decide</h1>
+                                        <p className="text-text-muted text-sm leading-relaxed px-4">
+                                            Pick what you like, discard what you don't.
+                                        </p>
+                                    </header>
+                                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-8">
+                                        <section>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="font-display font-bold text-lg text-text-main dark:text-white">Pool Selection</h3>
+                                                <div className="flex gap-2">
+                                                    <button onClick={selectAll} className="text-xs font-medium text-primary hover:underline">All</button>
+                                                    <button onClick={selectNone} className="text-xs font-medium text-primary hover:underline">None</button>
+                                                </div>
+                                            </div>
+                                            <div className="max-h-40 overflow-y-auto border border-border-light dark:border-border-dark rounded-xl p-2 bg-background-light dark:bg-background-dark">
+                                                {visibleRestaurants.map(r => (
+                                                    <div key={r.id} onClick={() => toggleSelect(r.id)} className={`flex items-center gap-2 p-2 rounded cursor-pointer ${selection.has(r.id) ? 'bg-primary/10 text-primary' : 'text-text-muted'}`}>
+                                                        <div className={`size-4 rounded-full border ${selection.has(r.id) ? 'bg-primary border-primary' : 'border-gray-400'}`}></div>
+                                                        <span className="text-sm font-bold truncate">{r.name}</span>
                                                     </div>
-                                                ))
-                                            ) : <div className="p-4 text-center text-sm text-text-muted">No restaurants found.</div>}
+                                                ))}
+                                            </div>
+                                        </section>
+                                        <section>
+                                            <h3 className="font-display font-bold text-lg text-text-main dark:text-white mb-3">Game Mode</h3>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button onClick={() => setSelectedMode('swipe')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${selectedMode === 'swipe' ? 'border-primary bg-primary/5 text-primary' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
+                                                    <Heart size={24} />
+                                                    <span className="font-bold text-sm">Swipe</span>
+                                                </button>
+                                                <button onClick={() => setSelectedMode('list')} className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${selectedMode === 'list' ? 'border-primary bg-primary/5 text-primary' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
+                                                    <ThumbsUp size={24} />
+                                                    <span className="font-bold text-sm">List</span>
+                                                </button>
+                                            </div>
+                                        </section>
+                                    </div>
+                                    <div className="p-6 bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <span className="text-sm font-semibold text-text-muted bg-gray-100 dark:bg-white/5 px-3 py-1 rounded-full animate-pulse">
+                                                ✨ {selection.size} restaurants selected
+                                            </span>
+                                            <button onClick={startSession} disabled={selection.size === 0 || loading} className="w-full bg-primary hover:bg-green-600 text-white font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
+                                                {loading ? <Loader className="animate-spin" /> : 'Start Session'}
+                                                <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                                            </button>
                                         </div>
-
-                                        <button 
-                                            onClick={startSession} 
-                                            disabled={loading || selection.size === 0} 
-                                            className="w-full px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
-                                        >
-                                            {loading ? <Loader className="animate-spin" /> : 'Start Session'}
-                                        </button>
                                     </div>
                                 </div>
                             ) : (
-                                /* Active Session */
-                                <div className="flex-1 flex flex-col gap-4">
-                                    <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20 flex flex-row items-center justify-between gap-4 flex-none">
-                                        <div className="flex flex-col items-start gap-1">
-                                            <span className="text-xs font-bold text-primary/70 uppercase tracking-widest">Join Code</span>
-                                            <span className="text-4xl md:text-5xl font-display font-bold text-primary tracking-widest">{activeSession.accessCode}</span>
+                                /* ACTIVE SESSION */
+                                <div className="flex-1 flex flex-col h-full max-w-3xl mx-auto w-full">
+                                    <div className="flex-none px-4 py-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2 bg-white/80 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark shadow-sm">
+                                            <span className="size-2 rounded-full bg-green-400 animate-pulse"></span>
+                                            <span className="text-xs font-semibold tracking-wide uppercase text-text-muted">Code: {activeSession.accessCode}</span>
                                         </div>
-                                        <div className="p-2 bg-white rounded-xl shadow-sm shrink-0">
-                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&format=svg&color=17cf54&margin=0&data=${encodeURIComponent(`${window.location.origin}?join=${activeSession.accessCode}`)}`} alt="QR" className="w-20 h-20" />
+                                        <div className="font-bold text-text-muted tracking-widest text-sm">
+                                            <span className="text-text-main dark:text-white text-lg">{Math.min(swipeIndex + 1, sessionRestaurants.length)}</span> / {sessionRestaurants.length}
                                         </div>
                                     </div>
 
-                                    {(activeSession.mode === 'list' || !activeSession.mode) && (
-                                        <div className="space-y-3 overflow-y-auto pb-20">
-                                            {rankedForSession.length === 0 && (
-                                                <div className="text-center p-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark text-text-muted">
-                                                    <Loader className="animate-spin mx-auto mb-2" />
-                                                    <p>Loading restaurants...</p>
+                                    {(activeSession.mode === 'list' || (!activeSession.mode && selectedMode === 'list')) ? (
+                                        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+                                            <div className="text-center mb-4">
+                                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-bold mb-3">
+                                                    <span className="material-symbols-outlined text-lg">celebration</span>
+                                                    Live Rankings
                                                 </div>
-                                            )}
-                                            {rankedForSession.map(r => {
+                                                <h2 className="text-3xl font-black text-text-main dark:text-white mb-2">Family Picks</h2>
+                                            </div>
+                                            
+                                            {rankedForSession.map((r, idx) => {
                                                 const score = calculateScore(r.id);
                                                 const myVote = myVotes.get(r.id);
                                                 return (
-                                                    <div key={r.id} className="bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark flex items-center gap-4 shadow-sm">
-                                                        <div className={`flex flex-col items-center justify-center min-w-[40px] ${score > 0 ? 'text-green-500' : score < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                                            <span className="text-2xl font-bold">{score > 0 ? `+${score}` : score}</span>
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <h3 className="font-bold text-text-main dark:text-white">{r.name}</h3>
-                                                                {r.isApproved && <BadgeCheck size={16} className="text-blue-500 fill-blue-50 dark:fill-blue-900/30" />}
+                                                    <div key={r.id} className="bg-surface-light dark:bg-surface-dark rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 relative group border border-border-light dark:border-border-dark">
+                                                        {idx === 0 && score > 0 && (
+                                                            <div className="absolute top-4 right-4 z-10 bg-white/95 dark:bg-black/80 backdrop-blur text-primary px-3 py-1.5 rounded-lg font-bold shadow-sm flex items-center gap-1">
+                                                                <Heart size={16} fill="currentColor" /> Top Match
                                                             </div>
-                                                            <div className="flex gap-2 text-xs text-text-muted">
-                                                                <span>{r.price}</span>
-                                                                <span>•</span>
-                                                                <span>{r.cuisineTags.join(', ')}</span>
+                                                        )}
+                                                        <div className="grid sm:grid-cols-3 gap-0 h-full">
+                                                            <div className="relative h-32 sm:h-auto overflow-hidden bg-gray-200 dark:bg-gray-800">
+                                                                {r.image ? (
+                                                                    <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${r.image}")` }}></div>
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center"><UtensilsCrossed className="text-gray-400"/></div>
+                                                                )}
                                                             </div>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <button onClick={() => submitVote(r.id, -1)} className={`p-3 rounded-full transition-colors ${myVote === -1 ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-red-500'}`}><ThumbsDown size={20} /></button>
-                                                            <button onClick={() => submitVote(r.id, 1)} className={`p-3 rounded-full transition-colors ${myVote === 1 ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-green-500'}`}><ThumbsUp size={20} /></button>
+                                                            <div className="sm:col-span-2 p-5 flex flex-col justify-center">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <h3 className="text-xl font-bold text-text-main dark:text-white">{r.name}</h3>
+                                                                        <p className="text-text-muted text-sm font-medium">{r.cuisineTags.join(', ')} • {r.price}</p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button onClick={() => submitVote(r.id, -1)} className={`p-2 rounded-full ${myVote === -1 ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-400'}`}><ThumbsDown size={18}/></button>
+                                                                        <button onClick={() => submitVote(r.id, 1)} className={`p-2 rounded-full ${myVote === 1 ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-400'}`}><ThumbsUp size={18}/></button>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-2">
+                                                                    <div className="flex items-center gap-1 text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/10 px-2 py-1 rounded">
+                                                                        <ThumbsUp size={14} /> {sessionVotes.filter(v => v.restaurantId === r.id && v.voteValue === 1).length}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1 text-red-500 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/10 px-2 py-1 rounded">
+                                                                        <ThumbsDown size={14} /> {sessionVotes.filter(v => v.restaurantId === r.id && v.voteValue === -1).length}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                    )}
-
-                                    {activeSession.mode === 'swipe' && (
-                                        <div className="flex-1 relative overflow-hidden flex flex-col">
-                                            <div className="flex-1 relative">
-                                                {sessionRestaurants.length === 0 ? (
-                                                    <div className="absolute inset-0 flex items-center justify-center text-text-muted">
-                                                        <Loader className="animate-spin mr-2"/> Loading Feed...
+                                    ) : (
+                                        // SWIPE STACK
+                                        <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center relative pb-24">
+                                            {sessionRestaurants.length === 0 ? (
+                                                <div className="text-center text-text-muted">
+                                                    {loading ? <><Loader className="animate-spin inline mr-2"/> Loading...</> : "No restaurants found for session."}
+                                                </div>
+                                            ) : swipeFinished ? (
+                                                <div className="text-center space-y-4 animate-in zoom-in">
+                                                    <div className="inline-flex p-6 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full">
+                                                        <CheckCircle size={48} />
                                                     </div>
-                                                ) : swipeFinished ? (
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-4">
-                                                        <div className="p-4 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-full">
-                                                            <CheckCircle size={48} />
-                                                        </div>
-                                                        <h3 className="text-2xl font-bold dark:text-white">All Caught Up!</h3>
-                                                        <p className="text-text-muted">Waiting for others to vote...</p>
-                                                        <button onClick={() => { setSwipeIndex(0); setSwipeFinished(false); }} className="flex items-center gap-2 text-primary hover:underline">
-                                                            <RotateCcw size={16} /> Review Again
-                                                        </button>
-                                                    </div>
-                                                ) : (
+                                                    <h3 className="text-2xl font-bold dark:text-white">All Caught Up!</h3>
+                                                    <p className="text-text-muted">Waiting for others to vote...</p>
+                                                    <button onClick={() => { setSwipeIndex(0); setSwipeFinished(false); }} className="text-primary font-bold hover:underline flex items-center justify-center gap-2">
+                                                        <RotateCcw size={16} /> Review Again
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="relative w-full aspect-[3/4]">
+                                                    {/* Next Card Placeholder */}
+                                                    {swipeIndex + 1 < sessionRestaurants.length && (
+                                                        <div className="absolute inset-0 bg-surface-light dark:bg-surface-dark rounded-3xl shadow-xl transform scale-95 translate-y-4 opacity-50 border border-border-light dark:border-border-dark"></div>
+                                                    )}
+                                                    {/* Active Card */}
                                                     <SwipeableCard 
-                                                        key={sessionRestaurants[swipeIndex].id}
+                                                        key={sessionRestaurants[swipeIndex]?.id || 'loading'}
                                                         restaurant={sessionRestaurants[swipeIndex]} 
                                                         onVote={(val) => submitVote(sessionRestaurants[swipeIndex].id, val)}
                                                     />
-                                                )}
-                                            </div>
-                                            
-                                            {/* Live Ticker */}
-                                            <div className="flex-none p-4 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <h3 className="font-bold text-xs uppercase text-text-muted">Leaderboard</h3>
-                                                    <span className="text-xs text-text-muted">{swipeIndex + 1} / {sessionRestaurants.length}</span>
                                                 </div>
-                                                <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                                                    {rankedForSession.filter(r => calculateScore(r.id) > 0).slice(0, 3).map(r => (
-                                                        <div key={r.id} className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded text-xs font-bold text-primary whitespace-nowrap">
-                                                            <span>{r.name}</span>
-                                                            <span className="bg-white dark:bg-black/20 px-1 rounded">+{calculateScore(r.id)}</span>
-                                                        </div>
-                                                    ))}
-                                                    {rankedForSession.every(r => calculateScore(r.id) <= 0) && <span className="text-xs text-text-muted">Vote to see results...</span>}
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -749,32 +883,71 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         </div>
                     )}
                 </div>
-            </div>
+            </main>
 
-            {/* Floating Action Button (Bottom Right) */}
+            {/* Bottom Floating Actions */}
             {view === 'list' && (
-                <button 
-                    onClick={() => openForm()} 
-                    className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30"
-                    title="Add Restaurant"
-                >
-                    <Plus size={28} />
-                </button>
+                <>
+                    {/* Gradient Fade for scroll content underneath */}
+                    <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background-light dark:from-background-dark to-transparent pointer-events-none z-20"></div>
+
+                    {/* Centered Decide Button */}
+                    <div className="absolute bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
+                        <button onClick={() => setView('decide')} className="pointer-events-auto flex items-center justify-center h-14 px-8 rounded-full bg-primary hover:bg-green-600 text-white shadow-xl shadow-primary/30 hover:scale-105 transition-all duration-300 gap-3 group">
+                            <UtensilsCrossed size={24} className="animate-pulse" />
+                            <span className="text-lg font-display font-bold tracking-wide">Help us Decide!</span>
+                        </button>
+                    </div>
+
+                    {/* Right Add Button */}
+                    <button onClick={() => openForm()} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30 pointer-events-auto">
+                        <Plus size={28} />
+                    </button>
+                </>
             )}
 
             {/* Form Modal */}
             {isFormOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
-                    <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
+                    <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto border border-border-light dark:border-border-dark shadow-2xl" onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-bold dark:text-white">{editingId ? 'Edit Restaurant' : 'Add Restaurant'}</h2>
+                        
                         <form onSubmit={handleSave} className="space-y-4">
-                            <input required placeholder="Name" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            {/* Basics & Share Control */}
+                            <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
+                                <h3 className="text-sm font-bold text-primary">Basics</h3>
+                                
+                                {/* Family Selector */}
+                                <div className="relative group">
+                                    <select 
+                                        value={targetFamilyId} 
+                                        onChange={(e) => setTargetFamilyId(e.target.value)}
+                                        className="appearance-none pl-9 pr-8 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    >
+                                        <option value="private">Private (Device Only)</option>
+                                        {availableSessions.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} {s.id === currentFamilyId ? '(Current)' : ''}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                                        {targetFamilyId === 'private' ? <Lock size={14} /> : <Users size={14} />}
+                                    </div>
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                                        <ChevronDown size={14} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-text-muted uppercase">Name</label>
+                                <input required placeholder="Restaurant Name" className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 focus:ring-2 focus:ring-primary outline-none dark:text-white" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
                             
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-text-muted">Price</label>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-text-muted uppercase">Price</label>
                                     <select 
-                                        className="w-full p-2 rounded border bg-surface-light dark:bg-surface-dark text-text-main dark:text-white dark:border-gray-700" 
+                                        className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 text-text-main dark:text-white outline-none" 
                                         value={formData.price || ''} 
                                         onChange={e => setFormData({...formData, price: e.target.value as any})}
                                     >
@@ -785,78 +958,67 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <option value="$$$$">$$$$</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold text-text-muted">Stars</label>
-                                    <div className="flex gap-2 mt-2 items-center justify-between">
-                                        <div className="flex gap-2">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-text-muted uppercase">Rating & Verification</label>
+                                    <div className="flex items-center gap-4 mt-2">
+                                        <div className="flex gap-1">
                                             {[1,2,3].map(s => (
                                                 <button type="button" key={s} onClick={() => setFormData({...formData, stars: formData.stars === s ? 0 : s})} className={`${(formData.stars || 0) >= s ? 'text-yellow-500' : 'text-gray-300'}`}>
                                                     <Star size={24} fill={(formData.stars || 0) >= s ? "currentColor" : "none"} />
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="flex items-center gap-1 cursor-pointer" onClick={() => setFormData({...formData, isApproved: !formData.isApproved})} title="Verified / Approved">
-                                            <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${formData.isApproved ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
-                                                {formData.isApproved && <span className="material-symbols-outlined text-white text-[14px]">check</span>}
-                                            </div>
-                                            <BadgeCheck size={16} className={formData.isApproved ? 'text-blue-500' : 'text-gray-400'} />
-                                        </div>
+                                        
+                                        {/* Verified Toggle Inline */}
+                                        <button 
+                                            type="button"
+                                            onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}
+                                            className="flex items-center justify-center p-1 focus:outline-none"
+                                            title="Toggle Verified Status"
+                                        >
+                                            <CheckCircle 
+                                                size={24} 
+                                                className={`transition-colors ${formData.isApproved ? 'text-blue-500 fill-blue-500/10' : 'text-gray-300 hover:text-gray-400'}`}
+                                            />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
 
-                            <input placeholder="Location" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
-                            
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-text-muted">Open Hours</label>
-                                <div className="flex gap-1 justify-between bg-gray-100 dark:bg-white/5 p-2 rounded-lg">
-                                    {DAYS.map(d => (
-                                        <button 
-                                            key={d.id}
-                                            type="button"
-                                            onClick={() => toggleSchedDay(d.id)}
-                                            className={`size-8 rounded-full text-xs font-bold flex items-center justify-center transition-all ${
-                                                schedDays.has(d.id) 
-                                                    ? 'bg-primary text-white shadow-md' 
-                                                    : 'text-text-muted hover:bg-gray-200 dark:hover:bg-white/10'
-                                            }`}
-                                        >
-                                            {d.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="flex gap-2 items-center">
-                                    <select 
-                                        className="flex-1 p-2 rounded border bg-surface-light dark:bg-surface-dark dark:text-white dark:border-gray-700 text-sm"
-                                        value={schedStart}
-                                        onChange={e => setSchedStart(e.target.value)}
-                                    >
-                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                    <span className="text-text-muted text-xs font-bold">TO</span>
-                                    <select 
-                                        className="flex-1 p-2 rounded border bg-surface-light dark:bg-surface-dark dark:text-white dark:border-gray-700 text-sm"
-                                        value={schedEnd}
-                                        onChange={e => setSchedEnd(e.target.value)}
-                                    >
-                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                <label className="text-xs font-bold text-text-muted uppercase">Image URL or Upload</label>
+                                <div className="flex gap-2">
+                                    <input placeholder="https://..." className="flex-1 p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} disabled={isUploading} />
+                                    <label className={`p-3 border border-border-light dark:border-border-dark rounded-xl cursor-pointer transition-colors flex items-center justify-center ${isUploading ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-white/5 bg-background-light dark:bg-black/20'}`}>
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                                        {isUploading ? <Loader className="animate-spin text-primary" size={20} /> : <Upload size={20} className="text-primary" />}
+                                    </label>
                                 </div>
                             </div>
 
-                            <input placeholder="Cuisine Tags (comma joined)" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} />
-                            <textarea placeholder="Notes" rows={3} className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
-                            <input placeholder="Order Link" className="w-full p-2 rounded border bg-transparent dark:text-white dark:border-gray-700" value={formData.goToOrder || ''} onChange={e => setFormData({...formData, goToOrder: e.target.value})} />
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-text-muted uppercase">Location</label>
+                                <input placeholder="e.g. Downtown" className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
+                            </div>
 
-                            <div className="flex gap-2 pt-2">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-text-muted uppercase">Tags</label>
+                                <input placeholder="Italian, Pizza, Casual..." className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white" value={Array.isArray(formData.cuisineTags) ? formData.cuisineTags.join(', ') : formData.cuisineTags || ''} onChange={e => setFormData({...formData, cuisineTags: e.target.value as any})} />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-text-muted uppercase">Notes</label>
+                                <textarea placeholder="Best pasta in town..." rows={3} className="w-full p-3 rounded-xl border border-border-light dark:border-border-dark bg-background-light dark:bg-black/20 outline-none dark:text-white resize-none" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} />
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
                                 {editingId && (
-                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                                    <button type="button" onClick={() => handleDelete(editingId)} className="p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
                                         <Trash2 size={20} />
                                     </button>
                                 )}
-                                <div className="flex-1"></div>
-                                <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-2 text-text-muted">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-primary text-white rounded font-bold">Save</button>
+                                <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 py-3 text-text-muted font-bold hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 bg-primary hover:bg-green-600 text-white rounded-xl font-bold shadow-lg">Save</button>
                             </div>
                         </form>
                     </div>

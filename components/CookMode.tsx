@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
 import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot } from 'lucide-react';
 import { formatFraction } from '../utils/format';
+import * as db from '../services/db';
 
 interface CookModeProps {
   recipe: Recipe;
@@ -131,13 +132,15 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
     if ('wakeLock' in navigator) {
         navigator.wakeLock.request('screen').then(setWakeLock).catch(console.warn);
     }
-    // Load user notes
-    const savedNotes = localStorage.getItem(`user_mistakes_${recipe.id}`);
+    // Load user notes safely
+    const savedNotes = db.safeGetItem(`user_mistakes_${recipe.id}`);
     if (savedNotes) {
-        setUserNotes(JSON.parse(savedNotes));
+        try {
+            setUserNotes(JSON.parse(savedNotes));
+        } catch (e) {}
     }
 
-    return () => { if(wakeLock) wakeLock.release(); };
+    return () => { if(wakeLock) wakeLock.release().catch(() => {}); };
   }, [recipe.id]);
 
   // Parse Step Timer
@@ -225,7 +228,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
       const updated = { ...userNotes, [stepId]: noteDraft };
       if (!noteDraft.trim()) delete updated[stepId]; // Remove empty
       setUserNotes(updated);
-      localStorage.setItem(`user_mistakes_${recipe.id}`, JSON.stringify(updated));
+      db.safeSetItem(`user_mistakes_${recipe.id}`, JSON.stringify(updated));
       setEditingNoteId(null);
   };
 

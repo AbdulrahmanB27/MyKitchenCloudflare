@@ -21,254 +21,234 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [newAdminPassword, setNewAdminPassword] = useState('');
     const [newFamilyName, setNewFamilyName] = useState('');
 
-    const [savedSessions, setSavedSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    
+    // Turnstile
+    const [turnstileToken, setTurnstileToken] = useState('');
 
     useEffect(() => {
-        setSavedSessions(db.getSavedSessions());
-    }, []);
+        // Initialize Turnstile if available
+        if ((window as any).turnstile) {
+            try {
+                (window as any).turnstile.render('#turnstile-container', {
+                    sitekey: '0x4AAAAAAAzyj7W1jX7W1jX7', // Demo key, replace with env/config if real
+                    callback: (token: string) => setTurnstileToken(token),
+                });
+            } catch(e) {}
+        }
+    }, [mode]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
+        setError('');
+        const res = await db.authenticate(familyName, password); // db.authenticate handles token storage safely
+        setLoading(false);
+        if (res.success) {
+            onSuccess();
+            onClose();
+        } else {
+            setError(res.error || 'Login failed');
+        }
+    };
 
-        let result;
-        if (mode === 'register') {
-            result = await db.registerFamily(familyName, password, adminPassword);
-        } else if (mode === 'login') {
-            result = await db.authenticate(familyName, password);
-        } else if (mode === 'admin') {
-            if (adminAction === 'delete') {
-                if (!confirm("Are you absolutely sure? This will delete all recipes, plans, and data for this family forever.")) {
-                    setLoading(false);
-                    return;
-                }
-                result = await db.adminAction('delete_family', { adminPassword });
-                if (result.success) {
-                    db.logout(); // Force logout
-                    return; 
-                }
-            } else if (adminAction === 'rename') {
-                result = await db.adminAction('rename_family', { adminPassword, newFamilyName });
-                if (result.success && result.newName) {
-                    // Update local storage and UI immediately
-                    localStorage.setItem('current_family_name', result.newName);
-                    
-                    // Update saved sessions list in local storage
-                    const currentId = db.getCurrentFamilyId();
-                    const sessions = db.getSavedSessions().map(s => 
-                        s.id === currentId ? { ...s, name: result.newName } : s
-                    );
-                    localStorage.setItem('family_sessions', JSON.stringify(sessions));
-                    
-                    alert('Family renamed successfully.');
-                    window.location.reload(); // Refresh to show new name everywhere
-                    return;
-                }
-            } else {
-                result = await db.adminAction('update_passwords', { adminPassword, newFamilyPassword, newAdminPassword });
-            }
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        const res = await db.registerFamily(familyName, password, adminPassword);
+        setLoading(false);
+        if (res.success) {
+            onSuccess();
+            onClose();
+        } else {
+            setError(res.error || 'Registration failed');
+        }
+    };
+
+    const handleAdminSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        let actionType: 'update_passwords' | 'delete_family' | 'rename_family' = 'update_passwords';
+        let payload: any = { adminPassword };
+
+        if (adminAction === 'update') {
+            actionType = 'update_passwords';
+            payload.newFamilyPassword = newFamilyPassword;
+            payload.newAdminPassword = newAdminPassword;
+        } else if (adminAction === 'delete') {
+            actionType = 'delete_family';
+        } else if (adminAction === 'rename') {
+            actionType = 'rename_family';
+            payload.newFamilyName = newFamilyName;
         }
 
+        const res = await db.adminAction(actionType, payload);
+        
         setLoading(false);
-
-        if (result && result.success) {
-            if (mode === 'admin') {
-                alert(adminAction === 'delete' ? 'Family deleted.' : 'Passwords updated.');
+        if (res.success) {
+            if (adminAction === 'delete') {
+                alert('Family deleted.');
+                db.logout(); // Use safe logout
+                onClose();
+            } else if (adminAction === 'rename') {
+                alert('Family renamed.');
+                // Update local storage name safely
+                db.safeSetItem('current_family_name', newFamilyName);
+                onSuccess(); // Trigger refresh
                 onClose();
             } else {
-                onSuccess();
-                db.retrySync();
+                alert('Updated successfully.');
                 onClose();
             }
         } else {
-            setError(result?.error || 'Operation failed.');
+            setError(res.error || 'Action failed');
         }
     };
 
-    const handleSwitch = (id: string) => {
-        db.switchFamily(id);
-    };
-
-    const handleLogoutSession = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if(confirm("Forget this family on this device?")) {
-            db.logout(id);
-            setSavedSessions(db.getSavedSessions());
-        }
-    };
+    const sessions = db.getSavedSessions(); // This uses safeGetItem now
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative w-full max-w-sm bg-surface-light dark:bg-surface-dark rounded-2xl shadow-2xl border border-border-light dark:border-border-dark overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div className="relative w-full max-w-md bg-surface-light dark:bg-surface-dark rounded-2xl shadow-2xl border border-border-light dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 
-                {/* Header with Close */}
-                <div className="bg-primary/10 p-6 flex flex-col items-center justify-center text-center border-b border-border-light dark:border-border-dark relative">
-                    <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-text-main dark:hover:text-white"><X size={20}/></button>
-                    
-                    <div className="p-3 bg-white dark:bg-surface-dark rounded-full shadow-sm mb-3">
-                        {mode === 'login' ? <Lock className="text-primary" size={24} /> : 
-                         mode === 'register' ? <UserPlus className="text-primary" size={24} /> : 
-                         mode === 'switch' ? <Users className="text-primary" size={24} /> :
-                         <ShieldAlert className="text-red-500" size={24} />}
-                    </div>
-                    
-                    <h3 className="text-lg font-bold text-text-main dark:text-white">
-                        {mode === 'login' ? 'Family Login' : mode === 'register' ? 'Create Family' : mode === 'switch' ? 'Switch Family' : 'Admin Controls'}
-                    </h3>
-                    
-                    {mode !== 'admin' && mode !== 'switch' && (
-                        <div className="flex gap-4 mt-4 text-sm font-bold">
-                            <button onClick={() => setMode('login')} className={`pb-1 border-b-2 transition-colors ${mode === 'login' ? 'border-primary text-primary' : 'border-transparent text-text-muted opacity-50'}`}>Login</button>
-                            <button onClick={() => setMode('register')} className={`pb-1 border-b-2 transition-colors ${mode === 'register' ? 'border-primary text-primary' : 'border-transparent text-text-muted opacity-50'}`}>New Family</button>
-                        </div>
-                    )}
+                {/* Header */}
+                <div className="p-6 bg-background-light dark:bg-background-dark border-b border-border-light dark:border-border-dark flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-text-main dark:text-white flex items-center gap-2">
+                        {mode === 'login' && <Lock size={20} className="text-primary"/>}
+                        {mode === 'register' && <UserPlus size={20} className="text-primary"/>}
+                        {mode === 'admin' && <ShieldAlert size={20} className="text-red-500"/>}
+                        {mode === 'switch' && <Users size={20} className="text-blue-500"/>}
+                        
+                        {mode === 'login' && 'Login'}
+                        {mode === 'register' && 'New Family'}
+                        {mode === 'admin' && 'Admin Settings'}
+                        {mode === 'switch' && 'Switch Account'}
+                    </h2>
+                    <button onClick={onClose}><X size={20} className="text-text-muted"/></button>
                 </div>
 
-                {mode === 'switch' ? (
-                    <div className="p-6 space-y-4">
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {savedSessions.length === 0 && <p className="text-sm text-text-muted text-center py-4">No families saved yet.</p>}
-                            {savedSessions.map(session => (
-                                <button key={session.id} onClick={() => handleSwitch(session.id)} className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors border border-border-light dark:border-border-dark group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="bg-white dark:bg-white/10 p-2 rounded-full">
-                                            <Users size={16} className="text-primary" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="font-bold text-sm text-text-main dark:text-white">{session.name}</p>
-                                            {session.name === db.getCurrentFamilyName() && <p className="text-[10px] text-primary font-bold">Active</p>}
-                                        </div>
-                                    </div>
-                                    {session.name === db.getCurrentFamilyName() ? (
-                                        <CheckCircle size={20} className="text-primary" />
-                                    ) : (
-                                        <div onClick={(e) => handleLogoutSession(e, session.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 text-text-muted hover:text-red-500 rounded-full transition-colors" title="Forget">
-                                            <LogOut size={16} />
-                                        </div>
-                                    )}
+                {/* Content */}
+                <div className="p-6 overflow-y-auto custom-scrollbar">
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center gap-2">
+                            <ShieldAlert size={16} /> {error}
+                        </div>
+                    )}
+
+                    {mode === 'switch' && (
+                        <div className="space-y-3">
+                            <p className="text-sm text-text-muted mb-2">Select a saved family session:</p>
+                            {sessions.map(s => (
+                                <button 
+                                    key={s.id} 
+                                    onClick={() => db.switchFamily(s.id)}
+                                    className={`w-full p-4 rounded-xl border flex items-center justify-between group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-primary bg-primary/5' : 'border-border-light dark:border-border-dark hover:border-primary/50'}`}
+                                >
+                                    <span className="font-bold text-text-main dark:text-white">{s.name}</span>
+                                    {s.id === db.getCurrentFamilyId() && <CheckCircle size={16} className="text-primary"/>}
                                 </button>
                             ))}
+                            
+                            <div className="pt-4 border-t border-border-light dark:border-border-dark flex flex-col gap-2">
+                                <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
+                                    <Plus size={18} /> Add Existing Account
+                                </button>
+                                <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
+                                    <UserPlus size={18} /> Create New Family
+                                </button>
+                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 font-bold mt-2">
+                                    <LogOut size={18} /> Log Out All
+                                </button>
+                            </div>
                         </div>
-                        <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border-2 border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors font-bold flex items-center justify-center gap-2">
-                            <Plus size={18} /> Add Family
-                        </button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {mode === 'admin' ? (
-                            <>
-                                <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-lg mb-4">
-                                    <button type="button" onClick={() => setAdminAction('update')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'update' ? 'bg-white dark:bg-gray-700 shadow text-primary' : 'text-text-muted'}`}>Update Pwds</button>
-                                    <button type="button" onClick={() => setAdminAction('rename')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'rename' ? 'bg-white dark:bg-gray-700 shadow text-primary' : 'text-text-muted'}`}>Rename</button>
-                                    <button type="button" onClick={() => setAdminAction('delete')} className={`flex-1 py-1 text-xs font-bold rounded ${adminAction === 'delete' ? 'bg-red-500 text-white shadow' : 'text-text-muted'}`}>Delete</button>
-                                </div>
+                    )}
 
-                                <input 
-                                    type="password" 
-                                    required
-                                    value={adminPassword}
-                                    onChange={(e) => setAdminPassword(e.target.value)}
-                                    placeholder="Current Admin Password"
-                                    className="input-field"
-                                />
-
-                                {adminAction === 'update' && (
-                                    <>
-                                        <input type="password" value={newFamilyPassword} onChange={(e) => setNewFamilyPassword(e.target.value)} placeholder="New Family Password (Optional)" className="input-field" />
-                                        <input type="password" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} placeholder="New Admin Password (Optional)" className="input-field" />
-                                    </>
-                                )}
-
-                                {adminAction === 'rename' && (
-                                    <input type="text" value={newFamilyName} onChange={(e) => setNewFamilyName(e.target.value)} placeholder="New Family Name" className="input-field" required />
-                                )}
-                                
-                                {adminAction === 'delete' && (
-                                    <p className="text-xs text-red-500 font-bold bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-200 dark:border-red-900">
-                                        Warning: This action cannot be undone.
-                                    </p>
-                                )}
-                            </>
-                        ) : (
-                            <>
-                                <div>
-                                    <label className="block text-xs font-bold text-text-muted mb-1">Family Name</label>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        autoFocus
-                                        value={familyName}
-                                        onChange={(e) => setFamilyName(e.target.value)}
-                                        placeholder="e.g. The Smiths"
-                                        className="input-field"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-text-muted mb-1">Family Password</label>
-                                    <input 
-                                        type="password" 
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="Shared Access Password"
-                                        className="input-field"
-                                    />
-                                </div>
-                                {mode === 'register' && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-text-muted mb-1">Admin Password</label>
-                                        <input 
-                                            type="password" 
-                                            required
-                                            value={adminPassword}
-                                            onChange={(e) => setAdminPassword(e.target.value)}
-                                            placeholder="For Admin Tasks Only"
-                                            className="input-field"
-                                        />
-                                        <p className="text-[10px] text-text-muted mt-1">Used to delete family or change passwords later.</p>
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {error && <p className="text-red-500 text-xs text-center font-bold px-4 bg-red-50 dark:bg-red-900/10 py-2 rounded">{error}</p>}
-
-                        <button 
-                            type="submit" 
-                            disabled={loading}
-                            className={`w-full py-3 rounded-xl font-bold text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${mode === 'admin' && adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-600'}`}
-                        >
-                            {loading ? <Loader className="animate-spin" size={18} /> : (mode === 'login' ? 'Login' : mode === 'register' ? 'Create Family' : adminAction === 'delete' ? 'Delete Forever' : adminAction === 'rename' ? 'Rename Family' : 'Update')}
-                        </button>
-                        
-                        {mode === 'login' && (
-                            <div className="text-center pt-2">
-                                <button type="button" onClick={() => setMode('admin')} className="text-xs text-text-muted hover:text-primary underline">Family Admin?</button>
+                    {(mode === 'login' || mode === 'register') && (
+                        <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Family Name</label>
+                                <input required type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="The Smiths" />
                             </div>
-                        )}
-                        {(mode === 'admin' || mode === 'login' || mode === 'register') && savedSessions.length > 0 && (
-                            <div className="text-center pt-2">
-                                <button type="button" onClick={() => setMode('switch')} className="text-xs text-text-muted hover:text-primary underline">Back to Switcher</button>
+                            <div>
+                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Access Password</label>
+                                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="Shared family password" />
                             </div>
-                        )}
-                    </form>
-                )}
+                            
+                            {mode === 'register' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">Admin Password</label>
+                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="For managing settings" />
+                                    <p className="text-[10px] text-text-muted mt-1">Keep this safe! Needed for renaming or deleting the family.</p>
+                                </div>
+                            )}
+
+                            {/* Turnstile Container */}
+                            <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
+
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-primary hover:bg-green-600 text-white rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                                {loading && <Loader size={18} className="animate-spin" />}
+                                {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
+                            </button>
+
+                            <div className="text-center pt-2">
+                                {mode === 'login' ? (
+                                    <button type="button" onClick={() => setMode('register')} className="text-sm text-text-muted hover:underline">Need a new family account?</button>
+                                ) : (
+                                    <button type="button" onClick={() => setMode('login')} className="text-sm text-text-muted hover:underline">Already have an account?</button>
+                                )}
+                            </div>
+                        </form>
+                    )}
+
+                    {mode === 'admin' && (
+                        <form onSubmit={handleAdminSubmit} className="space-y-4">
+                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-100 dark:border-yellow-900/30">
+                                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                                    Current Family: <strong>{db.getCurrentFamilyName()}</strong>
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Action</label>
+                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white cursor-pointer">
+                                    <option value="update">Update Passwords</option>
+                                    <option value="rename">Rename Family</option>
+                                    <option value="delete">Delete Family Data</option>
+                                </select>
+                            </div>
+
+                            {adminAction === 'update' && (
+                                <div className="space-y-3 p-3 border border-border-light dark:border-border-dark rounded-xl">
+                                    <h4 className="text-sm font-bold dark:text-white">New Credentials (Optional)</h4>
+                                    <input type="password" value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark dark:text-white" placeholder="New Access Password" />
+                                    <input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark dark:text-white" placeholder="New Admin Password" />
+                                </div>
+                            )}
+
+                            {adminAction === 'rename' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">New Family Name</label>
+                                    <input required type="text" value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="New Name" />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Current Admin Password</label>
+                                <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none dark:text-white" placeholder="Required to verify" />
+                            </div>
+
+                            <button type="submit" disabled={loading} className={`w-full py-3 text-white rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-600'}`}>
+                                {loading && <Loader size={18} className="animate-spin" />}
+                                {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
+                            </button>
+                        </form>
+                    )}
+                </div>
             </div>
-            <style>{`
-                .input-field {
-                    width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem;
-                    background-color: #f8fcf9; border: 1px solid #e7f3eb;
-                    color: #0e1b12; outline: none; transition: all;
-                }
-                .input-field:focus { box-shadow: 0 0 0 2px #17cf54; }
-                .dark .input-field {
-                    background-color: #1a2c20; border-color: #2a4030; color: white;
-                }
-            `}</style>
         </div>
     );
 };

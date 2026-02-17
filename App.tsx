@@ -378,7 +378,7 @@ const App: React.FC = () => {
       
       {/* Sidebar */}
       <aside 
-        className={`fixed md:relative inset-y-0 left-0 z-40 transform transition-all duration-300 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
+        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
       >
         <div className={`p-6 flex items-center h-[72px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
             {!isSidebarCollapsed ? (
@@ -603,7 +603,7 @@ const App: React.FC = () => {
       {showAuthModal && <AuthModal initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       
-      {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
+      {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 
       <style>{`
         .nav-btn { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem 1rem; border-radius: 0.5rem; color: #4e9767; font-weight: 500; font-size: 0.875rem; transition: all; }

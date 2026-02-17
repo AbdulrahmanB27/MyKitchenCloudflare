@@ -11,27 +11,84 @@ const STORAGE_KEY_DEVICE_ID = 'device_id';
 const STORAGE_KEY_FAMILY_ID = 'current_family_id';
 const STORAGE_KEY_FAMILY_NAME = 'current_family_name';
 
+// --- Safe Storage Helpers ---
+// Fallback to memory if localStorage is blocked (e.g. SecurityError in private browsing)
+const memoryStorage: Record<string, string> = {};
+let isLocalStorageAvailable = false;
+
+try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    isLocalStorageAvailable = true;
+} catch (e) {
+    console.warn("LocalStorage unavailable, using memory fallback", e);
+    isLocalStorageAvailable = false;
+}
+
+export const safeGetItem = (key: string): string | null => {
+    if (!isLocalStorageAvailable) return memoryStorage[key] || null;
+    try {
+        return window.localStorage.getItem(key);
+    } catch (e) {
+        return memoryStorage[key] || null;
+    }
+};
+
+export const safeSetItem = (key: string, value: string): void => {
+    if (!isLocalStorageAvailable) {
+        memoryStorage[key] = value;
+        return;
+    }
+    try {
+        window.localStorage.setItem(key, value);
+    } catch (e) {
+        memoryStorage[key] = value;
+    }
+};
+
+export const safeRemoveItem = (key: string): void => {
+    if (!isLocalStorageAvailable) {
+        delete memoryStorage[key];
+        return;
+    }
+    try {
+        window.localStorage.removeItem(key);
+    } catch (e) {
+        delete memoryStorage[key];
+    }
+};
+
+export const safeClear = (): void => {
+    try {
+        if (isLocalStorageAvailable) window.localStorage.clear();
+    } catch (e) {
+        // ignore
+    }
+    for (const k in memoryStorage) delete memoryStorage[k];
+};
+
 // --- Auth & Session State ---
 
 export const getDeviceId = (): string => {
-    let id = localStorage.getItem(STORAGE_KEY_DEVICE_ID);
+    let id = safeGetItem(STORAGE_KEY_DEVICE_ID);
     if (!id) {
         id = uuidv4();
-        localStorage.setItem(STORAGE_KEY_DEVICE_ID, id);
+        safeSetItem(STORAGE_KEY_DEVICE_ID, id);
     }
     return id;
 };
 
 export const hasAuthToken = (): boolean => {
-    return !!localStorage.getItem(STORAGE_KEY_TOKEN);
+    return !!safeGetItem(STORAGE_KEY_TOKEN);
 };
 
 export const getCurrentFamilyId = (): string | null => {
-    return localStorage.getItem(STORAGE_KEY_FAMILY_ID);
+    return safeGetItem(STORAGE_KEY_FAMILY_ID);
 };
 
 export const getCurrentFamilyName = (): string => {
-    return localStorage.getItem(STORAGE_KEY_FAMILY_NAME) || 'My Kitchen';
+    return safeGetItem(STORAGE_KEY_FAMILY_NAME) || 'My Kitchen';
 };
 
 export const getPinnedFamilyId = (): string | null => {
@@ -41,7 +98,7 @@ export const getPinnedFamilyId = (): string | null => {
 
 export const getSavedSessions = (): { id: string, name: string, token: string }[] => {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY_SESSIONS) || '[]');
+        return JSON.parse(safeGetItem(STORAGE_KEY_SESSIONS) || '[]');
     } catch { return []; }
 };
 
@@ -53,41 +110,53 @@ export const setAuthCallback = (cb: () => void) => {
 // --- API Helper ---
 
 export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean }) => {
-    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const token = safeGetItem(STORAGE_KEY_TOKEN);
     const headers: HeadersInit = {
         'Content-Type': 'application/json'
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout to prevent stuck loading
 
-    if (res.status === 401) {
-        // Token expired or invalid
-        // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
-        // This prevents the login modal from popping up on app load if the session is stale.
-        localStorage.removeItem(STORAGE_KEY_TOKEN);
-        
-        if (!options?.skipAuthRedirect && authCallback) {
-            authCallback();
+    try {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
+            method,
+            headers,
+            body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.status === 401) {
+            // Token expired or invalid
+            // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
+            safeRemoveItem(STORAGE_KEY_TOKEN);
+            
+            if (!options?.skipAuthRedirect && authCallback) {
+                authCallback();
+            }
+            const err: any = new Error("Unauthorized");
+            err.status = 401;
+            throw err;
         }
-        const err: any = new Error("Unauthorized");
-        err.status = 401;
-        throw err;
-    }
 
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-        const error: any = new Error(err.error || res.statusText);
-        error.status = res.status;
-        throw error;
-    }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+            const error: any = new Error(err.error || res.statusText);
+            error.status = res.status;
+            throw error;
+        }
 
-    if (res.status === 204) return null;
-    return res.json();
+        if (res.status === 204) return null;
+        return res.json();
+    } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+             throw new Error("Request timed out");
+        }
+        throw e;
+    }
 };
 
 // --- Sync Logic (Simplified) ---
@@ -186,12 +255,15 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     
     if (!targetSession) throw new Error("Not authenticated with target family");
     
+    // Ensure the recipe is set to be shared
+    const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
+
     // Manual fetch with different token
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/recipes`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ...recipe, shareToFamily: true })
+        body: JSON.stringify(sharedRecipe)
     });
     
     if (!res.ok) throw new Error("Failed to cross-post");
@@ -284,7 +356,7 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
     const formData = new FormData();
     formData.append('file', blob);
     
-    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const token = safeGetItem(STORAGE_KEY_TOKEN);
     const headers: any = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     
@@ -328,19 +400,19 @@ export const registerFamily = async (familyName: string, password: string, admin
 };
 
 const handleLoginSuccess = (token: string, familyId: string, name: string) => {
-    localStorage.setItem(STORAGE_KEY_TOKEN, token);
-    localStorage.setItem(STORAGE_KEY_FAMILY_ID, familyId);
-    localStorage.setItem(STORAGE_KEY_FAMILY_NAME, name);
+    safeSetItem(STORAGE_KEY_TOKEN, token);
+    safeSetItem(STORAGE_KEY_FAMILY_ID, familyId);
+    safeSetItem(STORAGE_KEY_FAMILY_NAME, name);
     
     // Save session
     const sessions = getSavedSessions();
     if (!sessions.find(s => s.id === familyId)) {
         sessions.push({ id: familyId, name, token });
-        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } else {
         // Update token
         const updated = sessions.map(s => s.id === familyId ? { ...s, token } : s);
-        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
+        safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
     // Trigger sync
@@ -351,9 +423,9 @@ export const switchFamily = (familyId: string) => {
     const sessions = getSavedSessions();
     const session = sessions.find(s => s.id === familyId);
     if (session) {
-        localStorage.setItem(STORAGE_KEY_TOKEN, session.token);
-        localStorage.setItem(STORAGE_KEY_FAMILY_ID, session.id);
-        localStorage.setItem(STORAGE_KEY_FAMILY_NAME, session.name);
+        safeSetItem(STORAGE_KEY_TOKEN, session.token);
+        safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
+        safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
         window.location.reload(); 
     }
 };
@@ -361,15 +433,15 @@ export const switchFamily = (familyId: string) => {
 export const logout = (familyId?: string) => {
     if (familyId) {
         const sessions = getSavedSessions().filter(s => s.id !== familyId);
-        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
         if (getCurrentFamilyId() === familyId) {
-            localStorage.removeItem(STORAGE_KEY_TOKEN);
-            localStorage.removeItem(STORAGE_KEY_FAMILY_ID);
-            localStorage.removeItem(STORAGE_KEY_FAMILY_NAME);
+            safeRemoveItem(STORAGE_KEY_TOKEN);
+            safeRemoveItem(STORAGE_KEY_FAMILY_ID);
+            safeRemoveItem(STORAGE_KEY_FAMILY_NAME);
             window.location.reload();
         }
     } else {
-        localStorage.clear(); 
+        safeClear(); 
         idb.clearAllStores();
         window.location.reload();
     }
@@ -399,14 +471,42 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
     return local;
 };
 
-export const upsertRestaurant = async (r: Restaurant) => {
+export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: boolean }) => {
+    // If sharing to family, tag with current family ID locally immediately
+    const currentFamilyId = getCurrentFamilyId();
+    if (currentFamilyId && !options?.localOnly) {
+        r.familyId = currentFamilyId;
+    }
+
     await idb.put(STORE_RESTAURANTS, r);
+    
+    if (options?.localOnly) return;
+
     if (hasAuthToken()) apiCall('/restaurants', 'POST', r).catch(console.error);
 };
 
 export const deleteRestaurant = async (id: string) => {
     await idb.remove(STORE_RESTAURANTS, id);
     if (hasAuthToken()) apiCall(`/restaurants?id=${id}`, 'DELETE').catch(console.error);
+};
+
+export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId: string) => {
+    const sessions = getSavedSessions();
+    const targetSession = sessions.find(s => s.id === targetFamilyId);
+    
+    if (!targetSession) throw new Error("Not authenticated with target family");
+    
+    const sharedRestaurant = { ...restaurant, familyId: targetFamilyId };
+
+    // Manual fetch with different token
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+    const res = await fetch(`${API_BASE}/restaurants`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(sharedRestaurant)
+    });
+    
+    if (!res.ok) throw new Error("Failed to cross-post");
 };
 
 export const createVoteSession = async (subset?: Restaurant[], mode: 'list' | 'swipe' = 'list'): Promise<VoteSession | null> => {

@@ -135,7 +135,6 @@ const App: React.FC = () => {
           db.getSyncQueue()
       ]);
       setRecipes(loadedRecipes);
-      // Track which IDs are pending sync
       const pendingIds = new Set(queue.map(q => q.id));
       setPendingSyncIds(pendingIds);
       return loadedRecipes;
@@ -148,26 +147,22 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
         try {
-            const [loadedRecipes, loadedSettings] = await Promise.all([
-                db.getAllRecipes(),
+            const [loadedSettings] = await Promise.all([
                 db.getSettings()
             ]);
-            setRecipes(loadedRecipes);
             setSettings(loadedSettings);
             applyTheme(loadedSettings.theme);
             
-            // Check queue initially
-            const queue = await db.getSyncQueue();
-            setPendingSyncIds(new Set(queue.map(q => q.id)));
-            
-            // Preload restaurants if enabled
-            if (ENABLE_RESTAURANTS) {
-                db.getRestaurants(); 
+            // Perform an initial sync if possible to ensure fresh data
+            if (navigator.onLine && db.hasAuthToken()) {
+                await db.pullRecipes();
+                await db.retrySync();
             }
 
-            // Attempt to sync pending items if online
-            if (navigator.onLine && db.hasAuthToken()) {
-                db.retrySync();
+            await loadData();
+            
+            if (ENABLE_RESTAURANTS) {
+                db.getRestaurants(); 
             }
         } catch (e) {
             console.error("Initialization failed", e);
@@ -177,20 +172,17 @@ const App: React.FC = () => {
     };
     init();
 
-    // Listen for auth requests from DB service
     db.setAuthCallback(() => {
         setAuthModalView('login');
         setShowAuthModal(true);
     });
 
-    // Listen for background sync updates
     const handleUpdates = () => loadData();
     window.addEventListener('recipes-updated', handleUpdates);
     
     return () => window.removeEventListener('recipes-updated', handleUpdates);
   }, []);
 
-  // Monitor Online Status
   useEffect(() => {
     const handleOnline = () => {
         setIsOnline(true);
@@ -235,15 +227,11 @@ const App: React.FC = () => {
   const filteredRecipes = useMemo(() => {
     let result = recipes;
 
-    // Filter Logic
     if (familyFilter === 'mine') {
-        // Show local only (not shared)
         result = result.filter(r => !r.shareToFamily);
     } else if (familyFilter === 'family') {
-        // Show recipes specifically for the CURRENT family session
         result = result.filter(r => r.shareToFamily && r.familyId === currentFamilyId);
     } 
-    // 'all' shows everything in the local DB (which includes joined families that have been synced)
 
     if (!showArchived) result = result.filter(r => !r.archived);
     if (selectedCategory !== 'All') result = result.filter(r => r.category === selectedCategory);
@@ -329,17 +317,18 @@ const App: React.FC = () => {
     await performSave(recipe);
   };
 
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = async () => {
       if (pendingRecipeSave) {
-          performSave(pendingRecipeSave);
+          await performSave(pendingRecipeSave);
       }
-      db.getAllRecipes(); 
+      // Explicitly trigger data reload after auth
+      await db.pullRecipes();
+      await loadData();
   };
 
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
     if (e) e.stopPropagation();
     const updated = { ...recipe, favorite: !recipe.favorite };
-    // Pass localOnly: true to prevent syncing favorite status
     await db.upsertRecipe(updated, { localOnly: true });
     await loadData();
   };
@@ -394,7 +383,6 @@ const App: React.FC = () => {
             <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden"><span className="material-symbols-outlined">close</span></button>
         </div>
 
-        {/* Desktop Sidebar Toggle */}
         <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className="hidden md:flex absolute -right-3 top-20 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-full p-1 text-text-muted hover:text-primary shadow-sm z-50 items-center justify-center"
@@ -437,7 +425,6 @@ const App: React.FC = () => {
                     {!isSidebarCollapsed && "Shopping List"}
                 </button>
                 
-                {/* Eat Out Module */}
                 {ENABLE_RESTAURANTS && (
                     <button 
                         onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); }} 
@@ -499,7 +486,6 @@ const App: React.FC = () => {
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         
         {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}

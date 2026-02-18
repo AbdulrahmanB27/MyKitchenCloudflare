@@ -12,7 +12,6 @@ const STORAGE_KEY_FAMILY_ID = 'current_family_id';
 const STORAGE_KEY_FAMILY_NAME = 'current_family_name';
 
 // --- Safe Storage Helpers ---
-// Fallback to memory if localStorage is blocked (e.g. SecurityError in private browsing)
 const memoryStorage: Record<string, string> = {};
 let isLocalStorageAvailable = false;
 
@@ -92,7 +91,6 @@ export const getCurrentFamilyName = (): string => {
 };
 
 export const getPinnedFamilyId = (): string | null => {
-    // For now, same as current
     return getCurrentFamilyId();
 };
 
@@ -117,7 +115,7 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout to prevent stuck loading
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -129,10 +127,7 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
         clearTimeout(timeoutId);
 
         if (res.status === 401) {
-            // Token expired or invalid
-            // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
             safeRemoveItem(STORAGE_KEY_TOKEN);
-            
             if (!options?.skipAuthRedirect && authCallback) {
                 authCallback();
             }
@@ -159,7 +154,7 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     }
 };
 
-// --- Sync Logic (Simplified) ---
+// --- Sync Logic ---
 
 export const retrySync = async () => {
     if (!navigator.onLine || !hasAuthToken()) return;
@@ -169,8 +164,6 @@ export const retrySync = async () => {
 
     for (const item of queue) {
         try {
-            // Sync actions should generally be silent if they fail auth, 
-            // as they run in background.
             const opts = { skipAuthRedirect: true };
             if (item.store === STORE_RECIPES) {
                 if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
@@ -179,36 +172,38 @@ export const retrySync = async () => {
                 if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data, opts);
                 if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE', undefined, opts);
             }
-            // ... handle other stores
             await idb.removeFromSyncQueue(item.id);
         } catch (e: any) {
             console.error("Sync failed for item", item, e);
-            // If the error is a client-side error (4xx) but NOT 401 (auth issue),
-            // it means the data is likely bad or invalid (e.g. 400 Bad Request, 404 Not Found).
-            // We should remove it from the queue so it doesn't block future syncs forever.
             if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
-                console.warn(`Removing invalid item ${item.id} from queue (Status: ${e.status})`);
                 await idb.removeFromSyncQueue(item.id);
             }
         }
     }
-    // Trigger refresh
     window.dispatchEvent(new Event('recipes-updated'));
+};
+
+export const pullRecipes = async () => {
+    if (!hasAuthToken() || !navigator.onLine) return [];
+    try {
+        const remote: Recipe[] = await apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true });
+        for (const r of remote) {
+            await idb.put(STORE_RECIPES, r);
+        }
+        window.dispatchEvent(new Event('recipes-updated'));
+        return remote;
+    } catch (e) {
+        console.error("Failed to pull remote recipes", e);
+        return [];
+    }
 };
 
 // --- Recipes ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
     const local = await idb.getAll<Recipe>(STORE_RECIPES);
-    
-    // Background sync if online
     if (hasAuthToken() && navigator.onLine) {
-        apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: Recipe[]) => {
-            for (const r of remote) {
-                await idb.put(STORE_RECIPES, r);
-            }
-            window.dispatchEvent(new Event('recipes-updated'));
-        }).catch(() => {});
+        pullRecipes();
     }
     return local;
 };
@@ -218,7 +213,6 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
 };
 
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
-    // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
     if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
         recipe.familyId = currentFamilyId;
@@ -232,7 +226,6 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
         try {
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {
-            // Queue for sync
             await idb.addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
         }
     }
@@ -255,10 +248,8 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     
     if (!targetSession) throw new Error("Not authenticated with target family");
     
-    // Ensure the recipe is set to be shared
     const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
 
-    // Manual fetch with different token
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/recipes`, {
         method: 'POST',
@@ -377,7 +368,7 @@ export const authenticate = async (familyName: string, password: string): Promis
     try {
         const res = await apiCall('/auth/login', 'POST', { familyName, password });
         if (res.token) {
-            handleLoginSuccess(res.token, res.familyId, res.name);
+            await handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -390,7 +381,7 @@ export const registerFamily = async (familyName: string, password: string, admin
     try {
         const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword });
         if (res.token) {
-            handleLoginSuccess(res.token, res.familyId, res.name);
+            await handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -399,33 +390,32 @@ export const registerFamily = async (familyName: string, password: string, admin
     }
 };
 
-const handleLoginSuccess = (token: string, familyId: string, name: string) => {
+const handleLoginSuccess = async (token: string, familyId: string, name: string) => {
     safeSetItem(STORAGE_KEY_TOKEN, token);
     safeSetItem(STORAGE_KEY_FAMILY_ID, familyId);
     safeSetItem(STORAGE_KEY_FAMILY_NAME, name);
     
-    // Save session
     const sessions = getSavedSessions();
     if (!sessions.find(s => s.id === familyId)) {
         sessions.push({ id: familyId, name, token });
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } else {
-        // Update token
         const updated = sessions.map(s => s.id === familyId ? { ...s, token } : s);
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
-    // Trigger sync
-    retrySync();
+    await retrySync();
+    await pullRecipes();
 };
 
-export const switchFamily = (familyId: string) => {
+export const switchFamily = async (familyId: string) => {
     const sessions = getSavedSessions();
     const session = sessions.find(s => s.id === familyId);
     if (session) {
         safeSetItem(STORAGE_KEY_TOKEN, session.token);
         safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
         safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
+        await pullRecipes();
         window.location.reload(); 
     }
 };
@@ -447,7 +437,6 @@ export const logout = (familyId?: string) => {
     }
 };
 
-// Generic admin action handler
 export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family', data: any) => {
     try {
         const res = await apiCall('/admin', 'POST', { action, ...data });
@@ -472,7 +461,6 @@ export const getRestaurants = async (): Promise<Restaurant[]> => {
 };
 
 export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: boolean }) => {
-    // If sharing to family, tag with current family ID locally immediately
     const currentFamilyId = getCurrentFamilyId();
     if (currentFamilyId && !options?.localOnly) {
         r.familyId = currentFamilyId;
@@ -498,7 +486,6 @@ export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId
     
     const sharedRestaurant = { ...restaurant, familyId: targetFamilyId };
 
-    // Manual fetch with different token
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/restaurants`, {
         method: 'POST',

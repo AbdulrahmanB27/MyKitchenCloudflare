@@ -204,7 +204,13 @@ export const syncDown = async () => {
     try {
         const remoteRecipes = await apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true });
         if (remoteRecipes) {
-            for (const r of remoteRecipes) await idb.put(STORE_RECIPES, r);
+            for (const r of remoteRecipes) {
+                if (r.deleted) {
+                    await idb.remove(STORE_RECIPES, r.id);
+                } else {
+                    await idb.put(STORE_RECIPES, r);
+                }
+            }
             window.dispatchEvent(new Event('recipes-updated'));
         }
     } catch (e) { console.warn("Failed to sync recipes", e); }

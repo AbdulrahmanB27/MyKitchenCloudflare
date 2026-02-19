@@ -336,7 +336,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
   const tipsList = allSteps.filter(s => !!s.tip).map(s => s.tip!);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background-light dark:bg-[#112116] text-text-main dark:text-white font-display overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[110] bg-background-light dark:bg-[#112116] text-text-main dark:text-white font-display overflow-hidden flex flex-col">
       
       {/* Header */}
       <header className="flex-none flex items-center justify-between border-b border-border-light dark:border-border-dark px-4 py-3 bg-surface-light dark:bg-surface-dark z-10">

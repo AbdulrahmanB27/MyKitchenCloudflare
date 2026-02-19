@@ -171,11 +171,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     setCheckedIngredients(next);
   };
 
-  const copyToClipboard = () => {
-    const json = JSON.stringify(recipe, null, 2);
-    navigator.clipboard.writeText(json).then(() => alert('Recipe JSON copied!'));
-  };
-
   const handleShare = async () => {
     let shareText = `${recipe.name}\n${recipe.description || ''}\n\n`;
     
@@ -412,7 +407,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   let globalStepCounter = 0;
 
   return (
-    <div className="recipe-detail-view fixed inset-0 z-50 bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
+    <div className="recipe-detail-view fixed inset-0 z-[110] bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
         
         {/* Sticky Header */}
         <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-border-light dark:border-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 md:px-6">
@@ -590,12 +585,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                     <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">share</span>
                                 </div>
                                 <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
-                            </button>
-                            <button onClick={copyToClipboard} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
-                                <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
-                                    <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">data_object</span>
-                                </div>
-                                <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">JSON</span>
                             </button>
                         </div>
                     </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 
@@ -59,6 +59,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const currentFamilyId = db.getCurrentFamilyId();
   const pinnedFamilyId = db.getPinnedFamilyId();
+  
+  // Custom Dropdown State
+  const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Intermediate state for range inputs (string based)
   const [prepTimeStr, setPrepTimeStr] = useState('');
@@ -82,6 +86,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   // Import Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+              setIsFamilySelectorOpen(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const formatTimeRange = (min?: number, max?: number) => {
       if (!min && min !== 0) return '';
@@ -191,12 +206,116 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     }
   }, [initialData, currentFamilyId, pinnedFamilyId]);
 
+  // --- Text Parser Logic ---
+  const parseRecipeText = (text: string): Partial<Recipe> | null => {
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length === 0) return null;
+
+      const recipe: Partial<Recipe> = {
+          name: lines[0], // Assume first line is title
+          ingredients: [],
+          instructions: [],
+          components: []
+      };
+
+      let mode: 'meta' | 'ingredients' | 'instructions' = 'meta';
+      const ingredients: Ingredient[] = [];
+      const instructions: Instruction[] = [];
+
+      const unitRegex = /^(cup|cups|tbsp|tsp|tablespoon|teaspoon|g|gram|grams|oz|ounce|ounces|lb|lbs|pound|pounds|ml|l|liter|liters|pint|qt|quart|gal|gallon|can|package|pkg|bunch|clove|cloves|slice|slices)\.?$/i;
+
+      for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          const lowerLine = line.toLowerCase();
+
+          // Detect Section Headers
+          if (lowerLine.includes('ingredient')) {
+              mode = 'ingredients';
+              continue;
+          } else if (lowerLine.includes('instruction') || lowerLine.includes('preparation') || lowerLine.includes('method') || lowerLine === 'steps') {
+              mode = 'instructions';
+              continue;
+          }
+
+          if (mode === 'meta') {
+              // Try to parse meta data
+              const prepMatch = line.match(/prep:?\s*(\d+)/i);
+              if (prepMatch) recipe.prepTime = parseInt(prepMatch[1]);
+              
+              const cookMatch = line.match(/cook:?\s*(\d+)/i);
+              if (cookMatch) recipe.cookTime = parseInt(cookMatch[1]);
+              
+              const servingsMatch = line.match(/servings:?\s*(\d+)/i);
+              if (servingsMatch) recipe.servings = parseInt(servingsMatch[1]);
+          } else if (mode === 'ingredients') {
+              // Heuristic Ingredient Parsing
+              // Remove bullets
+              const cleanLine = line.replace(/^[\u2022\u00b7\-\*]\s*/, '').trim();
+              
+              // Try to split by space to find amount/unit
+              const parts = cleanLine.split(' ');
+              let amountStr = '';
+              let unitStr = '';
+              let itemStr = '';
+
+              // Check first part for number/fraction
+              const firstPart = parts[0];
+              const isNumber = /^(\d+([\.,]\d+)?|(\d+\/)?\d+)$/.test(firstPart); // simplified fraction check
+              
+              if (isNumber) {
+                  amountStr = firstPart;
+                  // Check second part for unit
+                  if (parts.length > 1 && unitRegex.test(parts[1])) {
+                      unitStr = parts[1];
+                      itemStr = parts.slice(2).join(' ');
+                  } else {
+                      itemStr = parts.slice(1).join(' ');
+                  }
+              } else {
+                  itemStr = cleanLine;
+              }
+
+              // Simple fraction to decimal conversion for storage
+              let amountVal = 0;
+              if (amountStr) {
+                  if (amountStr.includes('/')) {
+                      const [n, d] = amountStr.split('/').map(Number);
+                      amountVal = n / d;
+                  } else {
+                      amountVal = parseFloat(amountStr);
+                  }
+              }
+
+              ingredients.push({
+                  id: uuidv4(),
+                  amount: amountVal || 0, // Store 0 if parse fail, user can fix
+                  unit: unitStr,
+                  item: itemStr
+              });
+
+          } else if (mode === 'instructions') {
+              // Remove numbering (e.g. "1. Mix")
+              const cleanLine = line.replace(/^\d+[\.\)]\s*/, '').trim();
+              instructions.push({
+                  id: uuidv4(),
+                  text: cleanLine
+              });
+          }
+      }
+
+      if (ingredients.length > 0) recipe.ingredients = ingredients;
+      if (instructions.length > 0) recipe.instructions = instructions;
+
+      return recipe;
+  };
+
   const processImportedData = (data: any) => {
       let recipeData = data;
       if (Array.isArray(data)) recipeData = data[0];
       else if (data.recipes && Array.isArray(data.recipes)) recipeData = data.recipes[0];
       
-      if (!recipeData.name) throw new Error("Missing recipe name");
+      // Basic validation
+      if (!recipeData.name && !recipeData.ingredients) throw new Error("Invalid format");
 
       const newData = { ...recipeData };
       if (!initialData) {
@@ -210,8 +329,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       loadRecipeData(newData);
   };
 
-  // ... (Paste logic, Image logic same as before, simplified for brevity in this diff) ...
-  // Handle Paste Event for Images & JSON
+  // Handle Paste Event for Images & JSON/Text
   useEffect(() => {
       const handlePaste = (e: ClipboardEvent) => {
           if (isUploading) return;
@@ -230,30 +348,39 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               }
           }
 
-          // 2. JSON Text Handling
-          if (initialData) return;
+          // 2. Text/JSON Handling
+          if (initialData) return; // Don't overwrite if editing existing (unless focused on a specific field, which browser handles)
+
+          // Only intercept if we aren't focused on a specific input that accepts text
+          const activeTag = document.activeElement?.tagName;
+          if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
 
           const text = e.clipboardData?.getData('text');
           if (text) {
+              e.preventDefault();
               try {
+                  // Try JSON first
                   const parsed = JSON.parse(text);
-                  const isRecipe = (r: any) => r.name && (Array.isArray(r.ingredients) || Array.isArray(r.instructions));
-                  let candidate = parsed;
-                  if (Array.isArray(parsed) && parsed.length > 0) candidate = parsed[0];
-                  else if (parsed.recipes && Array.isArray(parsed.recipes)) candidate = parsed.recipes[0];
-
-                  if (isRecipe(candidate)) {
-                      if (confirm("Detected Recipe JSON in clipboard. Import it?")) {
-                          e.preventDefault();
-                          processImportedData(parsed);
+                  if (confirm("Detected Recipe JSON in clipboard. Import it?")) {
+                      processImportedData(parsed);
+                  }
+              } catch (e) {
+                  // Not JSON, try Text Parsing
+                  const textRecipe = parseRecipeText(text);
+                  if (textRecipe && (textRecipe.ingredients?.length || textRecipe.instructions?.length)) {
+                      if (confirm("Detected recipe text structure. Attempt to import?")) {
+                          // Merge with default form data to ensure structure
+                          const merged = { ...formData, ...textRecipe };
+                          // Ensure IDs
+                          loadRecipeData(merged as Recipe);
                       }
                   }
-              } catch (e) {}
+              }
           }
       };
       window.addEventListener('paste', handlePaste);
       return () => window.removeEventListener('paste', handlePaste);
-  }, [isUploading, initialData]);
+  }, [isUploading, initialData, formData]);
 
   const parseTimeInput = (val: string) => {
       const parts = val.split('-').map(s => parseInt(s.trim()));
@@ -284,10 +411,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-
+  const getRecipeObject = () => {
     const flatIngredients: Ingredient[] = [];
     ingredientBlocks.forEach(block => {
         block.ingredients.forEach(ing => {
@@ -317,21 +441,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     const prep = parseTimeInput(prepTimeStr);
     const cook = parseTimeInput(cookTimeStr);
 
-    if (formData.addedBy) {
-        db.safeSetItem('mykitchen_last_author', formData.addedBy);
-    }
-
     let recipeId = initialData?.id || uuidv4();
-    let shareToFamily = syncToFamily;
 
-    // FORK LOGIC: If existing was shared, but user turned off sync -> Clone as new Private ID
-    if (initialData?.shareToFamily && !syncToFamily && targetFamilyId === currentFamilyId) {
-        recipeId = uuidv4();
-        shareToFamily = false;
-        alert("Saving as a new private copy (Sync disabled).");
-    }
-
-    const recipe: Recipe = {
+    return {
       ...formData as Recipe,
       prepTime: prep.min,
       prepTimeMax: prep.max,
@@ -351,15 +463,38 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       instructions: flatInstructions,
       components: [], 
       createdAt: initialData?.createdAt || Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      shareToFamily: syncToFamily
     };
+  };
+
+  const handleCopyJson = () => {
+      const recipe = getRecipeObject();
+      navigator.clipboard.writeText(JSON.stringify(recipe, null, 2)).then(() => alert('Recipe JSON copied!'));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    if (formData.addedBy) {
+        db.safeSetItem('mykitchen_last_author', formData.addedBy);
+    }
+
+    const recipe = getRecipeObject();
+    
+    // FORK LOGIC: If existing was shared, but user turned off sync -> Clone as new Private ID
+    if (initialData?.shareToFamily && !syncToFamily && targetFamilyId === currentFamilyId) {
+        recipe.id = uuidv4();
+        recipe.shareToFamily = false;
+        alert("Saving as a new private copy (Sync disabled).");
+    }
 
     try {
         if (targetFamilyId === 'private') {
             recipe.shareToFamily = false;
             onSave(recipe); 
         } else if (targetFamilyId === currentFamilyId) {
-            recipe.shareToFamily = shareToFamily;
             onSave(recipe); 
         } else {
             const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
@@ -451,15 +586,23 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     reader.readAsText(file);
   };
 
-  const handleJsonImport = () => {
+  const handleTextImport = () => {
       try {
+          // Attempt JSON
           const imported = JSON.parse(jsonText);
           processImportedData(imported);
-          setShowJsonModal(false);
-          setJsonText('');
       } catch (e) {
-          alert("Invalid JSON format.");
+          // Attempt Text
+          const textRecipe = parseRecipeText(jsonText);
+          if (textRecipe && (textRecipe.ingredients?.length || textRecipe.instructions?.length)) {
+              loadRecipeData({ ...formData, ...textRecipe } as Recipe);
+          } else {
+              alert("Could not detect valid JSON or recognized recipe text format.");
+              return;
+          }
       }
+      setShowJsonModal(false);
+      setJsonText('');
   };
 
   // Block Logic Helpers (Simplified for brevity)
@@ -482,6 +625,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const toggleStepTip = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, tip: s.tip !== undefined ? undefined : '' }) }));
   const toggleStepOptional = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, optional: !s.optional }) }));
 
+  // Selector Display Logic
+  const getTargetFamilyName = () => {
+      if (targetFamilyId === 'private') return 'Private (This Device)';
+      const session = availableSessions.find(s => s.id === targetFamilyId);
+      if (session) return session.name + (session.id === currentFamilyId ? ' (Current)' : '');
+      return 'Select Family';
+  };
+
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
@@ -495,30 +646,53 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <section className="space-y-4">
              <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
                  <h3 className="text-lg font-bold text-primary">Basics</h3>
-                 <div className="relative group">
-                     <select 
-                        value={targetFamilyId} 
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setTargetFamilyId(val);
-                            if (val === 'private') setSyncToFamily(false);
-                            else setSyncToFamily(true);
-                        }}
-                        className="appearance-none pl-9 pr-8 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+                 
+                 {/* Custom Family Selector */}
+                 <div className="relative" ref={dropdownRef}>
+                     <button 
+                        type="button"
+                        onClick={() => setIsFamilySelectorOpen(!isFamilySelectorOpen)}
+                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-background-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:border-primary/50 text-xs font-bold text-text-main dark:text-white transition-all shadow-sm"
                      >
-                         <option value="private">Private (This Device)</option>
-                         {availableSessions.map(s => (
-                             <option key={s.id} value={s.id}>{s.name} {s.id === currentFamilyId ? '(Current)' : ''}</option>
-                         ))}
-                     </select>
-                     <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
-                         {targetFamilyId === 'private' ? <Lock size={14} /> : <Users size={14} />}
-                     </div>
-                     <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
-                         <ChevronDown size={14} />
-                     </div>
+                         {targetFamilyId === 'private' ? <Lock size={14} className="text-primary" /> : <Users size={14} className="text-primary" />}
+                         <span>{getTargetFamilyName()}</span>
+                         <ChevronDown size={14} className={`text-text-muted transition-transform ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
+                     </button>
+
+                     {isFamilySelectorOpen && (
+                         <div className="absolute right-0 top-full mt-2 w-56 bg-surface-light dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                             <div className="py-1">
+                                 <button
+                                    type="button"
+                                    onClick={() => { setTargetFamilyId('private'); setSyncToFamily(false); setIsFamilySelectorOpen(false); }}
+                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-primary/5 text-primary' : 'text-text-main dark:text-white'}`}
+                                 >
+                                     <Lock size={16} />
+                                     <span className="text-sm font-bold">Private (This Device)</span>
+                                     {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
+                                 </button>
+                                 <div className="h-px bg-border-light dark:border-border-dark mx-3 my-1"></div>
+                                 {availableSessions.map(s => (
+                                     <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => { setTargetFamilyId(s.id); setSyncToFamily(true); setIsFamilySelectorOpen(false); }}
+                                        className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === s.id ? 'bg-primary/5 text-primary' : 'text-text-main dark:text-white'}`}
+                                     >
+                                         <Users size={16} />
+                                         <div className="flex flex-col">
+                                             <span className="text-sm font-bold">{s.name}</span>
+                                             {s.id === currentFamilyId && <span className="text-[10px] text-text-muted uppercase font-bold">Current</span>}
+                                         </div>
+                                         {targetFamilyId === s.id && <Check size={14} className="ml-auto" />}
+                                     </button>
+                                 ))}
+                             </div>
+                         </div>
+                     )}
                  </div>
              </div>
+             
              {/* ... Inputs same as before ... */}
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
@@ -567,9 +741,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
           </section>
 
-          {/* ... Ingredients & Instructions Blocks (Same as before) ... */}
-          {/* Omitted for brevity in XML output since they are unchanged, but I must return full content. Re-adding them now. */}
-          
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Ingredients</h3>
              {ingredientBlocks.map((block, bIdx) => (
@@ -703,16 +874,25 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
                   </>
               )}
+              {/* Copy JSON Button */}
+              {initialData && (
+                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+              )}
               {initialData?.id && onDelete && (
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
               )}
           </div>
           <div className="flex gap-3 items-center">
               {targetFamilyId !== 'private' && (
-                  <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer hover:text-primary">
-                      <input type="checkbox" checked={syncToFamily} onChange={e => setSyncToFamily(e.target.checked)} className="rounded border-gray-400 text-primary focus:ring-primary" />
-                      Sync to Family
-                  </label>
+                  <div 
+                    onClick={() => setSyncToFamily(!syncToFamily)} 
+                    className="flex items-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none"
+                  >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${syncToFamily ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                          {syncToFamily && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                      </div>
+                      <span>Sync to Family</span>
+                  </div>
               )}
               <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg">Cancel</button>
               <button type="submit" disabled={isUploading || isSaving} className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2 disabled:opacity-50">
@@ -723,21 +903,22 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
         
-        {/* JSON Paste Modal */}
+        {/* JSON/Text Paste Modal */}
         {showJsonModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowJsonModal(false)}>
                 <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-lg shadow-2xl border border-border-light dark:border-border-dark flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-                    <h3 className="text-lg font-bold text-text-main dark:text-white">Paste Recipe JSON</h3>
+                    <h3 className="text-lg font-bold text-text-main dark:text-white">Paste Recipe Data</h3>
+                    <p className="text-xs text-text-muted">Paste JSON object or copied recipe text (with "Ingredients" and "Instructions" headers).</p>
                     <textarea 
                         value={jsonText}
                         onChange={e => setJsonText(e.target.value)}
                         className="w-full h-64 p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark font-mono text-xs resize-none focus:ring-2 focus:ring-primary outline-none"
-                        placeholder='Paste JSON content here...'
+                        placeholder='Paste content here...'
                         autoFocus
                     />
                     <div className="flex justify-end gap-3">
                         <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-muted hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                        <button onClick={handleJsonImport} className="px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-green-600">Import</button>
+                        <button onClick={handleTextImport} className="px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-green-600">Import</button>
                     </div>
                 </div>
             </div>

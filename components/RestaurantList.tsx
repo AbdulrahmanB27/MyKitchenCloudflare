@@ -1070,7 +1070,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                         className={`group flex flex-col items-center gap-1 p-2 rounded-xl transition-all min-w-[60px] ${formData.isApproved ? 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/50' : 'border border-transparent hover:bg-gray-50 dark:hover:bg-white/5'}`}
                                                     >
                                                         <div className={`size-6 flex items-center justify-center transition-all ${formData.isApproved ? 'text-blue-500' : 'text-gray-300 dark:text-gray-600'}`}>
-                                                            <BadgeCheck size={24} fill={formData.isApproved ? "currentColor" : "none"} className={formData.isApproved ? "text-blue-500" : "text-gray-300"} />
+                                                            <BadgeCheck size={24} className={formData.isApproved ? "text-blue-500" : "text-gray-300"} />
                                                         </div>
                                                         <span className={`text-[10px] font-bold ${formData.isApproved ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400'}`}>Verified</span>
                                                     </button>

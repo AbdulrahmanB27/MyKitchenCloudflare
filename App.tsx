@@ -414,7 +414,7 @@ const App: React.FC = () => {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto mt-2">
             <div className="pb-4">
                 <button 
-                    onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); }} 
+                    onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                     className={`nav-btn ${currentView === 'recipes' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Recipes"
                 >
@@ -422,7 +422,7 @@ const App: React.FC = () => {
                     {!isSidebarCollapsed && "Recipes"}
                 </button>
                 <button 
-                    onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); }} 
+                    onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                     className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Recommendations"
                 >
@@ -430,7 +430,7 @@ const App: React.FC = () => {
                     {!isSidebarCollapsed && "What can I make?"}
                 </button>
                 <button 
-                    onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); }} 
+                    onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                     className={`nav-btn ${currentView === 'planner' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Planner"
                 >
@@ -438,7 +438,7 @@ const App: React.FC = () => {
                     {!isSidebarCollapsed && "Planner"}
                 </button>
                 <button 
-                    onClick={() => { setCurrentView('shopping'); setIsMobileMenuOpen(false); }} 
+                    onClick={() => { setCurrentView('shopping'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                     className={`nav-btn ${currentView === 'shopping' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Shopping List"
                 >
@@ -449,7 +449,7 @@ const App: React.FC = () => {
                 {/* Eat Out Module */}
                 {ENABLE_RESTAURANTS && (
                     <button 
-                        onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); }} 
+                        onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                         className={`nav-btn ${currentView === 'restaurants' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                         title="Eat Out"
                     >

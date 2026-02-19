@@ -70,6 +70,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const recipe = await context.request.json() as any;
     const now = Date.now();
     recipe.updatedAt = now;
+    delete recipe.deleted; // Ensure fresh updates don't carry deleted flag
     
     await context.env.DB.prepare(
       "INSERT INTO recipes (id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
@@ -102,8 +103,15 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     const id = url.searchParams.get("id");
     if (!id) return new Response("Missing ID", { status: 400 });
 
-    await context.env.DB.prepare("DELETE FROM recipes WHERE id = ?").bind(id).run();
-    return new Response(JSON.stringify({ success: true }));
+    const now = Date.now();
+    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
+
+    // Perform Soft Delete (update data with tombstone and flag record)
+    await context.env.DB.prepare(
+        "UPDATE recipes SET data = ?, updated_at = ?, name = 'Deleted' WHERE id = ?"
+    ).bind(tombstone, now, id).run();
+
+    return new Response(JSON.stringify({ success: true, timestamp: now }));
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }

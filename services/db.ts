@@ -12,6 +12,7 @@ const STORAGE_KEY_FAMILY_ID = 'current_family_id';
 const STORAGE_KEY_FAMILY_NAME = 'current_family_name';
 
 // --- Safe Storage Helpers ---
+// Fallback to memory if localStorage is blocked (e.g. SecurityError in private browsing)
 const memoryStorage: Record<string, string> = {};
 let isLocalStorageAvailable = false;
 
@@ -91,6 +92,7 @@ export const getCurrentFamilyName = (): string => {
 };
 
 export const getPinnedFamilyId = (): string | null => {
+    // For now, same as current
     return getCurrentFamilyId();
 };
 
@@ -115,7 +117,7 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout to prevent stuck loading
 
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -127,7 +129,10 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
         clearTimeout(timeoutId);
 
         if (res.status === 401) {
+            // Token expired or invalid
+            // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
             safeRemoveItem(STORAGE_KEY_TOKEN);
+            
             if (!options?.skipAuthRedirect && authCallback) {
                 authCallback();
             }
@@ -164,6 +169,8 @@ export const retrySync = async () => {
 
     for (const item of queue) {
         try {
+            // Sync actions should generally be silent if they fail auth, 
+            // as they run in background.
             const opts = { skipAuthRedirect: true };
             if (item.store === STORE_RECIPES) {
                 if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
@@ -172,40 +179,70 @@ export const retrySync = async () => {
                 if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data, opts);
                 if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE', undefined, opts);
             }
+            // ... handle other stores
             await idb.removeFromSyncQueue(item.id);
         } catch (e: any) {
             console.error("Sync failed for item", item, e);
+            // If the error is a client-side error (4xx) but NOT 401 (auth issue),
+            // it means the data is likely bad or invalid (e.g. 400 Bad Request, 404 Not Found).
+            // We should remove it from the queue so it doesn't block future syncs forever.
             if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
+                console.warn(`Removing invalid item ${item.id} from queue (Status: ${e.status})`);
                 await idb.removeFromSyncQueue(item.id);
             }
         }
     }
-    window.dispatchEvent(new Event('recipes-updated'));
+    // Trigger refresh of local state in case sync changed things (though usually sync updates server)
+    // We might want to pull fresh data after pushing changes
+    syncDown();
 };
 
-export const pullRecipes = async () => {
-    if (!hasAuthToken() || !navigator.onLine) return [];
+export const syncDown = async () => {
+    if (!hasAuthToken() || !navigator.onLine) return;
+    
+    // Recipes
     try {
-        const remote: Recipe[] = await apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true });
-        for (const r of remote) {
-            await idb.put(STORE_RECIPES, r);
+        const remoteRecipes = await apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true });
+        if (remoteRecipes) {
+            for (const r of remoteRecipes) await idb.put(STORE_RECIPES, r);
+            window.dispatchEvent(new Event('recipes-updated'));
         }
-        window.dispatchEvent(new Event('recipes-updated'));
-        return remote;
-    } catch (e) {
-        console.error("Failed to pull remote recipes", e);
-        return [];
+    } catch (e) { console.warn("Failed to sync recipes", e); }
+
+    // Shopping
+    try {
+        const remoteShopping = await apiCall('/shopping', 'GET', undefined, { skipAuthRedirect: true });
+        if (remoteShopping) {
+            for (const i of remoteShopping) await idb.put(STORE_SHOPPING, i);
+            window.dispatchEvent(new Event('shopping-updated'));
+        }
+    } catch (e) { console.warn("Failed to sync shopping", e); }
+
+    // Plans
+    try {
+        const remotePlans = await apiCall('/plans', 'GET', undefined, { skipAuthRedirect: true });
+        if (remotePlans) {
+            for (const p of remotePlans) await idb.put(STORE_PLANS, p);
+            window.dispatchEvent(new Event('plans-updated'));
+        }
+    } catch (e) { console.warn("Failed to sync plans", e); }
+
+    // Restaurants
+    if (ENABLE_RESTAURANTS) {
+        try {
+            const remoteRest = await apiCall('/restaurants', 'GET', undefined, { skipAuthRedirect: true });
+            if (remoteRest) {
+                for (const r of remoteRest) await idb.put(STORE_RESTAURANTS, r);
+                window.dispatchEvent(new Event('restaurants-updated'));
+            }
+        } catch (e) { console.warn("Failed to sync restaurants", e); }
     }
 };
 
 // --- Recipes ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-    const local = await idb.getAll<Recipe>(STORE_RECIPES);
-    if (hasAuthToken() && navigator.onLine) {
-        pullRecipes();
-    }
-    return local;
+    return idb.getAll<Recipe>(STORE_RECIPES);
 };
 
 export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
@@ -213,6 +250,7 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
 };
 
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
+    // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
     if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
         recipe.familyId = currentFamilyId;
@@ -226,6 +264,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
         try {
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {
+            // Queue for sync
             await idb.addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
         }
     }
@@ -248,8 +287,10 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     
     if (!targetSession) throw new Error("Not authenticated with target family");
     
+    // Ensure the recipe is set to be shared
     const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
 
+    // Manual fetch with different token
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/recipes`, {
         method: 'POST',
@@ -263,13 +304,7 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
 // --- Shopping ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {
-    const local = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
-    if (hasAuthToken() && navigator.onLine) {
-        apiCall('/shopping', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: ShoppingItem[]) => {
-             for(const i of remote) await idb.put(STORE_SHOPPING, i);
-        }).catch(() => {});
-    }
-    return local;
+    return idb.getAll<ShoppingItem>(STORE_SHOPPING);
 };
 
 export const upsertShoppingItem = async (item: ShoppingItem) => {
@@ -303,13 +338,7 @@ export const clearShoppingList = async (purchasedOnly: boolean) => {
 // --- Meal Plans ---
 
 export const getMealPlans = async (): Promise<MealPlan[]> => {
-    const local = await idb.getAll<MealPlan>(STORE_PLANS);
-    if (hasAuthToken() && navigator.onLine) {
-        apiCall('/plans', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: MealPlan[]) => {
-            for(const p of remote) await idb.put(STORE_PLANS, p);
-        }).catch(() => {});
-    }
-    return local;
+    return idb.getAll<MealPlan>(STORE_PLANS);
 };
 
 export const upsertMealPlan = async (plan: MealPlan) => {
@@ -368,7 +397,7 @@ export const authenticate = async (familyName: string, password: string): Promis
     try {
         const res = await apiCall('/auth/login', 'POST', { familyName, password });
         if (res.token) {
-            await handleLoginSuccess(res.token, res.familyId, res.name);
+            handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -381,7 +410,7 @@ export const registerFamily = async (familyName: string, password: string, admin
     try {
         const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword });
         if (res.token) {
-            await handleLoginSuccess(res.token, res.familyId, res.name);
+            handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -390,32 +419,34 @@ export const registerFamily = async (familyName: string, password: string, admin
     }
 };
 
-const handleLoginSuccess = async (token: string, familyId: string, name: string) => {
+const handleLoginSuccess = (token: string, familyId: string, name: string) => {
     safeSetItem(STORAGE_KEY_TOKEN, token);
     safeSetItem(STORAGE_KEY_FAMILY_ID, familyId);
     safeSetItem(STORAGE_KEY_FAMILY_NAME, name);
     
+    // Save session
     const sessions = getSavedSessions();
     if (!sessions.find(s => s.id === familyId)) {
         sessions.push({ id: familyId, name, token });
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } else {
+        // Update token
         const updated = sessions.map(s => s.id === familyId ? { ...s, token } : s);
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
-    await retrySync();
-    await pullRecipes();
+    // Trigger sync
+    retrySync();
+    syncDown();
 };
 
-export const switchFamily = async (familyId: string) => {
+export const switchFamily = (familyId: string) => {
     const sessions = getSavedSessions();
     const session = sessions.find(s => s.id === familyId);
     if (session) {
         safeSetItem(STORAGE_KEY_TOKEN, session.token);
         safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
         safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
-        await pullRecipes();
         window.location.reload(); 
     }
 };
@@ -437,6 +468,7 @@ export const logout = (familyId?: string) => {
     }
 };
 
+// Generic admin action handler
 export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family', data: any) => {
     try {
         const res = await apiCall('/admin', 'POST', { action, ...data });
@@ -450,17 +482,11 @@ export const adminAction = async (action: 'update_passwords' | 'delete_family' |
 // --- Restaurants & Voting ---
 
 export const getRestaurants = async (): Promise<Restaurant[]> => {
-    const local = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
-    if (ENABLE_RESTAURANTS && hasAuthToken() && navigator.onLine) {
-         apiCall('/restaurants', 'GET', undefined, { skipAuthRedirect: true }).then(async (remote: Restaurant[]) => {
-             for(const r of remote) await idb.put(STORE_RESTAURANTS, r);
-             window.dispatchEvent(new Event('restaurants-updated'));
-         }).catch(() => {});
-    }
-    return local;
+    return idb.getAll<Restaurant>(STORE_RESTAURANTS);
 };
 
 export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: boolean }) => {
+    // If sharing to family, tag with current family ID locally immediately
     const currentFamilyId = getCurrentFamilyId();
     if (currentFamilyId && !options?.localOnly) {
         r.familyId = currentFamilyId;
@@ -486,6 +512,7 @@ export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId
     
     const sharedRestaurant = { ...restaurant, familyId: targetFamilyId };
 
+    // Manual fetch with different token
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
     const res = await fetch(`${API_BASE}/restaurants`, {
         method: 'POST',

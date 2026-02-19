@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Settings } from 'lucide-react';
+import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus } from 'lucide-react';
 import * as db from '../services/db';
 
 interface AuthModalProps {
@@ -43,7 +43,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         e.preventDefault();
         setLoading(true);
         setError('');
-        const res = await db.authenticate(familyName, password);
+        const res = await db.authenticate(familyName, password); // db.authenticate handles token storage safely
         setLoading(false);
         if (res.success) {
             onSuccess();
@@ -92,12 +92,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         if (res.success) {
             if (adminAction === 'delete') {
                 alert('Family deleted.');
-                db.logout(); 
+                db.logout(); // Use safe logout
                 onClose();
             } else if (adminAction === 'rename') {
                 alert('Family renamed.');
+                // Update local storage name safely
                 db.safeSetItem('current_family_name', newFamilyName);
-                onSuccess(); 
+                onSuccess(); // Trigger refresh
                 onClose();
             } else {
                 alert('Updated successfully.');
@@ -108,7 +109,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
-    const sessions = db.getSavedSessions();
+    const sessions = db.getSavedSessions(); // This uses safeGetItem now
 
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -140,10 +141,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
                     {mode === 'switch' && (
                         <div className="space-y-3">
-                            <div className="flex justify-between items-center mb-2">
-                                <p className="text-sm text-text-muted">Select a family:</p>
-                                <button onClick={() => setMode('admin')} className="text-xs font-bold text-primary flex items-center gap-1 hover:underline"><Settings size={14}/> Manage Current</button>
-                            </div>
+                            <p className="text-sm text-text-muted mb-2">Select a saved family session:</p>
                             {sessions.map(s => (
                                 <button 
                                     key={s.id} 
@@ -157,7 +155,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             
                             <div className="pt-4 border-t border-border-light dark:border-border-dark flex flex-col gap-2">
                                 <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
-                                    <Plus size={18} /> Add Existing Account
+                                    <Plus size={18} /> Join Family
                                 </button>
                                 <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
                                     <UserPlus size={18} /> Create New Family
@@ -188,6 +186,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 </div>
                             )}
 
+                            {/* Turnstile Container */}
                             <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
 
                             <button type="submit" disabled={loading} className="w-full py-3 bg-primary hover:bg-green-600 text-white rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
@@ -207,7 +206,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
                     {mode === 'admin' && (
                         <form onSubmit={handleAdminSubmit} className="space-y-4">
-                            <button type="button" onClick={()=>setMode('switch')} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mb-2"><X size={12}/> Back to Accounts</button>
                             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-100 dark:border-yellow-900/30">
                                 <p className="text-xs text-yellow-800 dark:text-yellow-200">
                                     Current Family: <strong>{db.getCurrentFamilyName()}</strong>

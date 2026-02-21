@@ -407,7 +407,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   let globalStepCounter = 0;
 
   return (
-    <div className="recipe-detail-view fixed inset-0 z-[110] bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
+    <div className="recipe-detail-view w-full h-full bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
         
         {/* Sticky Header */}
         <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-border-light dark:border-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 md:px-6">

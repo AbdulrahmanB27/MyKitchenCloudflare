@@ -14,13 +14,7 @@ CREATE TABLE recipes (
   created_at INTEGER
 );
 
-DROP TABLE IF EXISTS shopping_list;
-CREATE TABLE shopping_list (
-  id TEXT PRIMARY KEY,
-  family_id TEXT,
-  data TEXT,
-  updated_at INTEGER
-);
+-- Shopping List Table Removed --
 
 DROP TABLE IF EXISTS meal_plans;
 CREATE TABLE meal_plans (
@@ -57,8 +51,8 @@ CREATE TABLE restaurants (
   created_at INTEGER
 );
 
-DROP TABLE IF EXISTS vote_sessions_v2;
-CREATE TABLE vote_sessions_v2 (
+DROP TABLE IF EXISTS vote_sessions;
+CREATE TABLE vote_sessions (
   id TEXT PRIMARY KEY,
   access_code TEXT,
   data TEXT,
@@ -67,8 +61,8 @@ CREATE TABLE vote_sessions_v2 (
   active INTEGER DEFAULT 1
 );
 
-DROP TABLE IF EXISTS votes_v2;
-CREATE TABLE votes_v2 (
+DROP TABLE IF EXISTS votes;
+CREATE TABLE votes (
   id TEXT PRIMARY KEY,
   session_id TEXT,
   restaurant_id TEXT,

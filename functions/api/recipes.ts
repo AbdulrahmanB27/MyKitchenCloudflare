@@ -4,6 +4,7 @@ type PagesFunction<T = any> = (context: { request: Request; env: T; [key: string
 
 interface Env {
   DB: D1Database;
+  IMAGES: any; // R2Bucket binding
   FAMILY_PASSWORD: string;
 }
 
@@ -102,6 +103,25 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     const url = new URL(context.request.url);
     const id = url.searchParams.get("id");
     if (!id) return new Response("Missing ID", { status: 400 });
+
+    // 1. Fetch existing recipe to find Image URL
+    const existing = await context.env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
+    
+    if (existing) {
+        try {
+            const recipeData = JSON.parse(existing.data);
+            // Check if image is hosted by us (contains /api/images?key=)
+            if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
+                const key = recipeData.image.split('key=')[1];
+                if (key) {
+                    await context.env.IMAGES.delete(key);
+                }
+            }
+        } catch (imgError) {
+            console.error("Failed to delete associated image", imgError);
+            // Continue with recipe deletion even if image delete fails
+        }
+    }
 
     const now = Date.now();
     const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });

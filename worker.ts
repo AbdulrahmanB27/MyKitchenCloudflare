@@ -85,12 +85,10 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS families (id TEXT PRIMARY KEY, name TEXT UNIQUE, password_hash TEXT, admin_password_hash TEXT, salt TEXT, created_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS device_tokens (token TEXT PRIMARY KEY, family_id TEXT, created_at INTEGER, last_used_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipes (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, category TEXT, is_favorite INTEGER DEFAULT 0, is_archived INTEGER DEFAULT 0, share_to_family INTEGER DEFAULT 1, tenant_id TEXT DEFAULT 'global', data TEXT, updated_at INTEGER, created_at INTEGER)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (id TEXT PRIMARY KEY, family_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (id TEXT PRIMARY KEY, family_id TEXT, date TEXT, slot TEXT, recipe_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
-            // Migrated to v2 to support access_code and snapshots without needing complex migration scripts
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions_v2 (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes_v2 (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
         ]);
     } catch (e) {
         console.error("Schema init failed", e);
@@ -189,7 +187,7 @@ async function handleAdmin(request: Request, env: Env) {
                 env.DB.prepare("DELETE FROM families WHERE id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM device_tokens WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM recipes WHERE family_id = ?").bind(session.familyId),
-                env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId),
+                // No shopping list table to delete from
                 env.DB.prepare("DELETE FROM meal_plans WHERE family_id = ?").bind(session.familyId),
                 env.DB.prepare("DELETE FROM restaurants WHERE family_id = ?").bind(session.familyId),
             ]);
@@ -284,6 +282,23 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         const id = url.searchParams.get("id");
         if (!id) return errorResponse("Missing ID", 400);
         
+        // Image Deletion Logic
+        try {
+            const existing = await env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
+            if (existing) {
+                const recipeData = JSON.parse(existing.data);
+                if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
+                    const key = recipeData.image.split('key=')[1];
+                    if (key) {
+                        // Fire and forget image deletion
+                        ctx.waitUntil(env.IMAGES.delete(key));
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Image deletion error", e);
+        }
+
         const now = Date.now();
         const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
         
@@ -302,48 +317,6 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         } catch(e: any) { return errorResponse(e.message); }
     }
 
-    return errorResponse("Method Not Allowed", 405);
-}
-
-// 3. Shopping
-async function handleShopping(request: Request, env: Env) {
-    await ensureSchema(env);
-    const session = await getSession(request, env);
-    if (!session) return errorResponse("Unauthorized", 401);
-
-    const url = new URL(request.url);
-
-    if (request.method === 'GET') {
-        const { results } = await env.DB.prepare("SELECT data FROM shopping_list WHERE family_id = ?").bind(session.familyId).all();
-        const items = results.map((row: any) => JSON.parse(row.data));
-        return jsonResponse(items);
-    }
-
-    if (request.method === 'POST') {
-        const item: any = await request.json();
-        await env.DB.prepare(
-            "INSERT INTO shopping_list (id, family_id, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
-        ).bind(item.id, session.familyId, JSON.stringify(item), Date.now()).run();
-        return jsonResponse({ success: true });
-    }
-
-    if (request.method === 'DELETE') {
-        const id = url.searchParams.get("id");
-        const clearAll = url.searchParams.get("clearAll");
-        if (clearAll === "true") {
-            await env.DB.prepare("DELETE FROM shopping_list WHERE family_id = ?").bind(session.familyId).run();
-        } else if (clearAll === "checked") {
-            const { results } = await env.DB.prepare("SELECT id, data FROM shopping_list WHERE family_id = ?").bind(session.familyId).all();
-            const ids = results.filter((row: any) => JSON.parse(row.data).isChecked).map((row: any) => row.id);
-            if (ids.length > 0) {
-                const p = ids.map(() => '?').join(',');
-                await env.DB.prepare(`DELETE FROM shopping_list WHERE id IN (${p}) AND family_id = ?`).bind(...ids, session.familyId).run();
-            }
-        } else if (id) {
-            await env.DB.prepare("DELETE FROM shopping_list WHERE id = ? AND family_id = ?").bind(id, session.familyId).run();
-        }
-        return jsonResponse({ success: true });
-    }
     return errorResponse("Method Not Allowed", 405);
 }
 
@@ -433,10 +406,10 @@ async function handleVoteSessions(request: Request, env: Env) {
         const code = url.searchParams.get('code');
         if (!code) return errorResponse("Missing code", 400);
 
-        const session = await env.DB.prepare("SELECT * FROM vote_sessions_v2 WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
+        const session = await env.DB.prepare("SELECT * FROM vote_sessions WHERE access_code = ? AND active = 1").bind(code.toUpperCase()).first();
         if (!session) return errorResponse("Session not found", 404);
 
-        const { results } = await env.DB.prepare("SELECT * FROM votes_v2 WHERE session_id = ?").bind(session.id).all();
+        const { results } = await env.DB.prepare("SELECT * FROM votes WHERE session_id = ?").bind(session.id).all();
         
         return jsonResponse({
             session: { 
@@ -456,14 +429,14 @@ async function handleVoteSessions(request: Request, env: Env) {
         const body: any = await request.json();
         const now = Date.now();
         const id = crypto.randomUUID();
-        const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+        // Generate 4-char alpha code
+        const code = Math.random().toString(36).substring(2, 6).toUpperCase().replace(/[0-9O]/g, 'X'); // Simple cleanup
         
         // Use provided restaurants snapshot or empty
         const restaurantData = body.restaurants || [];
 
-        // Note: We don't link to family_id strictly anymore, session is ephemeral/standalone
         await env.DB.prepare(
-            "INSERT INTO vote_sessions_v2 (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
+            "INSERT INTO vote_sessions (id, access_code, data, created_at, active) VALUES (?, ?, ?, ?, 1)"
         ).bind(id, code, JSON.stringify(restaurantData), now).run();
         
         return jsonResponse({ 
@@ -474,6 +447,18 @@ async function handleVoteSessions(request: Request, env: Env) {
             snapshot: restaurantData 
         });
     }
+    
+    // Deleting a session (closing it) deletes it from DB completely
+    if (request.method === 'DELETE') {
+        const id = url.searchParams.get('id');
+        if (!id) return errorResponse("Missing session ID", 400);
+
+        await env.DB.prepare("DELETE FROM votes WHERE session_id = ?").bind(id).run();
+        await env.DB.prepare("DELETE FROM vote_sessions WHERE id = ?").bind(id).run();
+
+        return jsonResponse({ success: true });
+    }
+
     return errorResponse("Method Not Allowed", 405);
 }
 
@@ -486,8 +471,8 @@ async function handleVotes(request: Request, env: Env) {
         const now = Date.now();
         const id = crypto.randomUUID();
         
-        await env.DB.prepare("DELETE FROM votes_v2 WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
-        await env.DB.prepare("INSERT INTO votes_v2 (id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+        await env.DB.prepare("DELETE FROM votes WHERE session_id = ? AND restaurant_id = ? AND device_id = ?").bind(body.sessionId, body.restaurantId, body.deviceId).run();
+        await env.DB.prepare("INSERT INTO votes (id, session_id, restaurant_id, device_id, vote_value, created_at) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(id, body.sessionId, body.restaurantId, body.deviceId, body.voteValue, now).run();
         return jsonResponse({ success: true });
     }
@@ -557,7 +542,7 @@ export default {
         
         // Updated Routes (now use token-based session)
         if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
-        if (url.pathname.startsWith('/api/shopping')) return handleShopping(request, env);
+        // Shopping list removed
         if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
         if (url.pathname.startsWith('/api/restaurants')) return handleRestaurants(request, env);
         if (url.pathname.startsWith('/api/vote_sessions')) return handleVoteSessions(request, env);

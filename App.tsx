@@ -190,7 +190,17 @@ const App: React.FC = () => {
     const handleUpdates = () => loadData();
     window.addEventListener('recipes-updated', handleUpdates);
     
-    return () => window.removeEventListener('recipes-updated', handleUpdates);
+    // Listen for queue updates separately to update status indicator instantly
+    const handleQueueUpdate = async () => {
+        const queue = await db.getSyncQueue();
+        setPendingSyncIds(new Set(queue.map(q => q.id)));
+    };
+    window.addEventListener('queue-updated', handleQueueUpdate);
+    
+    return () => {
+        window.removeEventListener('recipes-updated', handleUpdates);
+        window.removeEventListener('queue-updated', handleQueueUpdate);
+    };
   }, []);
 
   // Monitor Online Status
@@ -415,7 +425,7 @@ const App: React.FC = () => {
             <div className="pb-4">
                 <button 
                     onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`nav-btn ${currentView === 'recipes' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`nav-btn ${currentView === 'recipes' && !activeRecipeId ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Recipes"
                 >
                     <span className="material-symbols-outlined">menu_book</span> 
@@ -511,82 +521,93 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         
-        {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
-        {currentView === 'shopping' && <ShoppingList onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
-        {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
-        {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList onOpenMenu={() => setIsMobileMenuOpen(true)} />}
+        {activeRecipeId && !editingRecipe ? (
+            <RecipeDetail 
+                recipeId={activeRecipeId}
+                onClose={() => setActiveRecipeId(null)} 
+                onEdit={(r) => { setActiveRecipeId(null); setEditingRecipe(r); }} 
+                onRefreshList={loadData}
+            />
+        ) : (
+            <>
+                {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
+                {currentView === 'shopping' && <ShoppingList onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
+                {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
+                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList onOpenMenu={() => setIsMobileMenuOpen(true)} />}
 
-        {currentView === 'recipes' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
-                        <span className="material-symbols-outlined">menu</span>
-                    </button>
-                    <div className="relative flex-1">
-                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-                         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" />
+                {currentView === 'recipes' && (
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
+                                <span className="material-symbols-outlined">menu</span>
+                            </button>
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+                            <div className="max-w-7xl mx-auto space-y-6">
+                                <div className="flex flex-col md:flex-row gap-4 justify-between">
+                                    <div className="relative flex-1 max-w-lg hidden md:block">
+                                        <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
+                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                                                <ArrowUpDown size={14} className="text-text-muted" />
+                                            </div>
+                                            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="pl-8 pr-8 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary appearance-none cursor-pointer text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors">
+                                                <option value="name">Name (A-Z)</option>
+                                                <option value="time">Fastest</option>
+                                                <option value="rating">Highest Rated</option>
+                                                <option value="calories">Lowest Calories</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
+                                        <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-surface-light dark:bg-surface-dark text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}>
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                    {availableTags.map(tag => {
+                                        const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
+                                        return (
+                                            <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-text-main dark:bg-white text-white dark:text-text-main border-transparent' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
+                                                {tag}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {filteredRecipes.length === 0 ? (
+                                    <div className="text-center py-20 text-text-muted border-2 border-dashed border-border-light dark:border-border-dark rounded-2xl">
+                                        <p>No recipes found.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+                                        {filteredRecipes.map(recipe => (
+                                            <RecipeCard key={recipe.id} recipe={recipe} onClick={(r) => setActiveRecipeId(r.id)} onToggleFavorite={handleToggleFavorite} />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30">
+                            <Plus size={28} />
+                        </button>
                     </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 md:p-8">
-                     <div className="max-w-7xl mx-auto space-y-6">
-                         <div className="flex flex-col md:flex-row gap-4 justify-between">
-                             <div className="relative flex-1 max-w-lg hidden md:block">
-                                 <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
-                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
-                             </div>
-                             <div className="flex gap-2 items-center">
-                                 <div className="relative group">
-                                     <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                         <ArrowUpDown size={14} className="text-text-muted" />
-                                     </div>
-                                     <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="pl-8 pr-8 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary appearance-none cursor-pointer text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors">
-                                         <option value="name">Name (A-Z)</option>
-                                         <option value="time">Fastest</option>
-                                         <option value="rating">Highest Rated</option>
-                                         <option value="calories">Lowest Calories</option>
-                                     </select>
-                                 </div>
-                             </div>
-                         </div>
-
-                         <div className="flex gap-2">
-                             {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                 <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-surface-light dark:bg-surface-dark text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}>
-                                     {cat}
-                                 </button>
-                             ))}
-                         </div>
-
-                         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                             {availableTags.map(tag => {
-                                 const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
-                                 return (
-                                     <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-text-main dark:bg-white text-white dark:text-text-main border-transparent' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
-                                         {tag}
-                                     </button>
-                                 );
-                             })}
-                         </div>
-
-                         {filteredRecipes.length === 0 ? (
-                             <div className="text-center py-20 text-text-muted border-2 border-dashed border-border-light dark:border-border-dark rounded-2xl">
-                                 <p>No recipes found.</p>
-                             </div>
-                         ) : (
-                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
-                                 {filteredRecipes.map(recipe => (
-                                     <RecipeCard key={recipe.id} recipe={recipe} onClick={(r) => setActiveRecipeId(r.id)} onToggleFavorite={handleToggleFavorite} />
-                                 ))}
-                             </div>
-                         )}
-                     </div>
-                </div>
-
-                <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30">
-                    <Plus size={28} />
-                </button>
-            </div>
+                )}
+            </>
         )}
 
       </main>
@@ -597,15 +618,6 @@ const App: React.FC = () => {
             onClose={() => { setIsFormOpen(false); setEditingRecipe(null); }} 
             onSave={handleSaveRecipe} 
             onDelete={handleDeleteRecipe}
-        />
-      )}
-
-      {activeRecipeId && !editingRecipe && (
-        <RecipeDetail 
-            recipeId={activeRecipeId}
-            onClose={() => setActiveRecipeId(null)} 
-            onEdit={(r) => { setActiveRecipeId(null); setEditingRecipe(r); }} 
-            onRefreshList={loadData}
         />
       )}
 

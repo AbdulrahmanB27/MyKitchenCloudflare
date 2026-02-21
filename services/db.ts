@@ -175,12 +175,10 @@ export const retrySync = async () => {
             if (item.store === STORE_RECIPES) {
                 if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
                 if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE', undefined, opts);
-            } else if (item.store === STORE_SHOPPING) {
-                if (item.action === 'upsert') await apiCall('/shopping', 'POST', item.data, opts);
-                if (item.action === 'delete') await apiCall(`/shopping?id=${item.id}`, 'DELETE', undefined, opts);
-            }
+            } 
+            // NOTE: Shopping sync removed
             // ... handle other stores
-            await idb.removeFromSyncQueue(item.id);
+            await removeFromSyncQueue(item.id);
         } catch (e: any) {
             console.error("Sync failed for item", item, e);
             // If the error is a client-side error (4xx) but NOT 401 (auth issue),
@@ -188,7 +186,7 @@ export const retrySync = async () => {
             // We should remove it from the queue so it doesn't block future syncs forever.
             if (e.status && e.status >= 400 && e.status < 500 && e.status !== 401) {
                 console.warn(`Removing invalid item ${item.id} from queue (Status: ${e.status})`);
-                await idb.removeFromSyncQueue(item.id);
+                await removeFromSyncQueue(item.id);
             }
         }
     }
@@ -215,14 +213,7 @@ export const syncDown = async () => {
         }
     } catch (e) { console.warn("Failed to sync recipes", e); }
 
-    // Shopping
-    try {
-        const remoteShopping = await apiCall('/shopping', 'GET', undefined, { skipAuthRedirect: true });
-        if (remoteShopping) {
-            for (const i of remoteShopping) await idb.put(STORE_SHOPPING, i);
-            window.dispatchEvent(new Event('shopping-updated'));
-        }
-    } catch (e) { console.warn("Failed to sync shopping", e); }
+    // Shopping - Local Only, Sync Removed
 
     // Plans
     try {
@@ -271,7 +262,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {
             // Queue for sync
-            await idb.addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
+            await addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
         }
     }
 };
@@ -282,7 +273,7 @@ export const deleteRecipe = async (id: string) => {
         try {
             await apiCall(`/recipes?id=${id}`, 'DELETE');
         } catch (e) {
-            await idb.addToSyncQueue({ id, action: 'delete', store: STORE_RECIPES, timestamp: Date.now() });
+            await addToSyncQueue({ id, action: 'delete', store: STORE_RECIPES, timestamp: Date.now() });
         }
     }
 };
@@ -315,11 +306,7 @@ export const getShoppingList = async (): Promise<ShoppingItem[]> => {
 
 export const upsertShoppingItem = async (item: ShoppingItem) => {
     await idb.put(STORE_SHOPPING, item);
-    if (hasAuthToken()) {
-        apiCall('/shopping', 'POST', item).catch(() => {
-             idb.addToSyncQueue({ id: item.id, action: 'upsert', data: item, store: STORE_SHOPPING, timestamp: Date.now() });
-        });
-    }
+    // Local only - no sync
 };
 
 export const clearShoppingList = async (purchasedOnly: boolean) => {
@@ -327,17 +314,9 @@ export const clearShoppingList = async (purchasedOnly: boolean) => {
         const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
         const toDelete = all.filter(i => i.isChecked);
         for(const item of toDelete) await idb.remove(STORE_SHOPPING, item.id);
-        
-        if (hasAuthToken()) {
-            apiCall('/shopping?clearAll=checked', 'DELETE').catch(() => {});
-        }
     } else {
         const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
         for(const item of all) await idb.remove(STORE_SHOPPING, item.id);
-        
-        if (hasAuthToken()) {
-            apiCall('/shopping?clearAll=true', 'DELETE').catch(() => {});
-        }
     }
 };
 
@@ -374,6 +353,16 @@ export const saveSettings = async (settings: AppSettings) => {
 
 export const getSyncQueue = async () => {
     return idb.getSyncQueue();
+};
+
+export const addToSyncQueue = async (item: SyncQueueItem) => {
+    await idb.addToSyncQueue(item);
+    window.dispatchEvent(new Event('queue-updated'));
+};
+
+export const removeFromSyncQueue = async (id: string) => {
+    await idb.removeFromSyncQueue(id);
+    window.dispatchEvent(new Event('queue-updated'));
 };
 
 // --- Images ---

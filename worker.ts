@@ -77,10 +77,10 @@ async function getSession(request: Request, env: Env): Promise<{ familyId: strin
     return null;
 }
 
-// --- Schema Initialization ---
+// --- Schema Initialization & Migration ---
 async function ensureSchema(env: Env) {
     try {
-        // Create tables if they don't exist. 
+        // 1. Create tables if they don't exist
         await env.DB.batch([
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS families (id TEXT PRIMARY KEY, name TEXT UNIQUE, password_hash TEXT, admin_password_hash TEXT, salt TEXT, created_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS device_tokens (token TEXT PRIMARY KEY, family_id TEXT, created_at INTEGER, last_used_at INTEGER)`),
@@ -90,6 +90,27 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
         ]);
+
+        // 2. Perform Migrations (Add missing columns to existing tables)
+        // SQLite does not support IF NOT EXISTS in ALTER TABLE, so we run them and ignore specific errors.
+        const migrations = [
+            "ALTER TABLE recipes ADD COLUMN family_id TEXT",
+            "ALTER TABLE recipes ADD COLUMN tenant_id TEXT DEFAULT 'global'",
+            "ALTER TABLE meal_plans ADD COLUMN family_id TEXT",
+            "ALTER TABLE restaurants ADD COLUMN family_id TEXT"
+        ];
+
+        for (const query of migrations) {
+            try {
+                await env.DB.prepare(query).run();
+            } catch (e: any) {
+                // Ignore "duplicate column name" error (SQLITE_ERROR code 1 or text matching)
+                if (!e.message.includes("duplicate column name")) {
+                    console.error(`Migration failed (${query}):`, e.message);
+                }
+            }
+        }
+
     } catch (e) {
         console.error("Schema init failed", e);
     }

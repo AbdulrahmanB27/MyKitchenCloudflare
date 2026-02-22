@@ -27,9 +27,13 @@ const checkAuth = async (request: Request, secret: string) => {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
-    // Return all non-deleted restaurants
-    const { results } = await context.env.DB.prepare("SELECT data FROM restaurants WHERE deleted = 0 ORDER BY updated_at DESC").all();
-    const list = results.map((row: any) => JSON.parse(row.data));
+    // Return all restaurants (including deleted ones) so clients can sync deletions
+    const { results } = await context.env.DB.prepare("SELECT data, deleted FROM restaurants ORDER BY updated_at DESC").all();
+    const list = results.map((row: any) => {
+        const data = JSON.parse(row.data);
+        // Ensure the deleted flag from the column overrides the JSON blob (or is added)
+        return { ...data, deleted: !!row.deleted };
+    });
     return new Response(JSON.stringify(list), { headers: { "Content-Type": "application/json" } });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -92,8 +96,16 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     const id = url.searchParams.get("id");
     if (!id) return new Response("Missing ID", { status: 400 });
 
-    // Soft delete
-    await context.env.DB.prepare("UPDATE restaurants SET deleted = 1 WHERE id = ?").bind(id).run();
+    const now = Date.now();
+    // Fetch existing to preserve some data if needed, or just overwrite with tombstone
+    // For restaurants, we just need to know it's deleted
+    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
+
+    // Soft delete: set deleted=1 AND update data blob
+    await context.env.DB.prepare("UPDATE restaurants SET deleted = 1, data = ?, updated_at = ? WHERE id = ?")
+        .bind(tombstone, now, id)
+        .run();
+        
     return new Response(JSON.stringify({ success: true }));
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });

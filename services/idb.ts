@@ -1,6 +1,6 @@
 
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant } from '../types';
-import { DB_NAME, DB_VERSION, STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS } from '../constants';
+import { DB_NAME, DB_VERSION, STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, STORE_REVIEWS } from '../constants';
 
 const STORE_SYNC_QUEUE = 'sync_queue';
 
@@ -11,6 +11,7 @@ const memoryDB: Record<string, Map<string, any>> = {
     [STORE_PLANS]: new Map(),
     [STORE_SETTINGS]: new Map(),
     [STORE_RESTAURANTS]: new Map(),
+    [STORE_REVIEWS]: new Map(),
     [STORE_SYNC_QUEUE]: new Map(),
 };
 
@@ -50,6 +51,11 @@ export const initDB = (): Promise<IDBDatabase> => {
             createStore(STORE_SETTINGS);
             createStore(STORE_SYNC_QUEUE);
             createStore(STORE_RESTAURANTS);
+            
+            if (!db.objectStoreNames.contains(STORE_REVIEWS)) {
+                const reviewStore = db.createObjectStore(STORE_REVIEWS, { keyPath: 'id' });
+                reviewStore.createIndex('targetId', 'targetId', { unique: false });
+            }
         };
     } catch (e) {
         console.warn("IndexedDB open threw error (fallback to memory):", e);
@@ -92,6 +98,21 @@ export const getOne = async <T>(storeName: string, id: string): Promise<T | unde
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+};
+
+export const getAllByIndex = async <T>(storeName: string, indexName: string, value: any): Promise<T[]> => {
+  const store = await getStore(storeName, 'readonly');
+  if (!store) {
+      // Memory fallback: filter manually
+      const all = Array.from(memoryDB[storeName]?.values() || []) as any[];
+      return all.filter(item => item[indexName] === value) as T[];
+  }
+  return new Promise((resolve, reject) => {
+    const index = store.index(indexName);
+    const req = index.getAll(value);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 };
 
 export const put = async <T>(storeName: string, item: T): Promise<void> => {

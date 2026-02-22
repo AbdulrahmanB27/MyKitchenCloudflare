@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
 import * as db from './services/db';
 import { ENABLE_RESTAURANTS } from './constants';
+import { v4 as uuidv4 } from 'uuid';
 import RecipeCard from './components/RecipeCard';
 import RecipeDetail from './components/RecipeDetail';
 import RecipeForm from './components/RecipeForm';
@@ -12,6 +13,7 @@ import Recommendations from './components/Recommendations';
 import RestaurantList from './components/RestaurantList';
 import AuthModal from './components/AuthModal';
 import ExportModal, { ExportOptions } from './components/ExportModal';
+import PublicRecipeView from './components/PublicRecipeView';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -27,6 +29,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'recipes' | 'shopping' | 'planner' | 'settings' | 'recommendations' | 'restaurants'>('recipes');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sharedRecipeId, setSharedRecipeId] = useState<string | null>(null);
 
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,24 +72,60 @@ const App: React.FC = () => {
         const imported = JSON.parse(content);
         
         let recipesToImport: any[] = [];
+        let reviewsToImport: any[] = [];
+
         if (Array.isArray(imported)) {
             recipesToImport = imported;
-        } else if (imported.recipes && Array.isArray(imported.recipes)) {
-            recipesToImport = imported.recipes;
         } else {
-            recipesToImport = [imported];
+            if (imported.recipes && Array.isArray(imported.recipes)) {
+                recipesToImport = imported.recipes;
+            } else if (imported.name) {
+                 recipesToImport = [imported];
+            }
+            
+            if (imported.reviews && Array.isArray(imported.reviews)) {
+                reviewsToImport = imported.reviews;
+            }
         }
         
         let count = 0;
+        let reviewCount = 0;
+
+        // Import reviews from top-level if exists
+        for (const r of reviewsToImport) {
+            await db.addReview(r);
+            reviewCount++;
+        }
+
         for (const r of recipesToImport) {
             if (r.name && r.ingredients && r.instructions) {
                 const shouldShare = r.shareToFamily !== undefined ? r.shareToFamily : false;
-                await db.upsertRecipe({ ...r, shareToFamily: shouldShare });
+                
+                // Extract legacy embedded reviews
+                if (r.reviews && Array.isArray(r.reviews)) {
+                    for (const oldR of r.reviews) {
+                         const newReview = {
+                            id: oldR.id || uuidv4(),
+                            targetId: r.id,
+                            targetType: 'recipe',
+                            rating: oldR.rating,
+                            date: oldR.date,
+                            text: oldR.text
+                        };
+                        await db.addReview(newReview);
+                        reviewCount++;
+                    }
+                }
+
+                // Remove legacy reviews if present in import
+                const { reviews, ...cleanRecipe } = r;
+                await db.upsertRecipe({ ...cleanRecipe, shareToFamily: shouldShare });
                 count++;
             }
         }
+
         await loadData();
-        alert(`Imported ${count} recipes.`);
+        alert(`Imported ${count} recipes and ${reviewCount} reviews.`);
       } catch (err) {
         console.error(err);
         alert('Failed to import recipes. Invalid JSON.');
@@ -96,18 +135,16 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const handleExport = (options: ExportOptions) => {
+  const handleExport = async (options: ExportOptions) => {
     const dataToExport: any = {
       version: 1,
       timestamp: Date.now(),
       recipes: recipes, 
     };
 
-    if (!options.includeReviews) {
-        dataToExport.recipes = recipes.map(r => {
-            const { reviews, ...rest } = r;
-            return { ...rest, reviews: [] };
-        });
+    if (options.includeReviews) {
+        const allReviews = await db.getAllReviews();
+        dataToExport.reviews = allReviews;
     }
 
     if (options.includeSettings) {
@@ -197,6 +234,15 @@ const App: React.FC = () => {
     };
     window.addEventListener('queue-updated', handleQueueUpdate);
     
+    // Check for shared recipe link
+    const params = new URLSearchParams(window.location.search);
+    const sharedId = params.get('shared_recipe');
+    if (sharedId) {
+        setSharedRecipeId(sharedId);
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+
     return () => {
         window.removeEventListener('recipes-updated', handleUpdates);
         window.removeEventListener('queue-updated', handleQueueUpdate);
@@ -391,6 +437,10 @@ const App: React.FC = () => {
   // --- Render ---
 
   if (loading) return <div className="flex items-center justify-center h-screen bg-background-light dark:bg-background-dark text-primary">Loading MyKitchen...</div>;
+
+  if (sharedRecipeId) {
+      return <PublicRecipeView recipeId={sharedRecipeId} onClose={() => setSharedRecipeId(null)} />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden font-display bg-background-light dark:bg-background-dark text-text-main dark:text-text-main-dark transition-colors duration-200">

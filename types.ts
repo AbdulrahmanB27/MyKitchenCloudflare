@@ -34,8 +34,11 @@ export interface Ingredient {
 
 export interface Review {
   id: string;
+  targetId: string; // ID of the recipe or restaurant
+  targetType: 'recipe' | 'restaurant';
   rating: number; // 1-10
   date: number;
+  text?: string; // Optional review text
 }
 
 export interface RecipeComponent {
@@ -90,7 +93,10 @@ export interface Recipe {
   nutrition?: Nutrition;
   source?: RecipeSource;
   addedBy?: string;
-  reviews: Review[];
+  
+  // Reviews (Cached)
+  averageRating?: number;
+  reviewCount?: number;
   
   // User State
   favorite: boolean;

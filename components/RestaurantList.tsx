@@ -10,18 +10,18 @@ interface RestaurantListProps {
     onOpenMenu: () => void;
 }
 
-const TIME_OPTIONS = (() => {
-    const times = [];
-    for (let i = 0; i < 24; i++) {
-        for (let j = 0; j < 60; j += 30) {
-            const h = i === 0 ? 12 : i > 12 ? i - 12 : i;
-            const ampm = i < 12 ? 'AM' : 'PM';
-            const m = j === 0 ? '00' : '30';
-            times.push(`${h}:${m} ${ampm}`);
-        }
-    }
-    return times;
-})();
+const HOURS = [
+    "12:00", "12:30", "1:00", "1:30", "2:00", "2:30", "3:00", "3:30", 
+    "4:00", "4:30", "5:00", "5:30", "6:00", "6:30", "7:00", "7:30", 
+    "8:00", "8:30", "9:00", "9:30", "10:00", "10:30", "11:00", "11:30"
+];
+
+const parseTime = (timeStr: string) => {
+    if (!timeStr) return { time: '12:00', period: 'PM' };
+    const parts = timeStr.split(' ');
+    if (parts.length < 2) return { time: '12:00', period: 'PM' };
+    return { time: parts[0], period: parts[1] as 'AM' | 'PM' };
+};
 
 const DAYS = [
     { id: 'Su', label: 'S', full: 'Sun' },
@@ -337,8 +337,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         if (r) {
             setFormData(r);
             setEditingId(r.id);
-            if (currentFamilyId) setTargetFamilyId(currentFamilyId);
-            else setTargetFamilyId('private');
+            if (r.familyId && availableSessions.some(s => s.id === r.familyId)) {
+                setTargetFamilyId(r.familyId);
+            } else {
+                setTargetFamilyId('private');
+            }
         } else {
             setFormData({ stars: 0, price: '$$', cuisineTags: [], isApproved: false });
             setEditingId(null);
@@ -1110,15 +1113,46 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-border-dark">
-                                            <Clock size={16} className="text-text-muted" />
-                                            <div className="flex items-center gap-2 text-sm flex-1">
-                                                <select value={schedStart} onChange={e => setSchedStart(e.target.value)} className="bg-transparent border-none text-right font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer p-0">
-                                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                        <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-border-dark">
+                                            <div className="flex items-center gap-2 flex-1 bg-white dark:bg-surface-dark rounded-lg p-1 border border-gray-100 dark:border-white/5 shadow-sm">
+                                                <Clock size={14} className="text-text-muted ml-2" />
+                                                <select 
+                                                    value={parseTime(schedStart).time} 
+                                                    onChange={e => setSchedStart(`${e.target.value} ${parseTime(schedStart).period}`)}
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                >
+                                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
                                                 </select>
-                                                <span className="text-gray-400 font-medium">to</span>
-                                                <select value={schedEnd} onChange={e => setSchedEnd(e.target.value)} className="bg-transparent border-none font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer p-0">
-                                                    {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                                <div className="w-px h-4 bg-gray-200 dark:bg-white/10"></div>
+                                                <select 
+                                                    value={parseTime(schedStart).period} 
+                                                    onChange={e => setSchedStart(`${parseTime(schedStart).time} ${e.target.value}`)}
+                                                    className="bg-transparent border-none text-xs font-bold text-primary focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                >
+                                                    <option value="AM">AM</option>
+                                                    <option value="PM">PM</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <span className="text-gray-400 font-medium text-xs uppercase">to</span>
+                                            
+                                            <div className="flex items-center gap-2 flex-1 bg-white dark:bg-surface-dark rounded-lg p-1 border border-gray-100 dark:border-white/5 shadow-sm">
+                                                <Clock size={14} className="text-text-muted ml-2" />
+                                                <select 
+                                                    value={parseTime(schedEnd).time} 
+                                                    onChange={e => setSchedEnd(`${e.target.value} ${parseTime(schedEnd).period}`)}
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                >
+                                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                                                </select>
+                                                <div className="w-px h-4 bg-gray-200 dark:bg-white/10"></div>
+                                                <select 
+                                                    value={parseTime(schedEnd).period} 
+                                                    onChange={e => setSchedEnd(`${parseTime(schedEnd).time} ${e.target.value}`)}
+                                                    className="bg-transparent border-none text-xs font-bold text-text-muted focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                >
+                                                    <option value="AM">AM</option>
+                                                    <option value="PM">PM</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1178,19 +1212,23 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                         {/* Footer */}
                         <div className="p-6 border-t border-primary/10 dark:border-border-dark bg-white dark:bg-surface-dark flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <label className="inline-flex items-center cursor-pointer select-none group">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer" 
-                                        checked={targetFamilyId === 'private'}
-                                        onChange={e => setTargetFamilyId(e.target.checked ? 'private' : (currentFamilyId || 'private'))}
-                                    />
-                                    <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                                    <span className="ms-3 text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-text-main dark:group-hover:text-white transition-colors">Private List</span>
-                                </label>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 bg-gray-50 dark:bg-black/20 px-3 py-2 rounded-xl border border-gray-200 dark:border-border-dark">
+                                    <Users size={16} className="text-text-muted" />
+                                    <span className="text-xs font-bold text-text-muted uppercase mr-1">Save to:</span>
+                                    <select
+                                        value={targetFamilyId}
+                                        onChange={(e) => setTargetFamilyId(e.target.value)}
+                                        className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-0 pl-0 pr-8"
+                                    >
+                                        <option value="private">Private List</option>
+                                        {availableSessions.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 {editingId && (
-                                    <button type="button" onClick={() => handleDelete(editingId)} className="ml-4 text-red-400 hover:text-red-500 text-sm font-bold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
+                                    <button type="button" onClick={() => handleDelete(editingId)} className="text-red-400 hover:text-red-500 text-sm font-bold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
                                         <Trash2 size={16} /> Delete
                                     </button>
                                 )}

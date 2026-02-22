@@ -171,7 +171,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     setCheckedIngredients(next);
   };
 
-  const handleShare = async () => {
+  const getRecipeText = () => {
     let shareText = `${recipe.name}\n${recipe.description || ''}\n\n`;
     
     shareText += `Prep: ${recipe.prepTime}m | Cook: ${recipe.cookTime}m | Servings: ${recipe.servings}\n\n`;
@@ -216,8 +216,12 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
             });
         });
     }
+    return shareText;
+  };
 
-    if (navigator.share) {
+  const handleShare = async (forceCopy = false) => {
+    const shareText = getRecipeText();
+    if (!forceCopy && navigator.share) {
         try {
             await navigator.share({
                 title: recipe.name,
@@ -230,6 +234,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         navigator.clipboard.writeText(shareText);
         alert('Recipe details copied to clipboard!');
     }
+    setIsShareOpen(false);
   };
 
   const handleCrossPost = async () => {
@@ -354,14 +359,19 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   const handleRate = async (score: number) => {
       const newReview: Review = {
           id: uuidv4(),
+          targetId: recipe.id,
+          targetType: 'recipe',
           rating: score,
           date: Date.now()
       };
-      const updatedRecipe = {
-          ...recipe,
-          reviews: [...(recipe.reviews || []), newReview]
-      };
-      await persistUpdate(updatedRecipe); // Rates typically sync
+      await db.addReview(newReview);
+      
+      // Reload to get updated stats
+      const updated = await db.getRecipe(recipe.id);
+      if (updated) {
+          setRecipe(updated);
+          onRefreshList();
+      }
       setIsRatingOpen(false);
   };
 
@@ -396,9 +406,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   };
 
   // Calculate Average Rating (Scale 1-10)
-  const avgRating = recipe.reviews && recipe.reviews.length > 0
-    ? (recipe.reviews.reduce((a, b) => a + b.rating, 0) / recipe.reviews.length)
-    : 0;
+  const avgRating = recipe.averageRating || 0;
+  const reviewCount = recipe.reviewCount || 0;
 
   // Convert to 5-star scale for visual
   const visualStars = avgRating / 2;
@@ -418,11 +427,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <h2 className="text-lg font-bold font-display text-text-main dark:text-white line-clamp-1">{recipe.name}</h2>
             </div>
             <div className="flex items-center gap-2">
-                {availableSessions.length > 1 && (
-                    <button onClick={() => setIsShareOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors" title="Share to Family">
-                        <Share size={18} />
-                    </button>
-                )}
                 <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors">
                     <span className="material-symbols-outlined text-[18px]">star</span> Rate
                 </button>
@@ -441,7 +445,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
         {/* Rating Modal */}
         {isRatingOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsRatingOpen(false)}>
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsRatingOpen(false)}>
                 <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
                     <div className="text-center mb-6">
                         <h3 className="text-xl font-bold font-display mb-1 dark:text-white">Rate this Recipe</h3>
@@ -467,35 +471,64 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
         {/* Share Modal */}
         {isShareOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
                 <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
                     <h3 className="text-lg font-bold font-display mb-4 dark:text-white flex items-center gap-2">
-                        <Users size={20} className="text-primary"/> Share Copy
+                        <Share size={20} className="text-primary"/> Share Recipe
                     </h3>
-                    <p className="text-sm text-text-muted mb-4">Select a family to send a copy of this recipe to:</p>
                     
-                    <div className="space-y-2 mb-4">
-                        {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).map(s => (
+                    {availableSessions.length > 1 && (
+                        <>
+                            <p className="text-sm text-text-muted mb-2 font-bold uppercase tracking-wider">Send Copy to Family</p>
+                            <div className="space-y-2 mb-6">
+                                {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).map(s => (
+                                    <button 
+                                        key={s.id}
+                                        onClick={() => setShareTargetId(s.id)}
+                                        className={`w-full p-3 rounded-lg border text-left font-bold transition-all ${shareTargetId === s.id ? 'border-primary bg-primary/10 text-primary' : 'border-border-light dark:border-border-dark dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                                    >
+                                        {s.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    <div className="mb-6">
+                        <p className="text-sm text-text-muted mb-2 font-bold uppercase tracking-wider">Share Options</p>
+                        <div className="grid grid-cols-2 gap-3">
                             <button 
-                                key={s.id}
-                                onClick={() => setShareTargetId(s.id)}
-                                className={`w-full p-3 rounded-lg border text-left font-bold transition-all ${shareTargetId === s.id ? 'border-primary bg-primary/10 text-primary' : 'border-border-light dark:border-border-dark dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                                onClick={() => {
+                                    const url = `${window.location.origin}?shared_recipe=${recipe.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    alert("Public link copied to clipboard!");
+                                    setIsShareOpen(false);
+                                }}
+                                className="p-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"
                             >
-                                {s.name}
+                                <ExternalLink size={20} /> 
+                                <span className="text-xs">Copy Link</span>
                             </button>
-                        ))}
-                        {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).length === 0 && (
-                            <p className="text-sm text-text-muted italic">No other families logged in.</p>
-                        )}
+                            <button 
+                                onClick={() => handleShare(true)}
+                                className="p-3 rounded-lg border border-border-light dark:border-border-dark text-text-main dark:text-white font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                                <span className="text-xs">Copy Text</span>
+                            </button>
+                        </div>
+                        <p className="text-xs text-text-muted mt-2 text-center">Use "Copy Link" to share a view-only version.</p>
                     </div>
 
                     <div className="flex gap-3">
                         <button onClick={() => setIsShareOpen(false)} className="flex-1 py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
-                            Cancel
+                            Close
                         </button>
-                        <button onClick={handleCrossPost} disabled={!shareTargetId} className="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-bold shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                            Share
-                        </button>
+                        {availableSessions.length > 1 && (
+                            <button onClick={handleCrossPost} disabled={!shareTargetId} className="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-bold shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                Send Copy
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -535,7 +568,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                     ))}
                                 </div>
                                 <span className="font-bold">
-                                    {avgRating > 0 ? `${avgRating.toFixed(1)}/10 (${recipe.reviews?.length || 0})` : 'No ratings'}
+                                    {avgRating > 0 ? `${avgRating.toFixed(1)}/10 (${reviewCount})` : 'No ratings'}
                                 </span>
                             </div>
                             <p className="text-gray-200 text-sm md:text-base max-w-2xl line-clamp-2 mt-2">{recipe.description}</p>
@@ -580,7 +613,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         </button>
                         <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
                         <div className="flex gap-2 ml-auto md:ml-0">
-                             <button onClick={handleShare} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
+                             <button onClick={() => setIsShareOpen(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
                                 <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
                                     <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">share</span>
                                 </div>

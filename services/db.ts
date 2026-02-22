@@ -1,7 +1,7 @@
 
-import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote } from '../types';
+import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote, Review } from '../types';
 import * as idb from './idb';
-import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS } from '../constants';
+import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS, STORE_REVIEWS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = '/api';
@@ -175,6 +175,9 @@ export const retrySync = async () => {
             if (item.store === STORE_RECIPES) {
                 if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
                 if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE', undefined, opts);
+            } else if (item.store === STORE_RESTAURANTS) {
+                if (item.action === 'upsert') await apiCall('/restaurants', 'POST', item.data, opts);
+                if (item.action === 'delete') await apiCall(`/restaurants?id=${item.id}`, 'DELETE', undefined, opts);
             } 
             // NOTE: Shopping sync removed
             // ... handle other stores
@@ -229,21 +232,122 @@ export const syncDown = async () => {
         try {
             const remoteRest = await apiCall('/restaurants', 'GET', undefined, { skipAuthRedirect: true });
             if (remoteRest) {
-                for (const r of remoteRest) await idb.put(STORE_RESTAURANTS, r);
+                for (const r of remoteRest) {
+                    if (r.deleted) {
+                        await idb.remove(STORE_RESTAURANTS, r.id);
+                    } else {
+                        await idb.put(STORE_RESTAURANTS, r);
+                    }
+                }
                 window.dispatchEvent(new Event('restaurants-updated'));
             }
         } catch (e) { console.warn("Failed to sync restaurants", e); }
     }
 };
 
+// --- Reviews ---
+
+export const getReviewsForTarget = async (targetId: string): Promise<Review[]> => {
+    return idb.getAllByIndex<Review>(STORE_REVIEWS, 'targetId', targetId);
+};
+
+export const addReview = async (review: Review) => {
+    await idb.put(STORE_REVIEWS, review);
+    
+    // Update cache on target
+    if (review.targetType === 'recipe') {
+        const recipe = await getRecipe(review.targetId);
+        if (recipe) {
+            const reviews = await getReviewsForTarget(review.targetId);
+            const avg = reviews.reduce((a, b) => a + b.rating, 0) / reviews.length;
+            await upsertRecipe({ ...recipe, averageRating: avg, reviewCount: reviews.length }, { localOnly: true });
+        }
+    }
+};
+
+export const deleteReviewsForTarget = async (targetId: string) => {
+    const reviews = await getReviewsForTarget(targetId);
+    for (const r of reviews) {
+        await idb.remove(STORE_REVIEWS, r.id);
+    }
+};
+
+export const getAllReviews = async (): Promise<Review[]> => {
+    return idb.getAll<Review>(STORE_REVIEWS);
+};
+
 // --- Recipes ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-    return idb.getAll<Recipe>(STORE_RECIPES);
+    const recipes = await idb.getAll<Recipe>(STORE_RECIPES);
+    
+    // Migration Check (One-time lazy migration)
+    let migrationNeeded = false;
+    for (const r of recipes) {
+        if ((r as any).reviews && Array.isArray((r as any).reviews) && (r as any).reviews.length > 0) {
+            migrationNeeded = true;
+            break;
+        }
+    }
+    
+    if (migrationNeeded) {
+        console.log("Migrating reviews...");
+        for (const r of recipes) {
+            if ((r as any).reviews && Array.isArray((r as any).reviews) && (r as any).reviews.length > 0) {
+                const oldReviews = (r as any).reviews as any[];
+                for (const oldR of oldReviews) {
+                    const newReview: Review = {
+                        id: oldR.id || uuidv4(),
+                        targetId: r.id,
+                        targetType: 'recipe',
+                        rating: oldR.rating,
+                        date: oldR.date,
+                        text: oldR.text
+                    };
+                    await idb.put(STORE_REVIEWS, newReview);
+                }
+                
+                // Update recipe to remove reviews and set cache
+                const reviews = await getReviewsForTarget(r.id);
+                const avg = reviews.reduce((a, b) => a + b.rating, 0) / reviews.length;
+                
+                const updated = { ...r, averageRating: avg, reviewCount: reviews.length };
+                delete (updated as any).reviews;
+                await idb.put(STORE_RECIPES, updated);
+            }
+        }
+        return idb.getAll<Recipe>(STORE_RECIPES); // Return fresh data
+    }
+
+    return recipes;
 };
 
 export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
-    return idb.getOne<Recipe>(STORE_RECIPES, id);
+    const r = await idb.getOne<Recipe>(STORE_RECIPES, id);
+    if (r && (r as any).reviews && Array.isArray((r as any).reviews) && (r as any).reviews.length > 0) {
+        // Migrate single recipe on read
+        const oldReviews = (r as any).reviews as any[];
+        for (const oldR of oldReviews) {
+            const newReview: Review = {
+                id: oldR.id || uuidv4(),
+                targetId: r.id,
+                targetType: 'recipe',
+                rating: oldR.rating,
+                date: oldR.date,
+                text: oldR.text
+            };
+            await idb.put(STORE_REVIEWS, newReview);
+        }
+        
+        const reviews = await getReviewsForTarget(r.id);
+        const avg = reviews.reduce((a, b) => a + b.rating, 0) / reviews.length;
+        
+        const updated = { ...r, averageRating: avg, reviewCount: reviews.length };
+        delete (updated as any).reviews;
+        await idb.put(STORE_RECIPES, updated);
+        return updated;
+    }
+    return r;
 };
 
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
@@ -268,6 +372,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
 };
 
 export const deleteRecipe = async (id: string) => {
+    await deleteReviewsForTarget(id);
     await idb.remove(STORE_RECIPES, id);
     if (hasAuthToken()) {
         try {
@@ -495,8 +600,15 @@ export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: bo
 };
 
 export const deleteRestaurant = async (id: string) => {
+    await deleteReviewsForTarget(id);
     await idb.remove(STORE_RESTAURANTS, id);
-    if (hasAuthToken()) apiCall(`/restaurants?id=${id}`, 'DELETE').catch(console.error);
+    if (hasAuthToken()) {
+        try {
+            await apiCall(`/restaurants?id=${id}`, 'DELETE');
+        } catch (e) {
+            await addToSyncQueue({ id, action: 'delete', store: STORE_RESTAURANTS, timestamp: Date.now() });
+        }
+    }
 };
 
 export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId: string) => {

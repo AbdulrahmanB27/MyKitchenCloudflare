@@ -33,7 +33,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
   // Share State
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [shareTargetId, setShareTargetId] = useState('');
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
 
   // Stopwatch Timers State: Map of step.id -> Timer Data
@@ -235,17 +234,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         alert('Recipe details copied to clipboard!');
     }
     setIsShareOpen(false);
-  };
-
-  const handleCrossPost = async () => {
-      if (!shareTargetId) return;
-      try {
-          await db.crossPostRecipe(recipe, shareTargetId);
-          alert(`Copied "${recipe.name}" to the selected family.`);
-          setIsShareOpen(false);
-      } catch (e: any) {
-          alert(`Failed to share: ${e.message}`);
-      }
   };
 
   const persistUpdate = async (updated: Recipe, localOnly = false) => {
@@ -477,29 +465,13 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         <Share size={20} className="text-primary"/> Share Recipe
                     </h3>
                     
-                    {availableSessions.length > 1 && (
-                        <>
-                            <p className="text-sm text-text-muted mb-2 font-bold uppercase tracking-wider">Send Copy to Family</p>
-                            <div className="space-y-2 mb-6">
-                                {availableSessions.filter(s => s.id !== db.getCurrentFamilyId()).map(s => (
-                                    <button 
-                                        key={s.id}
-                                        onClick={() => setShareTargetId(s.id)}
-                                        className={`w-full p-3 rounded-lg border text-left font-bold transition-all ${shareTargetId === s.id ? 'border-primary bg-primary/10 text-primary' : 'border-border-light dark:border-border-dark dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'}`}
-                                    >
-                                        {s.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-
                     <div className="mb-6">
                         <p className="text-sm text-text-muted mb-2 font-bold uppercase tracking-wider">Share Options</p>
                         <div className="grid grid-cols-2 gap-3">
                             <button 
                                 onClick={() => {
-                                    const url = `${window.location.origin}?shared_recipe=${recipe.id}`;
+                                    const baseUrl = window.location.href.split('?')[0];
+                                    const url = `${baseUrl}?shared_recipe=${recipe.id}`;
                                     navigator.clipboard.writeText(url);
                                     alert("Public link copied to clipboard!");
                                     setIsShareOpen(false);
@@ -521,14 +493,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     </div>
 
                     <div className="flex gap-3">
-                        <button onClick={() => setIsShareOpen(false)} className="flex-1 py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                        <button onClick={() => setIsShareOpen(false)} className="w-full py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
                             Close
                         </button>
-                        {availableSessions.length > 1 && (
-                            <button onClick={handleCrossPost} disabled={!shareTargetId} className="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-bold shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                Send Copy
-                            </button>
-                        )}
                     </div>
                 </div>
             </div>

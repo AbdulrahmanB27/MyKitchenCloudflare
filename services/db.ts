@@ -350,7 +350,7 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
     return r;
 };
 
-export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
+export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean, forceUpload?: boolean }) => {
     // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
     if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
@@ -361,7 +361,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     
     if (options?.localOnly) return; 
 
-    if (hasAuthToken() && recipe.shareToFamily) {
+    if (hasAuthToken() && (recipe.shareToFamily || options?.forceUpload)) {
         try {
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {

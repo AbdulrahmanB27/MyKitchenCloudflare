@@ -142,7 +142,13 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
         }
 
         if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+            const text = await res.text();
+            let err;
+            try {
+                err = JSON.parse(text);
+            } catch {
+                err = { error: text || 'Unknown error' };
+            }
             const error: any = new Error(err.error || res.statusText);
             error.status = res.status;
             throw error;

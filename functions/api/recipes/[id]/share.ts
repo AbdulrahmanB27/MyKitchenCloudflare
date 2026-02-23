@@ -39,10 +39,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
   const authPayload = await checkAuth(context.request, envPassword);
   
-  if (!authPayload) return new Response("Unauthorized", { status: 401 });
+  if (!authPayload) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
 
   const recipeId = context.params.id;
-  if (!recipeId) return new Response("Missing Recipe ID", { status: 400 });
+  if (!recipeId) return new Response(JSON.stringify({ error: "Missing Recipe ID" }), { status: 400, headers: { "Content-Type": "application/json" } });
 
   const familyId = authPayload.familyId;
 
@@ -54,7 +54,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const recipe = await context.env.DB.prepare("SELECT id FROM recipes WHERE id = ?").bind(recipeId).first();
     
     if (!recipe) {
-        return new Response("Recipe not found", { status: 404 });
+        return new Response(JSON.stringify({ error: "Recipe not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     }
 
     // 2. Check if share link already exists
@@ -84,6 +84,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return new Response(JSON.stringify({ token, recipeId }), { headers: { "Content-Type": "application/json" } });
 
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 };

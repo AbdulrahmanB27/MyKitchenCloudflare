@@ -350,7 +350,22 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
     return r;
 };
 
-export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean, forceUpload?: boolean }) => {
+export const publishRecipe = async (recipe: Recipe) => {
+    // This uploads the recipe to the public endpoint without requiring family auth.
+    // It makes the recipe accessible via ID but does not add it to family sync lists.
+    const res = await fetch(`${API_BASE}/public_recipe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recipe)
+    });
+    
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || res.statusText);
+    }
+};
+
+export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
     // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
     if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
@@ -361,7 +376,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     
     if (options?.localOnly) return; 
 
-    if (hasAuthToken() && (recipe.shareToFamily || options?.forceUpload)) {
+    if (hasAuthToken() && recipe.shareToFamily) {
         try {
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {

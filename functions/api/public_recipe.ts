@@ -34,3 +34,30 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 };
+
+export const onRequestPost: PagesFunction<Env> = async (context) => {
+  try {
+    const recipe = await context.request.json() as any;
+    const now = Date.now();
+    
+    // Insert into DB. We set share_to_family = 0 so it doesn't appear in the global sync list.
+    // We treat this as a "public" upload accessible only by ID.
+    await context.env.DB.prepare(
+      "INSERT INTO recipes (id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, data=excluded.data, updated_at=excluded.updated_at"
+    ).bind(
+      recipe.id, 
+      recipe.name, 
+      recipe.category, 
+      0, // is_favorite (not relevant for public view)
+      0, // is_archived
+      0, // share_to_family (0 = hidden from list, accessible by ID)
+      'public', // tenant_id
+      JSON.stringify(recipe), 
+      now
+    ).run();
+
+    return new Response(JSON.stringify({ success: true, id: recipe.id }), { headers: { "Content-Type": "application/json" } });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+};

@@ -472,15 +472,15 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 onClick={async () => {
                                     // Force upload to ensure it's available publicly
                                     try {
-                                        await db.upsertRecipe(recipe, { forceUpload: true });
+                                        await db.publishRecipe(recipe);
                                         
                                         const baseUrl = window.location.href.split('?')[0];
                                         const url = `${baseUrl}?shared_recipe=${recipe.id}`;
                                         navigator.clipboard.writeText(url);
                                         alert("Public link copied to clipboard!");
                                         setIsShareOpen(false);
-                                    } catch (e) {
-                                        alert("Failed to generate link. Please check your connection.");
+                                    } catch (e: any) {
+                                        alert(`Failed to generate link: ${e.message}`);
                                     }
                                 }}
                                 className="p-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"

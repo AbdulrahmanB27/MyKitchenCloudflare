@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sharedRecipeId, setSharedRecipeId] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
 
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
@@ -236,10 +237,17 @@ const App: React.FC = () => {
     
     // Check for shared recipe link
     const params = new URLSearchParams(window.location.search);
-    const sharedId = params.get('shared_recipe');
-    if (sharedId) {
+    const sharedId = params.get('shared_recipe') || params.get('recipeId');
+    const token = params.get('share');
+    
+    if (sharedId && token) {
         setSharedRecipeId(sharedId);
+        setShareToken(token);
         // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+    } else if (sharedId) {
+        // Legacy support or internal link
+        setSharedRecipeId(sharedId);
         window.history.replaceState({}, '', window.location.pathname);
     }
 

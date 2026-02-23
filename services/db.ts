@@ -350,10 +350,23 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
     return r;
 };
 
+export const shareRecipe = async (recipeId: string): Promise<string> => {
+    const res = await apiCall(`/recipes/${recipeId}/share`, 'POST');
+    return res.token;
+};
+
+export const getSharedRecipe = async (recipeId: string, token: string): Promise<Recipe> => {
+    const res = await fetch(`${API_BASE}/share/recipe?recipeId=${recipeId}&token=${token}`);
+    if (!res.ok) {
+        throw new Error("Recipe link is invalid or removed");
+    }
+    return res.json();
+};
+
 export const publishRecipe = async (recipe: Recipe) => {
     // This uploads the recipe to the public endpoint without requiring family auth.
     // It makes the recipe accessible via ID but does not add it to family sync lists.
-    const res = await fetch(`${API_BASE}/public_recipe`, {
+    const res = await fetch(`${API_BASE}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(recipe)

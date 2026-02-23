@@ -637,11 +637,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
       <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-card-light dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-light dark:border-border-dark">
-        <div className="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-light dark:border-border-dark">
           <h2 className="text-xl font-bold text-text-light dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
           {/* Basics */}
           <section className="space-y-4">
              <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
@@ -866,8 +866,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </section>
 
         </div>
-        <div className="p-4 border-t border-border-light dark:border-border-dark flex justify-between gap-3 bg-card-light dark:bg-card-dark rounded-b-2xl">
-          <div className="flex items-center gap-3">
+        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col-reverse sm:flex-row justify-between gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
+          <div className="flex items-center justify-center sm:justify-start gap-3">
               {!initialData && (
                   <>
                     <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
@@ -882,11 +882,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
               )}
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
               {targetFamilyId !== 'private' && (
                   <div 
                     onClick={() => setSyncToFamily(!syncToFamily)} 
-                    className="flex items-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none"
+                    className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none"
                   >
                       <div className={`w-4 h-4 rounded border flex items-center justify-center ${syncToFamily ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
                           {syncToFamily && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
@@ -894,11 +894,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                       <span>Sync to Family</span>
                   </div>
               )}
-              <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg">Cancel</button>
-              <button type="submit" disabled={isUploading || isSaving} className="px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center gap-2 disabled:opacity-50">
-                  {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
-                  Save
-              </button>
+              <div className="flex gap-3">
+                <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
+                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
+                    {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
+                    Save
+                </button>
+              </div>
           </div>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />

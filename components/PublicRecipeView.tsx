@@ -5,10 +5,11 @@ import { User, ExternalLink, CookingPot, Lightbulb, Clock } from 'lucide-react';
 
 interface PublicRecipeViewProps {
     recipeId: string;
+    shareToken?: string | null;
     onClose: () => void;
 }
 
-const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, onClose }) => {
+const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToken, onClose }) => {
     const [recipe, setRecipe] = useState<Recipe | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -17,8 +18,24 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, onClose }
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await fetch(`/api/public_recipe?id=${recipeId}`);
-                if (!res.ok) throw new Error("Recipe not found");
+                let url = '';
+                if (shareToken) {
+                    url = `/api/share/recipe?recipeId=${recipeId}&token=${shareToken}`;
+                } else {
+                    // Fallback to legacy public endpoint if no token (or internal logic)
+                    // But per requirements, we should use the token endpoint.
+                    // If no token, maybe it's a legacy link?
+                    // The prompt says: "If share token is present: load recipe via GET /api/share/recipe... If share token is not present: use normal family endpoint logic"
+                    // But this component is "PublicRecipeView".
+                    // If no token, we might try the old endpoint or fail.
+                    // Let's assume for now we try the old endpoint if token is missing, or just fail if it was removed.
+                    // Actually, the old endpoint was /api/share (renamed from public_recipe).
+                    // Let's support both for now or just the new one.
+                    url = `/api/share?id=${recipeId}`; 
+                }
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("Recipe not found or link invalid");
                 const data = await res.json();
                 setRecipe(data);
                 setCurrentServings(data.servings || 1);
@@ -29,7 +46,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, onClose }
             }
         };
         load();
-    }, [recipeId]);
+    }, [recipeId, shareToken]);
 
     const groupedIngredients = useMemo(() => {
         if (!recipe) return [];

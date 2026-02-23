@@ -131,6 +131,11 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
         "UPDATE recipes SET data = ?, updated_at = ?, name = 'Deleted' WHERE id = ?"
     ).bind(tombstone, now, id).run();
 
+    // Revoke any share links for this recipe
+    await context.env.DB.prepare(
+        "UPDATE recipe_share_links SET revoked_at = ? WHERE recipe_id = ?"
+    ).bind(now, id).run();
+
     return new Response(JSON.stringify({ success: true, timestamp: now }));
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });

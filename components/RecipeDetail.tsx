@@ -470,12 +470,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         <div className="grid grid-cols-2 gap-3">
                             <button 
                                 onClick={async () => {
-                                    // Force upload to ensure it's available publicly
                                     try {
-                                        await db.publishRecipe(recipe);
+                                        const token = await db.shareRecipe(recipe.id);
                                         
                                         const baseUrl = window.location.href.split('?')[0];
-                                        const url = `${baseUrl}?shared_recipe=${recipe.id}`;
+                                        const url = `${baseUrl}?recipeId=${recipe.id}&share=${token}`;
                                         navigator.clipboard.writeText(url);
                                         alert("Public link copied to clipboard!");
                                         setIsShareOpen(false);

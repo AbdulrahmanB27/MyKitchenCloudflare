@@ -88,7 +88,8 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS meal_plans (id TEXT PRIMARY KEY, family_id TEXT, date TEXT, slot TEXT, recipe_id TEXT, data TEXT, updated_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`)
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`)
         ]);
 
         // 2. Perform Migrations (Add missing columns to existing tables)
@@ -547,6 +548,129 @@ async function handleImages(request: Request, env: Env) {
     return errorResponse("Method Not Allowed", 405);
 }
 
+// 8. Share (Public / Token based)
+async function handleShare(request: Request, env: Env) {
+    await ensureSchema(env);
+    const url = new URL(request.url);
+
+    // GET /api/share/recipe?recipeId=...&token=...
+    if (url.pathname === '/api/share/recipe') {
+        const recipeId = url.searchParams.get("recipeId");
+        const token = url.searchParams.get("token");
+
+        if (!recipeId || !token) {
+            return errorResponse("Missing recipeId or token", 400);
+        }
+
+        // 1. Validate token
+        const share = await env.DB.prepare(
+            "SELECT * FROM recipe_share_links WHERE token = ? AND recipe_id = ? AND revoked_at IS NULL"
+        ).bind(token, recipeId).first();
+
+        if (!share) {
+            return errorResponse("Invalid or revoked share link", 404);
+        }
+
+        // 2. Fetch recipe
+        const recipe = await env.DB.prepare(
+            "SELECT data FROM recipes WHERE id = ?"
+        ).bind(recipeId).first();
+
+        if (!recipe) {
+            return errorResponse("Recipe not found", 404);
+        }
+
+        const recipeData = JSON.parse(recipe.data);
+        return jsonResponse(recipeData);
+    }
+
+    // GET /api/share?id=... (Legacy/Public ID)
+    if (url.pathname === '/api/share') {
+        const id = url.searchParams.get("id");
+        if (!id) return errorResponse("Missing ID", 400);
+
+        const result = await env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
+        if (!result) return errorResponse("Recipe not found", 404);
+
+        return jsonResponse(JSON.parse(result.data));
+    }
+
+    return errorResponse("Not Found", 404);
+}
+
+async function handleRecipeShare(request: Request, env: Env) {
+    await ensureSchema(env);
+    const url = new URL(request.url);
+    // Path: /api/recipes/:id/share
+    const parts = url.pathname.split('/');
+    const recipeId = parts[3]; // "", "api", "recipes", "ID", "share" -> index 3
+
+    if (!recipeId) return errorResponse("Missing Recipe ID", 400);
+
+    if (request.method === 'POST') {
+        // Auth optional
+        const session = await getSession(request, env);
+        const familyId = session ? session.familyId : 'public';
+
+        // 1. Verify recipe exists
+        let recipe = await env.DB.prepare("SELECT id FROM recipes WHERE id = ?").bind(recipeId).first();
+        
+        if (!recipe) {
+            // Try to read body to see if client sent recipe data
+            try {
+                const body: any = await request.json();
+                if (body && body.id === recipeId) {
+                    const now = Date.now();
+                    // Insert recipe into DB so it can be shared
+                    await env.DB.prepare(
+                      "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
+                    ).bind(
+                      body.id, 
+                      familyId === 'public' ? 'public' : familyId, // Use 'public' or actual familyId
+                      body.name, 
+                      body.category, 
+                      0, // is_favorite
+                      0, // is_archived
+                      0, // share_to_family
+                      'global',
+                      JSON.stringify(body), 
+                      now
+                    ).run();
+                    
+                    recipe = { id: recipeId };
+                }
+            } catch (e) {
+                // Ignore body parse errors or empty body
+            }
+        }
+        
+        if (!recipe) {
+            return errorResponse("Recipe not found", 404);
+        }
+
+        // 2. Check if share link already exists
+        const existing = await env.DB.prepare(
+            "SELECT token FROM recipe_share_links WHERE recipe_id = ? AND revoked_at IS NULL"
+        ).bind(recipeId).first();
+
+        if (existing) {
+            return jsonResponse({ token: existing.token, recipeId });
+        }
+
+        // 3. Generate new token
+        const token = generateToken(); // Use existing helper
+        const now = Date.now();
+
+        await env.DB.prepare(
+            "INSERT INTO recipe_share_links (token, family_id, recipe_id, created_at) VALUES (?, ?, ?, ?)"
+        ).bind(token, familyId, recipeId, now).run();
+
+        return jsonResponse({ token, recipeId });
+    }
+
+    return errorResponse("Method Not Allowed", 405);
+}
+
 // --- Main Router ---
 
 export default {
@@ -561,6 +685,10 @@ export default {
         if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
         if (url.pathname.startsWith('/api/admin')) return handleAdmin(request, env);
         
+        // Share Routes
+        if (url.pathname.startsWith('/api/share')) return handleShare(request, env);
+        if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return handleRecipeShare(request, env);
+
         // Updated Routes (now use token-based session)
         if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
         // Shopping list removed

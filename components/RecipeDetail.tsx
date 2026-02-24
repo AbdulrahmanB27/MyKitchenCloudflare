@@ -479,7 +479,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                         alert("Public link copied to clipboard!");
                                         setIsShareOpen(false);
                                     } catch (e: any) {
-                                        alert(`Failed to generate link: ${e.message}`);
+                                        console.error("Share failed", e);
+                                        const msg = e.message || "Unknown error";
+                                        const status = e.status ? ` (${e.status})` : "";
+                                        const url = e.url ? `\nURL: ${e.url}` : "";
+                                        alert(`Failed to generate link: ${msg}${status}${url}`);
                                     }
                                 }}
                                 className="p-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"

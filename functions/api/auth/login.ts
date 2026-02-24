@@ -81,12 +81,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 2. Validate Password
     if (password === envPassword) {
         const payload = { 
-            sub: 'family_member', 
+            sub: 'family_member',
+            familyId: 'default',
             // Set expiration to 100 years from now (effectively never)
             exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
         };
         const token = await signToken(payload, envPassword);
-        return new Response(JSON.stringify({ token, success: true }), { 
+        return new Response(JSON.stringify({ token, success: true, familyId: 'default', name: 'My Family' }), { 
             headers: { "Content-Type": "application/json", ...corsHeaders } 
         });
     } else {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Recipe, Ingredient, Instruction } from '../types';
 import { formatFraction } from '../utils/format';
-import { User, ExternalLink, CookingPot, Lightbulb, Clock } from 'lucide-react';
+import { User, ExternalLink, CookingPot, Lightbulb, Clock, Play, Share, Check } from 'lucide-react';
+import CookMode from './CookMode';
 
 interface PublicRecipeViewProps {
     recipeId: string;
@@ -14,6 +15,8 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [currentServings, setCurrentServings] = useState<number>(1);
+    const [isCookMode, setIsCookMode] = useState(false);
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -22,15 +25,6 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                 if (shareToken) {
                     url = `/api/share/recipe?recipeId=${recipeId}&token=${shareToken}`;
                 } else {
-                    // Fallback to legacy public endpoint if no token (or internal logic)
-                    // But per requirements, we should use the token endpoint.
-                    // If no token, maybe it's a legacy link?
-                    // The prompt says: "If share token is present: load recipe via GET /api/share/recipe... If share token is not present: use normal family endpoint logic"
-                    // But this component is "PublicRecipeView".
-                    // If no token, we might try the old endpoint or fail.
-                    // Let's assume for now we try the old endpoint if token is missing, or just fail if it was removed.
-                    // Actually, the old endpoint was /api/share (renamed from public_recipe).
-                    // Let's support both for now or just the new one.
                     url = `/api/share?id=${recipeId}`; 
                 }
 
@@ -98,11 +92,32 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
         return result;
     }, [recipe]);
 
+    const handleShare = async () => {
+        const url = window.location.href;
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: recipe?.name,
+                    url: url
+                });
+            } catch (e) {
+                // Ignore
+            }
+        } else {
+            navigator.clipboard.writeText(url);
+            alert('Link copied to clipboard!');
+        }
+    };
+
     if (loading) return <div className="flex items-center justify-center h-screen text-primary font-bold">Loading...</div>;
     if (error || !recipe) return <div className="flex items-center justify-center h-screen text-red-500 font-bold">{error || "Recipe not found"}</div>;
 
     const originalServings = recipe.servings || 1;
     const scalingFactor = currentServings / originalServings;
+
+    if (isCookMode) {
+        return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} />;
+    }
 
     const renderIngredient = (ing: Ingredient) => {
         const scaledAmount = ing.amount * scalingFactor;
@@ -160,26 +175,45 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                     </div>
 
                     {/* Stats */}
-                    <div className="flex flex-wrap gap-3">
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.prepTime}m</p>
-                            <div className="flex items-center gap-1 text-text-muted">
-                                <Clock size={16} />
-                                <p className="text-xs font-medium uppercase tracking-wide">Prep</p>
+                    <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                        <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                            <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                                <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.prepTime}m</p>
+                                <div className="flex items-center gap-1 text-text-muted">
+                                    <Clock size={16} />
+                                    <p className="text-xs font-medium uppercase tracking-wide">Prep</p>
+                                </div>
+                            </div>
+                            <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                                <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.cookTime}m</p>
+                                <div className="flex items-center gap-1 text-text-muted">
+                                    <CookingPot size={16} />
+                                    <p className="text-xs font-medium uppercase tracking-wide">Cook</p>
+                                </div>
+                            </div>
+                            <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                                <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.servings}</p>
+                                <div className="flex items-center gap-1 text-text-muted">
+                                    <span className="material-symbols-outlined text-[16px]">restaurant</span>
+                                    <p className="text-xs font-medium uppercase tracking-wide">Yield</p>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.cookTime}m</p>
-                            <div className="flex items-center gap-1 text-text-muted">
-                                <CookingPot size={16} />
-                                <p className="text-xs font-medium uppercase tracking-wide">Cook</p>
-                            </div>
-                        </div>
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{recipe.servings}</p>
-                            <div className="flex items-center gap-1 text-text-muted">
-                                <span className="material-symbols-outlined text-[16px]">restaurant</span>
-                                <p className="text-xs font-medium uppercase tracking-wide">Yield</p>
+
+                        {/* Actions */}
+                        <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center no-scrollbar">
+                            <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-accent-light dark:bg-accent-dark hover:bg-primary hover:text-white text-primary dark:text-primary-dark dark:hover:text-white font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
+                                <Play size={24} fill="currentColor" />
+                                <span className="text-sm">Start Cooking</span>
+                            </button>
+                            <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
+                            <div className="flex gap-2 ml-auto md:ml-0">
+                                <button onClick={handleShare} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
+                                    <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
+                                        <Share size={20} className="text-text-main dark:text-white" />
+                                    </div>
+                                    <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
+                                </button>
                             </div>
                         </div>
                     </div>

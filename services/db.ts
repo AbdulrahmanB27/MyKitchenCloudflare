@@ -155,7 +155,14 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
         }
 
         if (res.status === 204) return null;
-        return res.json();
+        
+        const text = await res.text();
+        try {
+            return text ? JSON.parse(text) : {};
+        } catch (e) {
+            console.error("API Response was not JSON:", text);
+            throw new Error("Unexpected end of JSON input");
+        }
     } catch (e: any) {
         clearTimeout(timeoutId);
         if (e.name === 'AbortError') {
@@ -357,8 +364,16 @@ export const getRecipe = async (id: string): Promise<Recipe | undefined> => {
 };
 
 export const shareRecipe = async (recipeId: string): Promise<string> => {
-    const res = await apiCall(`/recipes/${recipeId}/share`, 'POST');
-    return res.token;
+    try {
+        // Fetch local recipe data to send to server in case it doesn't exist there
+        const recipe = await idb.getOne(STORE_RECIPES, recipeId);
+        
+        const res = await apiCall(`/recipes/${recipeId}/share`, 'POST', recipe);
+        return res.token;
+    } catch (e: any) {
+        console.error("Failed to share recipe:", e, e.status);
+        throw e;
+    }
 };
 
 export const getSharedRecipe = async (recipeId: string, token: string): Promise<Recipe> => {
@@ -527,9 +542,9 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
 
 // --- Auth ---
 
-export const authenticate = async (familyName: string, password: string): Promise<{ success: boolean, error?: string }> => {
+export const authenticate = async (familyName: string, password: string, turnstileToken?: string): Promise<{ success: boolean, error?: string }> => {
     try {
-        const res = await apiCall('/auth/login', 'POST', { familyName, password });
+        const res = await apiCall('/auth/login', 'POST', { familyName, password, turnstileToken });
         if (res.token) {
             handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
@@ -540,9 +555,9 @@ export const authenticate = async (familyName: string, password: string): Promis
     }
 };
 
-export const registerFamily = async (familyName: string, password: string, adminPassword: string): Promise<{ success: boolean, error?: string }> => {
+export const registerFamily = async (familyName: string, password: string, adminPassword: string, turnstileToken?: string): Promise<{ success: boolean, error?: string }> => {
     try {
-        const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword });
+        const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword, turnstileToken });
         if (res.token) {
             handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };

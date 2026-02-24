@@ -13,8 +13,7 @@
     {
       "binding": "DB",
       "database_name": "MyKitchenDB",
-      "database_id": "2634e868-674e-42a6-acd4-f173c8a52a57",
-      "remote": true
+      "database_id": "2634e868-674e-42a6-acd4-f173c8a52a57"
     }
   ],
   "r2_buckets": [

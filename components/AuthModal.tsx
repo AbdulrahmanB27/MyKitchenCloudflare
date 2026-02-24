@@ -29,21 +29,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
     useEffect(() => {
         // Initialize Turnstile if available
+        let widgetId: string | undefined;
         if ((window as any).turnstile) {
             try {
-                (window as any).turnstile.render('#turnstile-container', {
+                // Clear container first to be safe
+                const container = document.getElementById('turnstile-container');
+                if (container) container.innerHTML = '';
+                
+                widgetId = (window as any).turnstile.render('#turnstile-container', {
                     sitekey: '0x4AAAAAAAzyj7W1jX7W1jX7', // Demo key, replace with env/config if real
                     callback: (token: string) => setTurnstileToken(token),
                 });
-            } catch(e) {}
+            } catch(e) {
+                console.warn("Turnstile render error", e);
+            }
         }
+        return () => {
+            if (widgetId && (window as any).turnstile) {
+                try {
+                    (window as any).turnstile.remove(widgetId);
+                } catch (e) {}
+            }
+        };
     }, [mode]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
-        const res = await db.authenticate(familyName, password); // db.authenticate handles token storage safely
+        const res = await db.authenticate(familyName, password, turnstileToken); // db.authenticate handles token storage safely
         setLoading(false);
         if (res.success) {
             onSuccess();
@@ -57,7 +71,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         e.preventDefault();
         setLoading(true);
         setError('');
-        const res = await db.registerFamily(familyName, password, adminPassword);
+        const res = await db.registerFamily(familyName, password, adminPassword, turnstileToken);
         setLoading(false);
         if (res.success) {
             onSuccess();

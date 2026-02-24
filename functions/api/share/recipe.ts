@@ -22,7 +22,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     ).bind(token, recipeId).first();
 
     if (!share) {
-        return new Response("Invalid or revoked share link", { status: 404 });
+        console.error(`Share link not found or revoked: token=${token}, recipeId=${recipeId}`);
+        return new Response(JSON.stringify({ error: "Invalid or revoked share link" }), { status: 404, headers: { "Content-Type": "application/json" } });
     }
 
     // 2. Fetch recipe
@@ -31,7 +32,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     ).bind(recipeId).first();
 
     if (!recipe) {
-        return new Response("Recipe not found", { status: 404 });
+        console.error(`Recipe not found for share link: recipeId=${recipeId}`);
+        return new Response(JSON.stringify({ error: "Recipe not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     }
 
     const recipeData = JSON.parse(recipe.data);

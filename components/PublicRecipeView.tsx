@@ -29,11 +29,20 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                 }
 
                 const res = await fetch(url);
-                if (!res.ok) throw new Error("Recipe not found or link invalid");
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.error || "Recipe not found or link invalid");
+                    } catch (e) {
+                         throw new Error(errorText || "Recipe not found or link invalid");
+                    }
+                }
                 const data = await res.json();
                 setRecipe(data);
                 setCurrentServings(data.servings || 1);
             } catch (e: any) {
+                console.error("Failed to load shared recipe:", e);
                 setError(e.message);
             } finally {
                 setLoading(false);

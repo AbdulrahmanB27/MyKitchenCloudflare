@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Recipe, Ingredient, Instruction } from '../types';
+import { Recipe, Ingredient, Instruction, ShoppingItem } from '../types';
 import { formatFraction } from '../utils/format';
-import { User, ExternalLink, CookingPot, Lightbulb, Clock, Play, Share, Check } from 'lucide-react';
+import { User, ExternalLink, CookingPot, Lightbulb, Clock, Play, Share, Check, ShoppingCart, Copy, Link as LinkIcon, X, FileText } from 'lucide-react';
 import CookMode from './CookMode';
+import * as db from '../services/db';
+import { v4 as uuidv4 } from 'uuid';
 
 interface PublicRecipeViewProps {
     recipeId: string;
@@ -16,7 +18,26 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
     const [error, setError] = useState('');
     const [currentServings, setCurrentServings] = useState<number>(1);
     const [isCookMode, setIsCookMode] = useState(false);
-    const [isShareOpen, setIsShareOpen] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+
+    const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
+
+    // Escape key listener
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && showShareModal) {
+                setShowShareModal(false);
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [showShareModal]);
+
+    const showToast = (message: string) => {
+        setToast({ message, visible: true });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -101,21 +122,123 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
         return result;
     }, [recipe]);
 
-    const handleShare = async () => {
-        const url = window.location.href;
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: recipe?.name,
-                    url: url
-                });
-            } catch (e) {
-                // Ignore
-            }
-        } else {
-            navigator.clipboard.writeText(url);
-            alert('Link copied to clipboard!');
+    const getShareUrl = () => {
+        const baseUrl = window.location.origin + window.location.pathname;
+        if (shareToken) {
+            return `${baseUrl}?recipeId=${recipeId}&share=${shareToken}`;
         }
+        return `${baseUrl}?recipeId=${recipeId}`;
+    };
+
+    const getRecipeText = () => {
+        if (!recipe) return '';
+        let text = `${recipe.name}\n\n`;
+        text += `Prep: ${recipe.prepTime}m | Cook: ${recipe.cookTime}m | Servings: ${recipe.servings}\n\n`;
+        
+        text += `INGREDIENTS:\n`;
+        groupedIngredients.forEach(group => {
+            if (group.title) text += `\n${group.title}:\n`;
+            group.items.forEach(ing => {
+                text += `- ${formatFraction(ing.amount)} ${ing.unit} ${ing.item}`;
+                if (ing.notes) text += ` (${ing.notes})`;
+                text += `\n`;
+            });
+        });
+
+        text += `\nINSTRUCTIONS:\n`;
+        groupedInstructions.forEach(group => {
+            if (group.title) text += `\n${group.title}:\n`;
+            group.steps.forEach((step, idx) => {
+                const stepText = typeof step === 'string' ? step : step.text;
+                text += `${idx + 1}. ${stepText}\n`;
+            });
+        });
+
+        text += `\nShared via MyKitchen: ${getShareUrl()}`;
+        return text;
+    };
+
+    const handleLinkAction = (action: 'copy' | 'share') => {
+        const url = getShareUrl();
+        if (action === 'copy') {
+            navigator.clipboard.writeText(url);
+            showToast('Link copied to clipboard!');
+            setShowShareModal(false);
+        } else {
+            if (navigator.share) {
+                navigator.share({ title: recipe?.name || 'Recipe', url }).catch(() => {});
+                setShowShareModal(false);
+            } else {
+                showToast('Sharing not supported on this device');
+            }
+        }
+    };
+
+    const handleTextAction = (action: 'copy' | 'share') => {
+        const text = getRecipeText();
+        if (action === 'copy') {
+            navigator.clipboard.writeText(text);
+            showToast('Recipe text copied to clipboard!');
+            setShowShareModal(false);
+        } else {
+            if (navigator.share) {
+                navigator.share({ title: recipe?.name || 'Recipe', text }).catch(() => {});
+                setShowShareModal(false);
+            } else {
+                showToast('Sharing not supported on this device');
+            }
+        }
+    };
+
+    const handleToggleIngredient = (idx: number) => {
+        const next = new Set(checkedIngredients);
+        if (next.has(idx)) next.delete(idx);
+        else next.add(idx);
+        setCheckedIngredients(next);
+    };
+
+    const handleAddToShoppingList = async () => {
+        if (!recipe) return;
+        
+        const itemsToAdd: ShoppingItem[] = [];
+        let globalIdx = 0;
+
+        groupedIngredients.forEach(group => {
+            group.items.forEach(ing => {
+                if (checkedIngredients.has(globalIdx)) {
+                    itemsToAdd.push({
+                        id: uuidv4(),
+                        text: `${formatFraction(ing.amount * (currentServings / (recipe.servings || 1)))} ${ing.unit} ${ing.item}`,
+                        isChecked: false,
+                        category: ing.section || 'Uncategorized'
+                    });
+                }
+                globalIdx++;
+            });
+        });
+
+        if (itemsToAdd.length === 0) {
+            // If none checked, add all
+             let gIdx = 0;
+             groupedIngredients.forEach(group => {
+                group.items.forEach(ing => {
+                    itemsToAdd.push({
+                        id: uuidv4(),
+                        text: `${formatFraction(ing.amount * (currentServings / (recipe.servings || 1)))} ${ing.unit} ${ing.item}`,
+                        isChecked: false,
+                        category: ing.section || 'Uncategorized'
+                    });
+                    gIdx++;
+                });
+            });
+        }
+
+        for (const item of itemsToAdd) {
+            await db.upsertShoppingItem(item);
+        }
+        
+        showToast(`Added ${itemsToAdd.length} items to shopping list`);
+        setCheckedIngredients(new Set());
     };
 
     if (loading) return <div className="flex items-center justify-center h-screen text-primary font-bold">Loading...</div>;
@@ -128,25 +251,33 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
         return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} />;
     }
 
-    const renderIngredient = (ing: Ingredient) => {
+    const renderIngredient = (ing: Ingredient, globalIdx: number) => {
         const scaledAmount = ing.amount * scalingFactor;
         let secondaryText = '';
         if (ing.secondaryAmount) {
             const scaledSecondary = ing.secondaryAmount * scalingFactor;
             secondaryText = `(${formatFraction(scaledSecondary)} ${ing.secondaryUnit || ''})`.trim();
         }
-  
+        
+        const isChecked = checkedIngredients.has(globalIdx);
+
         return (
-            <span>
-                <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
-                {secondaryText && <span className="text-text-muted dark:text-gray-400 text-sm mr-1.5 font-medium">{secondaryText}</span>}
-                <span className="text-text-main dark:text-gray-200">{ing.item}</span>
-                {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
-            </span>
+            <div className="flex items-start gap-3 w-full" onClick={() => handleToggleIngredient(globalIdx)}>
+                 <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isChecked ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
+                    {isChecked && <Check size={14} className="text-white" />}
+                </div>
+                <span className={`flex-1 cursor-pointer ${isChecked ? 'opacity-50 line-through' : ''}`}>
+                    <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
+                    {secondaryText && <span className="text-text-muted dark:text-gray-400 text-sm mr-1.5 font-medium">{secondaryText}</span>}
+                    <span className="text-text-main dark:text-gray-200">{ing.item}</span>
+                    {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
+                </span>
+            </div>
         );
     };
 
     let globalStepCounter = 0;
+    let globalIngCounter = 0;
 
     return (
         <div className="fixed inset-0 z-50 bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in">
@@ -217,7 +348,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                             </button>
                             <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
                             <div className="flex gap-2 ml-auto md:ml-0">
-                                <button onClick={handleShare} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
+                                <button onClick={() => setShowShareModal(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
                                     <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
                                         <Share size={20} className="text-text-main dark:text-white" />
                                     </div>
@@ -231,7 +362,16 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                         {/* Ingredients */}
                         <div className="lg:col-span-4 flex flex-col gap-6 order-2 lg:order-1">
                             <div className="flex flex-col gap-4 bg-accent-light/30 dark:bg-accent-dark/30 p-4 rounded-xl border border-border-light dark:border-border-dark">
-                                <h3 className="text-xl font-bold text-text-main dark:text-white">Ingredients</h3>
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xl font-bold text-text-main dark:text-white">Ingredients</h3>
+                                </div>
+                                <button 
+                                    onClick={handleAddToShoppingList}
+                                    className="w-full py-2.5 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                >
+                                    <ShoppingCart size={18} />
+                                    <span>Add {checkedIngredients.size > 0 ? checkedIngredients.size : 'All'} to List</span>
+                                </button>
                                 <div className="flex flex-col gap-4">
                                     {groupedIngredients.map((group, gIdx) => (
                                         <div key={gIdx} className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
@@ -239,13 +379,16 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                 {group.title}
                                             </div>
                                             <div className="flex flex-col p-2">
-                                                {group.items.map((ing, idx) => (
-                                                    <div key={idx} className="flex items-start gap-3 p-3 border-b last:border-0 border-border-light dark:border-white/5">
-                                                        <div className="flex-1 text-sm md:text-base font-medium">
-                                                            {renderIngredient(ing)}
+                                                {group.items.map((ing, idx) => {
+                                                    const currentIdx = globalIngCounter++;
+                                                    return (
+                                                        <div key={idx} className="flex items-start gap-3 p-3 border-b last:border-0 border-border-light dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                            <div className="flex-1 text-sm md:text-base font-medium">
+                                                                {renderIngredient(ing, currentIdx)}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     ))}
@@ -305,6 +448,85 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                     </div>
                 </div>
             </main>
+
+            {/* Toast Notification */}
+            {toast.visible && (
+                <div className="fixed bottom-6 right-6 z-[100] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                    <Check size={20} className="text-green-400" />
+                    <span className="font-medium text-sm">{toast.message}</span>
+                </div>
+            )}
+
+            {/* Share Modal */}
+            {showShareModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in" onClick={() => setShowShareModal(false)}>
+                    <div className="bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
+                            <h3 className="font-bold text-lg flex items-center gap-2 text-text-main dark:text-white">
+                                <Share size={18} className="text-primary"/> Share Recipe
+                            </h3>
+                            <button onClick={() => setShowShareModal(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-text-muted">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4">
+                            
+                            {/* Copy Link Split Button */}
+                            <div className="flex flex-col gap-1">
+                                <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                                    <button 
+                                        onClick={() => handleLinkAction('copy')}
+                                        className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                    >
+                                        <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                            <LinkIcon size={20} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-text-main dark:text-white text-sm">Copy Link</p>
+                                            <p className="text-xs text-text-muted">Share view-only web link</p>
+                                        </div>
+                                    </button>
+                                    <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                    <button 
+                                        onClick={() => handleLinkAction('share')}
+                                        className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                        title="Share Link via..."
+                                    >
+                                        <Share size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Copy Text Split Button */}
+                            <div className="flex flex-col gap-1">
+                                <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                                    <button 
+                                        onClick={() => handleTextAction('copy')}
+                                        className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                    >
+                                        <div className="p-2 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                            <FileText size={20} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-text-main dark:text-white text-sm">Copy Text</p>
+                                            <p className="text-xs text-text-muted">Ingredients & Instructions</p>
+                                        </div>
+                                    </button>
+                                    <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                    <button 
+                                        onClick={() => handleTextAction('share')}
+                                        className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                        title="Share Text via..."
+                                    >
+                                        <Share size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

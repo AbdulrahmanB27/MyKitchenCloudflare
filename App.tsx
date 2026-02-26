@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Recipe, AppSettings, RecipeCategory, SortOption } from './types';
+import { Recipe, AppSettings, RecipeCategory, SortOption, Review } from './types';
 import * as db from './services/db';
 import { ENABLE_RESTAURANTS } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -105,7 +105,7 @@ const App: React.FC = () => {
                 // Extract legacy embedded reviews
                 if (r.reviews && Array.isArray(r.reviews)) {
                     for (const oldR of r.reviews) {
-                         const newReview = {
+                        const newReview: Review = {
                             id: oldR.id || uuidv4(),
                             targetId: r.id,
                             targetType: 'recipe',

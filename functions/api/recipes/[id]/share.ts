@@ -99,21 +99,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: "Recipe not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     }
 
-    // Ensure table exists (for local dev resilience and first-time deploys)
-    try {
-        await context.env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS recipe_share_links (
-            token TEXT PRIMARY KEY,
-            family_id TEXT NOT NULL,
-            recipe_id TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            revoked_at INTEGER
-          )
-        `).run();
-    } catch (e) {
-        console.warn("Failed to ensure table exists, assuming it does", e);
-    }
-
     // 2. Check if share link already exists
     // We check for ANY valid link for this recipe, regardless of who created it, to avoid duplicates if possible.
     // Or, if we want unique links per user, we filter by family_id.

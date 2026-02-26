@@ -725,7 +725,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     <input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick..." />
                 </div>
                 <div>
-                    <label className="label flex items-center gap-1"><CookingPot size={14} className="inline-block" /> Required Cookware</label>
+                    <label className="label !flex items-center gap-2"><CookingPot size={16} /> Required Cookware</label>
                     <input type="text" value={rawCookware} onChange={e => setRawCookware(e.target.value)} className="input" placeholder="Dutch Oven, Blender..." />
                 </div>
              </div>
@@ -859,9 +859,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
              <h3 className="text-lg font-bold text-primary">Attribution</h3>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <div><label className="label flex items-center gap-1"><User size={14}/> Added By</label><input type="text" value={formData.addedBy || ''} onChange={e => handleChange('addedBy', e.target.value)} className="input" placeholder="Your Name" /></div>
-                 <div><label className="label flex items-center gap-1"><LinkIcon size={14}/> Source Name</label><input type="text" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className="input" placeholder="e.g. NYT Cooking" /></div>
-                 <div><label className="label flex items-center gap-1"><LinkIcon size={14}/> Source URL</label><input type="text" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className="input" placeholder="https://..." /></div>
+                 <div>
+                     <label className="label !flex items-center gap-2"><User size={16} /> Added By</label>
+                     <input type="text" value={formData.addedBy || ''} onChange={e => handleChange('addedBy', e.target.value)} className="input" placeholder="Your Name" />
+                 </div>
+                 <div>
+                     <label className="label !flex items-center gap-2"><LinkIcon size={16} /> Source Name</label>
+                     <input type="text" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className="input" placeholder="e.g. NYT Cooking" />
+                 </div>
+                 <div>
+                     <label className="label !flex items-center gap-2"><LinkIcon size={16} /> Source URL</label>
+                     <input type="text" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className="input" placeholder="https://..." />
+                 </div>
              </div>
           </section>
 

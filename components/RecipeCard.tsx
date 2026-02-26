@@ -10,13 +10,12 @@ interface RecipeCardProps {
 }
 
 const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavorite }) => {
-  // Calculate average rating from 1-10 scale
-  const avgRating = recipe.reviews && recipe.reviews.length > 0
-    ? (recipe.reviews.reduce((a, b) => a + b.rating, 0) / recipe.reviews.length)
-    : null;
+  // Use cached rating from recipe object
+  const avgRating = recipe.averageRating || 0;
+  const reviewCount = recipe.reviewCount || 0;
 
-  // Convert to 5-star scale for visualization
-  const visualRating = avgRating ? avgRating / 2 : 0;
+  // Convert to 5-star scale for visualization (assuming 1-10 scale)
+  const visualRating = avgRating > 0 ? avgRating / 2 : 0;
 
   // Calculate Total Time Range
   const minPrep = recipe.prepTime || 0;
@@ -63,11 +62,11 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
       <div className="p-4 flex flex-col flex-1">
         <div className="flex justify-between items-start gap-2 mb-2">
           <h3 className="text-text-light dark:text-white text-lg font-bold leading-tight line-clamp-1">{recipe.name}</h3>
-          {avgRating && (
+          {avgRating > 0 && (
              <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-0.5 rounded-full shrink-0">
                  <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
                  <span>{visualRating.toFixed(1)}</span>
-                 <span className="opacity-70 font-normal">({recipe.reviews?.length})</span>
+                 <span className="opacity-70 font-normal">({reviewCount})</span>
              </div>
           )}
         </div>

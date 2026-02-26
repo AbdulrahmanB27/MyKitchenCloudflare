@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users, Check, X, Link as LinkIcon, FileText } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -15,8 +15,8 @@ interface RecipeDetailProps {
 }
 
 interface ActiveTimer {
-    elapsed: number;
-    target: number;
+    startTime: number;
+    duration: number;
     notified: boolean;
 }
 
@@ -38,6 +38,13 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   // Stopwatch Timers State: Map of step.id -> Timer Data
   const [activeTimers, setActiveTimers] = useState<{ [key: string]: ActiveTimer }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
+
+  const showToast = (message: string) => {
+      setToast({ message, visible: true });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -65,22 +72,28 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   }, [recipe]);
 
   // Stopwatch Logic
+  // We use a state update to force re-render every second, but the source of truth is startTime
+  const [now, setNow] = useState(Date.now());
+
   useEffect(() => {
     const interval = setInterval(() => {
+      setNow(Date.now());
+      
       setActiveTimers(prev => {
         const next = { ...prev };
         let hasChanges = false;
+        const currentTime = Date.now();
         
         Object.keys(next).forEach(key => {
             const timer = next[key];
-            timer.elapsed += 1;
-            hasChanges = true;
+            const elapsed = Math.floor((currentTime - timer.startTime) / 1000);
 
             // Check for notification trigger (once)
-            if (timer.target > 0 && timer.elapsed >= timer.target && !timer.notified) {
+            if (timer.duration > 0 && elapsed >= timer.duration && !timer.notified) {
                 audioRef.current?.play().catch(() => {});
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 timer.notified = true;
+                hasChanges = true;
             }
         });
         
@@ -90,6 +103,18 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
     return () => clearInterval(interval);
   }, []);
+
+  // Escape key listener for modals
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            if (isShareOpen) setIsShareOpen(false);
+            if (isRatingOpen) setIsRatingOpen(false);
+        }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isShareOpen, isRatingOpen]);
 
   // --- Grouping Logic for View ---
   const groupedIngredients = useMemo(() => {
@@ -218,22 +243,54 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     return shareText;
   };
 
-  const handleShare = async (forceCopy = false) => {
-    const shareText = getRecipeText();
-    if (!forceCopy && navigator.share) {
-        try {
-            await navigator.share({
-                title: recipe.name,
-                text: shareText
-            });
-        } catch (e) {
-            // Ignore aborts
+
+
+  const getShareLinkUrl = async () => {
+    const token = await db.shareRecipe(recipe.id);
+    const baseUrl = window.location.href.split('?')[0];
+    return `${baseUrl}?recipeId=${recipe.id}&share=${token}`;
+  };
+
+  const handleLinkAction = async (action: 'copy' | 'share') => {
+    try {
+        const url = await getShareLinkUrl();
+        if (action === 'copy') {
+            navigator.clipboard.writeText(url);
+            showToast("Public link copied to clipboard!");
+            setIsShareOpen(false);
+        } else {
+            if (navigator.share) {
+                await navigator.share({ title: recipe.name, url });
+                setIsShareOpen(false);
+            } else {
+                showToast("Sharing not supported on this device");
+            }
         }
-    } else {
-        navigator.clipboard.writeText(shareText);
-        alert('Recipe details copied to clipboard!');
+    } catch (e: any) {
+        console.error("Share failed", e);
+        const msg = e.message || "Unknown error";
+        showToast(`Failed to generate link: ${msg}`);
     }
-    setIsShareOpen(false);
+  };
+
+  const handleTextAction = async (action: 'copy' | 'share') => {
+    const text = getRecipeText();
+    if (action === 'copy') {
+        navigator.clipboard.writeText(text);
+        showToast("Recipe text copied to clipboard!");
+        setIsShareOpen(false);
+    } else {
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: recipe.name, text });
+                setIsShareOpen(false);
+            } catch (e) {
+                // Ignore aborts
+            }
+        } else {
+            showToast("Sharing not supported on this device");
+        }
+    }
   };
 
   const persistUpdate = async (updated: Recipe, localOnly = false) => {
@@ -308,7 +365,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     });
 
     if (itemsToAdd.length === 0) {
-        alert("No ingredients selected (all checked items were skipped).");
+        showToast("No ingredients selected (all checked items were skipped).");
         return;
     }
 
@@ -333,7 +390,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
     for (const item of items) {
       await db.upsertShoppingItem(item);
     }
-    alert(`Added ${items.length} items to Shopping List`);
+    showToast(`Added ${items.length} items to Shopping List`);
   };
 
   const getInstructionText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
@@ -372,8 +429,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
           } else {
               // Start timer
               next[stepId] = {
-                  elapsed: 0,
-                  target: minutes * 60,
+                  startTime: Date.now(),
+                  duration: minutes * 60,
                   notified: false
               };
           }
@@ -460,52 +517,72 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         {/* Share Modal */}
         {isShareOpen && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
-                <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
-                    <h3 className="text-lg font-bold font-display mb-4 dark:text-white flex items-center gap-2">
-                        <Share size={20} className="text-primary"/> Share Recipe
-                    </h3>
+                <div className="bg-surface-light dark:bg-surface-dark rounded-xl w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100 overflow-hidden" onClick={e => e.stopPropagation()}>
                     
-                    <div className="mb-6">
-                        <p className="text-sm text-text-muted mb-2 font-bold uppercase tracking-wider">Share Options</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button 
-                                onClick={async () => {
-                                    try {
-                                        const token = await db.shareRecipe(recipe.id);
-                                        
-                                        const baseUrl = window.location.href.split('?')[0];
-                                        const url = `${baseUrl}?recipeId=${recipe.id}&share=${token}`;
-                                        navigator.clipboard.writeText(url);
-                                        alert("Public link copied to clipboard!");
-                                        setIsShareOpen(false);
-                                    } catch (e: any) {
-                                        console.error("Share failed", e);
-                                        const msg = e.message || "Unknown error";
-                                        const status = e.status ? ` (${e.status})` : "";
-                                        const url = e.url ? `\nURL: ${e.url}` : "";
-                                        alert(`Failed to generate link: ${msg}${status}${url}`);
-                                    }
-                                }}
-                                className="p-3 rounded-lg border border-primary text-primary font-bold hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"
-                            >
-                                <ExternalLink size={20} /> 
-                                <span className="text-xs">Copy Link</span>
-                            </button>
-                            <button 
-                                onClick={() => handleShare(true)}
-                                className="p-3 rounded-lg border border-border-light dark:border-border-dark text-text-main dark:text-white font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex flex-col items-center justify-center gap-2 text-center"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">content_copy</span>
-                                <span className="text-xs">Copy Text</span>
-                            </button>
-                        </div>
-                        <p className="text-xs text-text-muted mt-2 text-center">Use "Copy Link" to share a view-only version.</p>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsShareOpen(false)} className="w-full py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
-                            Close
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-border-light dark:border-border-dark bg-gray-50/50 dark:bg-white/5">
+                        <h3 className="text-lg font-bold font-display dark:text-white flex items-center gap-2">
+                            <Share size={18} className="text-primary"/> Share Recipe
+                        </h3>
+                        <button onClick={() => setIsShareOpen(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-text-muted">
+                            <X size={20} />
                         </button>
+                    </div>
+                    
+                    <div className="p-6 flex flex-col gap-4">
+                        
+                        {/* Copy Link Split Button */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                                <button 
+                                    onClick={() => handleLinkAction('copy')}
+                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                >
+                                    <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                        <LinkIcon size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-text-main dark:text-white text-sm">Copy Link</p>
+                                        <p className="text-xs text-text-muted">Share view-only web link</p>
+                                    </div>
+                                </button>
+                                <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                <button 
+                                    onClick={() => handleLinkAction('share')}
+                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                    title="Share Link via..."
+                                >
+                                    <Share size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Copy Text Split Button */}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                                <button 
+                                    onClick={() => handleTextAction('copy')}
+                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                >
+                                    <div className="p-2 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-text-main dark:text-white text-sm">Copy Text</p>
+                                        <p className="text-xs text-text-muted">Ingredients & Instructions</p>
+                                    </div>
+                                </button>
+                                <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                <button 
+                                    onClick={() => handleTextAction('share')}
+                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                    title="Share Text via..."
+                                >
+                                    <Share size={20} />
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -623,27 +700,24 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                     
                     {/* Left Column: Ingredients */}
-                    <div className="lg:col-span-4 flex flex-col gap-6 order-2 lg:order-1">
-                         <div className="flex flex-col gap-4 bg-accent-light/30 dark:bg-accent-dark/30 p-4 rounded-xl border border-border-light dark:border-border-dark">
-                             <div className="flex items-center justify-between">
-                                 <h4 className="font-bold text-text-main dark:text-white flex items-center gap-2">
-                                     <span className="material-symbols-outlined text-primary">layers</span> Scale Recipe
-                                 </h4>
-                             </div>
-                             
-                             {/* Custom Scaling Input */}
-                             <div className={`flex items-center bg-white dark:bg-surface-dark rounded-lg border shadow-sm ${currentServings === '' || currentServings === 0 ? 'border-red-400' : 'border-border-light dark:border-border-dark'}`}>
-                                 <button 
-                                    onClick={() => adjustServings(-1)}
-                                    className="p-3 md:p-4 text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-r border-border-light dark:border-border-dark rounded-l-lg"
-                                    aria-label="Decrease servings"
-                                 >
-                                    <span className="material-symbols-outlined">remove</span>
-                                 </button>
-                                 
-                                 <div className="flex-1 flex flex-col items-center justify-center py-1">
-                                     <label className="text-[10px] uppercase font-bold text-text-muted">{recipe.yieldUnit || 'Servings'}</label>
-                                     <div className="flex items-baseline gap-1">
+                    <div className="lg:col-span-4 flex flex-col gap-4">
+                         
+                         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm">
+                             {/* Header with Scaler */}
+                             <div className="flex items-center justify-between p-3 md:p-4 border-b border-border-light dark:border-border-dark bg-gray-50/80 dark:bg-white/5 backdrop-blur-sm">
+                                <h3 className="font-bold text-text-main dark:text-white text-lg">Ingredients</h3>
+                                
+                                {/* Compact Scaling Input */}
+                                <div className="flex items-center bg-white dark:bg-black/20 rounded-lg border border-border-light dark:border-border-dark overflow-hidden h-10">
+                                     <button 
+                                        onClick={() => adjustServings(-1)}
+                                        className="w-10 h-full flex items-center justify-center text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-r border-border-light dark:border-border-dark"
+                                        aria-label="Decrease servings"
+                                     >
+                                        <span className="material-symbols-outlined text-[20px]">remove</span>
+                                     </button>
+                                     
+                                     <div className="h-full flex flex-col items-center justify-center w-16">
                                          <input 
                                             type="number" 
                                             min="0.5"
@@ -651,63 +725,59 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                             value={currentServings}
                                             onChange={(e) => handleServingsChange(e.target.value)}
                                             onBlur={handleServingsBlur}
-                                            className="w-16 bg-transparent border-none p-0 text-xl font-bold focus:ring-0 text-text-main dark:text-white text-center"
+                                            className="w-full bg-transparent border-none p-0 text-lg font-bold focus:ring-0 text-text-main dark:text-white text-center leading-none"
                                          />
-                                         {scalingFactor !== 1 && (
-                                             <span className="text-xs font-medium text-text-muted">
-                                                 ({scalingFactor.toFixed(2)}x)
-                                             </span>
-                                         )}
+                                         <span className="text-[10px] uppercase font-bold text-text-muted leading-none mt-0.5">{recipe.yieldUnit || 'Srv'}</span>
                                      </div>
+
+                                     <button 
+                                        onClick={() => adjustServings(1)}
+                                        className="w-10 h-full flex items-center justify-center text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-l border-border-light dark:border-border-dark"
+                                        aria-label="Increase servings"
+                                     >
+                                        <span className="material-symbols-outlined text-[20px]">add</span>
+                                     </button>
                                  </div>
-
-                                 <button 
-                                    onClick={() => adjustServings(1)}
-                                    className="p-3 md:p-4 text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-l border-border-light dark:border-border-dark rounded-r-lg"
-                                    aria-label="Increase servings"
-                                 >
-                                    <span className="material-symbols-outlined">add</span>
-                                 </button>
                              </div>
 
-                             <div className="flex items-center justify-between mt-2">
-                                <h3 className="text-xl font-bold text-text-main dark:text-white">Ingredients</h3>
-                             </div>
-                             <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-md shadow-primary/20">
-                                <span className="material-symbols-outlined text-[20px]">shopping_cart</span> Add to List
-                            </button>
-                         </div>
-
-                         {/* Ingredient Lists */}
-                         <div className="flex flex-col gap-4">
-                             {groupedIngredients.map((group, gIdx) => (
-                                 <details key={`grp-${gIdx}`} className="group bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden" open>
-                                     <summary className="flex items-center justify-between p-4 cursor-pointer bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                                         <span className="font-bold text-text-main dark:text-white">{group.title}</span>
-                                         <span className="material-symbols-outlined transition-transform group-open:rotate-180 text-gray-500">expand_more</span>
-                                     </summary>
-                                     <div className="flex flex-col p-2 pt-0">
-                                         {group.items.map((ing, idx) => (
-                                             <label key={`${group.title}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-all group/item">
-                                                 <div className="relative flex items-center pt-1">
-                                                    <input type="checkbox" checked={checkedIngredients.has(`${group.title}-${ing.id}`)} onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 dark:border-gray-600 checked:bg-primary checked:border-primary transition-all" />
-                                                    <span className="material-symbols-outlined absolute pointer-events-none opacity-0 peer-checked:opacity-100 text-white text-[16px] left-[2px] top-[5px]">check</span>
-                                                 </div>
-                                                 <div className="flex-1">
-                                                     <p className={`text-sm md:text-base font-medium transition-colors ${checkedIngredients.has(`${group.title}-${ing.id}`) ? 'line-through opacity-50' : ''}`}>
-                                                         {renderIngredient(ing)}
-                                                     </p>
-                                                 </div>
-                                             </label>
-                                         ))}
+                             {/* Ingredients List */}
+                             <div className="flex flex-col">
+                                 {groupedIngredients.map((group, gIdx) => (
+                                     <div key={`grp-${gIdx}`} className={groupedIngredients.length > 1 ? "border-b last:border-0 border-border-light dark:border-border-dark" : ""}>
+                                         {groupedIngredients.length > 1 && (
+                                             <div className="px-4 py-2 bg-gray-50/50 dark:bg-white/5 text-xs font-bold text-text-muted uppercase tracking-wider border-b border-border-light dark:border-border-dark">
+                                                 {group.title}
+                                             </div>
+                                         )}
+                                         <div className="p-2">
+                                             {group.items.map((ing, idx) => (
+                                                 <label key={`${group.title}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-all group/item">
+                                                     <div className="relative flex items-center pt-0.5">
+                                                        <input type="checkbox" checked={checkedIngredients.has(`${group.title}-${ing.id}`)} onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-full border border-gray-300 dark:border-gray-600 checked:bg-primary checked:border-primary transition-all" />
+                                                        <span className="material-symbols-outlined absolute pointer-events-none opacity-0 peer-checked:opacity-100 text-white text-[14px] left-[3px] top-[3px]">check</span>
+                                                     </div>
+                                                     <div className="flex-1">
+                                                         <p className={`text-sm md:text-base font-medium transition-colors ${checkedIngredients.has(`${group.title}-${ing.id}`) ? 'line-through opacity-50' : ''}`}>
+                                                             {renderIngredient(ing)}
+                                                         </p>
+                                                     </div>
+                                                 </label>
+                                             ))}
+                                         </div>
                                      </div>
-                                 </details>
-                             ))}
+                                 ))}
+                             </div>
                          </div>
+
+                         {/* Add to List Button */}
+                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm shadow-primary/20">
+                            <span className="material-symbols-outlined text-[20px]">shopping_cart</span> 
+                            <span className="whitespace-nowrap">Add to List</span>
+                        </button>
                     </div>
 
                     {/* Right Column: Instructions, Media */}
-                    <div className="lg:col-span-8 flex flex-col gap-8 order-1 lg:order-2">
+                    <div className="lg:col-span-8 flex flex-col gap-8">
                         
                         {/* Video */}
                         {recipe.video?.url && (
@@ -746,8 +816,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                 
                                                 const timerData = activeTimers[stepId];
                                                 const isRunning = timerData !== undefined;
-                                                const elapsed = timerData?.elapsed || 0;
-                                                const target = timerData?.target || 0;
+                                                const elapsed = isRunning ? Math.floor((now - timerData.startTime) / 1000) : 0;
+                                                const target = timerData?.duration || 0;
                                                 const isOvertime = target > 0 && elapsed >= target;
 
                                                 return (
@@ -865,6 +935,13 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <div className="h-10"></div>
             </div>
         </main>
+        {/* Toast Notification */}
+        {toast.visible && (
+            <div className="fixed bottom-6 right-6 z-[120] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                <Check size={20} className="text-green-400" />
+                <span className="font-medium text-sm">{toast.message}</span>
+            </div>
+        )}
     </div>
   );
 };

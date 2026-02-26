@@ -127,6 +127,7 @@ export interface ShoppingItem {
   isChecked: boolean;
   recipeId?: string;
   recipeName?: string;
+  category?: string;
 }
 
 export interface MealPlan {

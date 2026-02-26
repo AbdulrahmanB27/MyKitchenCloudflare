@@ -155,7 +155,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                 return timeA - timeB;
             }
             case 'rating': {
-                const getAvg = (r: Recipe) => r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0;
+                const getAvg = (r: Recipe) => r.averageRating || 0;
                 return getAvg(b.recipe) - getAvg(a.recipe); // Descending
             }
             case 'calories': {

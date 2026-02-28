@@ -88,6 +88,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Import Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Toast State
+  const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+      setToast({ message, visible: true, type });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -126,6 +134,38 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       // --- Load Ingredients into Blocks ---
       const ingBlocks: IngredientBlock[] = [];
       const mainIngs = data.ingredients || [];
+      
+      // Helper to format amount for display (try to recover fraction)
+      const formatAmount = (val: number | undefined): string | number => {
+          if (val === undefined || val === null || val === 0) return '';
+          
+          // Check for common fractions with tolerance
+          const tolerance = 0.01;
+          const fractions: [number, string][] = [
+              [1/2, '1/2'], [1/3, '1/3'], [2/3, '2/3'], 
+              [1/4, '1/4'], [3/4, '3/4'],
+              [1/5, '1/5'], [2/5, '2/5'], [3/5, '3/5'], [4/5, '4/5'],
+              [1/6, '1/6'], [5/6, '5/6'],
+              [1/8, '1/8'], [3/8, '3/8'], [5/8, '5/8'], [7/8, '7/8']
+          ];
+          
+          const whole = Math.floor(val);
+          const decimal = val - whole;
+          
+          if (decimal < tolerance) return whole > 0 ? whole : ''; 
+          
+          for (const [fracVal, fracStr] of fractions) {
+              if (Math.abs(decimal - fracVal) < tolerance) {
+                  return whole > 0 ? `${whole} ${fracStr}` : fracStr;
+              }
+          }
+          
+          // If close to whole number (e.g. 0.999)
+          if (Math.abs(decimal - 1) < tolerance) return whole + 1;
+
+          return Number(val.toFixed(2)).toString(); // Return formatted decimal if no match
+      };
+
       if (mainIngs.length > 0) {
           const grouped = new Map<string, Ingredient[]>();
           const defaultSection = 'Main Ingredients';
@@ -135,12 +175,30 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               grouped.get(sec)!.push(ing);
           });
           grouped.forEach((ings, sec) => {
-              ingBlocks.push({ id: uuidv4(), name: sec === defaultSection ? '' : sec, ingredients: ings.map(i => ({...i, id: i.id || uuidv4() })) });
+              ingBlocks.push({ 
+                  id: uuidv4(), 
+                  name: sec === defaultSection ? '' : sec, 
+                  ingredients: ings.map(i => ({
+                      ...i, 
+                      id: i.id || uuidv4(),
+                      amount: formatAmount(i.amount),
+                      secondaryAmount: i.secondaryAmount ? formatAmount(i.secondaryAmount) : undefined
+                  })) 
+              });
           });
       }
       if (data.components && data.components.length > 0) {
           data.components.forEach(comp => {
-              ingBlocks.push({ id: uuidv4(), name: comp.label, ingredients: comp.ingredients.map(i => ({...i, id: i.id || uuidv4() })) });
+              ingBlocks.push({ 
+                  id: uuidv4(), 
+                  name: comp.label, 
+                  ingredients: comp.ingredients.map(i => ({
+                      ...i, 
+                      id: i.id || uuidv4(),
+                      amount: formatAmount(i.amount),
+                      secondaryAmount: i.secondaryAmount ? formatAmount(i.secondaryAmount) : undefined
+                  })) 
+              });
           });
       }
       if (ingBlocks.length === 0) ingBlocks.push({ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] });
@@ -362,19 +420,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               try {
                   // Try JSON first
                   const parsed = JSON.parse(text);
-                  if (confirm("Detected Recipe JSON in clipboard. Import it?")) {
-                      processImportedData(parsed);
-                  }
+                  processImportedData(parsed);
+                  showToast("Imported recipe from clipboard JSON", 'success');
               } catch (e) {
                   // Not JSON, try Text Parsing
                   const textRecipe = parseRecipeText(text);
                   if (textRecipe && (textRecipe.ingredients?.length || textRecipe.instructions?.length)) {
-                      if (confirm("Detected recipe text structure. Attempt to import?")) {
-                          // Merge with default form data to ensure structure
-                          const merged = { ...formData, ...textRecipe };
-                          // Ensure IDs
-                          loadRecipeData(merged as Recipe);
-                      }
+                      // Merge with default form data to ensure structure
+                      const merged = { ...formData, ...textRecipe };
+                      // Ensure IDs
+                      loadRecipeData(merged as Recipe);
+                      showToast("Imported recipe from clipboard text", 'success');
                   }
               }
           }
@@ -471,7 +527,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   const handleCopyJson = () => {
       const recipe = getRecipeObject();
-      navigator.clipboard.writeText(JSON.stringify(recipe, null, 2)).then(() => alert('Recipe JSON copied!'));
+      navigator.clipboard.writeText(JSON.stringify(recipe, null, 2)).then(() => showToast('Recipe JSON copied!', 'success'));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -488,7 +544,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     if (initialData?.shareToFamily && !syncToFamily && targetFamilyId === currentFamilyId) {
         recipe.id = uuidv4();
         recipe.shareToFamily = false;
-        alert("Saving as a new private copy (Sync disabled).");
+        showToast("Saving as a new private copy (Sync disabled).", 'success');
     }
 
     try {
@@ -521,12 +577,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             onSave(recipe); 
         } else {
             const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
-            alert(`Recipe saved to ${targetName}${syncToAll ? ' and synced to all families' : ''}.`);
+            showToast(`Recipe saved to ${targetName}${syncToAll ? ' and synced to all families' : ''}.`, 'success');
             onClose();
         }
     } catch (err: any) {
         console.error(err);
-        alert(`Failed to save: ${err.message}`);
+        showToast(`Failed to save: ${err.message}`, 'error');
         setIsSaving(false);
     }
   };
@@ -565,7 +621,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                               handleChange('image', url);
                           } catch (e) {
                               console.error(e);
-                              alert("Failed to upload image. Ensure you are logged in.");
+                              showToast("Failed to upload image. Ensure you are logged in.", 'error');
                           } finally {
                               setIsUploading(false);
                           }
@@ -601,7 +657,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             processImportedData(imported);
         } catch (err) {
             console.error(err);
-            alert('Failed to parse recipe JSON.');
+            showToast('Failed to parse recipe JSON.', 'error');
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -619,7 +675,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           if (textRecipe && (textRecipe.ingredients?.length || textRecipe.instructions?.length)) {
               loadRecipeData({ ...formData, ...textRecipe } as Recipe);
           } else {
-              alert("Could not detect valid JSON or recognized recipe text format.");
+              showToast("Could not detect valid JSON or recognized recipe text format.", 'error');
               return;
           }
       }
@@ -661,7 +717,21 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-card-light dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-light dark:border-border-dark">
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-light dark:border-border-dark">
           <h2 className="text-xl font-bold text-text-light dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
+          <div className="flex items-center gap-1">
+              {!initialData && (
+                  <>
+                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
+                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
+                  </>
+              )}
+              {initialData && (
+                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+              )}
+              {initialData?.id && onDelete && (
+                  <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+              )}
+              <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
           {/* Basics */}
@@ -781,14 +851,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                       <div className="col-span-3 sm:col-span-2">
                                           <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="input p-2 text-sm text-center" />
                                       </div>
-                                      <div className="col-span-4 sm:col-span-2">
+                                      <div className="col-span-3 sm:col-span-2">
                                           <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="input p-2 text-sm" />
                                       </div>
-                                      <div className="col-span-5 sm:col-span-2 flex gap-1 items-center justify-end sm:justify-center">
-                                            <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`}><AlertCircle size={16} /></button>
-                                            <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`}><Scale size={16} /></button>
-                                            <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-300 hover:text-orange-400'}`}><ArrowRightLeft size={16} /></button>
-                                            <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded"><Trash2 size={16} /></button>
+                                      <div className="col-span-6 sm:col-span-2 flex gap-0.5 items-center justify-end sm:justify-center">
+                                            <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                            <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                            <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-300 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                            <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
                                       </div>
                                  </div>
                                  {ing.secondaryAmount !== undefined && (
@@ -828,10 +898,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  <div className="flex-1 space-y-2">
                                      <div className="flex gap-2 items-center">
                                         <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1" />
-                                        <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-0.5">
-                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`}><Clock size={16}/></button>
-                                            <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'bg-white dark:bg-gray-700 text-yellow-500 shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`}><Lightbulb size={16}/></button>
-                                            <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'bg-white dark:bg-gray-700 text-blue-500 shadow-sm' : 'text-text-muted hover:bg-white/50 dark:hover:bg-white/10'}`}><AlertCircle size={16}/></button>
+                                        <div className="flex gap-1">
+                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-primary bg-primary/10 dark:bg-primary/20' : 'text-gray-300 hover:text-primary'}`} title="Add Timer"><Clock size={16}/></button>
+                                            <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
+                                            <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
                                         </div>
                                      </div>
                                      <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="input text-sm" />
@@ -897,23 +967,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </section>
 
         </div>
-        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col-reverse sm:flex-row justify-between gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
-          <div className="flex items-center justify-center sm:justify-start gap-3">
-              {!initialData && (
-                  <>
-                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
-                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
-                  </>
-              )}
-              {/* Copy JSON Button */}
-              {initialData && (
-                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
-              )}
-              {initialData?.id && onDelete && (
-                  <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
-              )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
               {targetFamilyId !== 'private' && (
                   <div 
                     onClick={() => {
@@ -923,15 +978,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                             setSyncToFamily(!syncToFamily);
                         }
                     }} 
-                    className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none"
+                    className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none mb-2 sm:mb-0"
                   >
                       <div className={`w-4 h-4 rounded border flex items-center justify-center ${(availableSessions.length > 1 ? syncToAll : syncToFamily) ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
                           {(availableSessions.length > 1 ? syncToAll : syncToFamily) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
                       </div>
-                      <span>{availableSessions.length > 1 ? "Sync to all families" : "Sync to Family"}</span>
+                      <span>{availableSessions.length > 1 ? "Sync to all families" : `Sync to ${availableSessions[0]?.name || 'Family'}`}</span>
                   </div>
               )}
-              <div className="flex gap-3">
+              <div className="flex gap-3 w-full sm:w-auto">
                 <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
                 <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
                     {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
@@ -963,6 +1018,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             </div>
         )}
       </form>
+
+      {/* Toast Notification */}
+      {toast.visible && (
+          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900 dark:bg-white dark:text-black'}`}>
+              {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
+              {toast.message}
+          </div>
+      )}
+
       <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: #4e9767; margin-bottom: 0.25rem; } .dark .label { color: #8bc49e; } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #e7f3eb; background-color: #f8fcf9; color: #0e1b12; outline: none; } .dark .input { border-color: #2a4030; background-color: #1a2c20; color: white; }`}</style>
     </div>
   );

@@ -472,16 +472,16 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <h2 className="text-lg font-bold font-display text-text-main dark:text-white line-clamp-1">{recipe.name}</h2>
             </div>
             <div className="flex items-center gap-2">
-                <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">star</span>
-                </button>
-                <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-primary' : 'text-text-muted'} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
+                <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-primary' : ''} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
                     <span className="material-symbols-outlined text-[18px]">{recipe.archived ? 'unarchive' : 'archive'}</span>
                 </button>
                 <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium" title="Edit Recipe">
                     <span className="material-symbols-outlined text-[18px]">edit</span>
                 </button>
-                <button onClick={toggleFavorite} className={`flex items-center justify-center p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-red-500' : 'text-gray-400'}`}>
+                <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium hover:text-primary transition-colors" title="Rate Recipe">
+                    <span className="material-symbols-outlined text-[18px]">star</span>
+                </button>
+                <button onClick={toggleFavorite} className={`flex items-center justify-center p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-red-500' : 'text-gray-400'}`} title={recipe.favorite ? "Remove from Favorites" : "Add to Favorites"}>
                     <Heart size={20} className={recipe.favorite ? "fill-current" : ""} />
                 </button>
             </div>
@@ -603,6 +603,12 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         )}
                         <div className="flex flex-col p-6 md:p-8 gap-2 z-10">
                             <div className="flex gap-2 mb-1">
+                                {availableSessions.length > 1 && recipe.shareToFamily && (
+                                    <span className="px-2 py-1 rounded bg-primary/80 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1">
+                                        <Users size={12} />
+                                        {availableSessions.find(s => s.id === recipe.familyId)?.name || 'Family'}
+                                    </span>
+                                )}
                                 <span className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider">{recipe.category}</span>
                                 {recipe.tags.slice(0, 3).map(tag => (
                                     <span key={tag} className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider">{tag}</span>

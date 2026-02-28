@@ -61,6 +61,14 @@ const App: React.FC = () => {
   // State to hold a recipe that is waiting for authentication to be saved
   const [pendingRecipeSave, setPendingRecipeSave] = useState<Recipe | null>(null);
 
+  // Toast State
+  const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+      setToast({ message, visible: true, type });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+  };
+
   // --- Import Logic ---
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -132,10 +140,10 @@ const App: React.FC = () => {
         }
 
         await loadData();
-        alert(`Imported ${count} recipes and ${reviewCount} reviews.`);
+        showToast(`Imported ${count} recipes and ${reviewCount} reviews.`, 'success');
       } catch (err) {
         console.error(err);
-        alert('Failed to import recipes. Invalid JSON.');
+        showToast('Failed to import recipes. Invalid JSON.', 'error');
       }
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -472,7 +480,7 @@ const App: React.FC = () => {
           setActiveRecipeId(null);
       } catch (e: any) {
           console.error(e);
-          alert(`Failed to delete: ${e.message}`);
+          showToast(`Failed to delete: ${e.message}`, 'error');
       } finally {
           setShowDeleteModal(false);
           setRecipeToDelete(null);
@@ -650,6 +658,16 @@ const App: React.FC = () => {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" />
                             </div>
+                            <SortMenu 
+                                currentSort={sortBy} 
+                                onSortChange={(val) => setSortBy(val as SortOption)} 
+                                options={[
+                                    { label: 'Name (A-Z)', value: 'name' },
+                                    { label: 'Fastest', value: 'time' },
+                                    { label: 'Top Rated', value: 'rating' },
+                                    { label: 'Lowest Calories', value: 'calories' }
+                                ]}
+                            />
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -659,7 +677,7 @@ const App: React.FC = () => {
                                         <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
                                         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
                                     </div>
-                                    <div className="flex gap-2 items-center">
+                                    <div className="hidden md:flex gap-2 items-center">
                                         <SortMenu 
                                             currentSort={sortBy} 
                                             onSortChange={(val) => setSortBy(val as SortOption)} 
@@ -737,6 +755,14 @@ const App: React.FC = () => {
       )}
       
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
+
+      {/* Toast Notification */}
+      {toast.visible && (
+          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900 dark:bg-white dark:text-black'}`}>
+              {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
+              {toast.message}
+          </div>
+      )}
 
       <style>{`
         .nav-btn { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem 1rem; border-radius: 0.5rem; color: #4e9767; font-weight: 500; font-size: 0.875rem; transition: all; }

@@ -452,6 +452,21 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     if (!res.ok) throw new Error("Failed to cross-post");
 };
 
+export const crossDeleteRecipe = async (recipeId: string, targetFamilyId: string) => {
+    const sessions = getSavedSessions();
+    const targetSession = sessions.find(s => s.id === targetFamilyId);
+    
+    if (!targetSession) throw new Error("Not authenticated with target family");
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+    const res = await fetch(`${API_BASE}/recipes?id=${recipeId}`, {
+        method: 'DELETE',
+        headers
+    });
+    
+    if (!res.ok) throw new Error("Failed to cross-delete");
+};
+
 // --- Shopping ---
 
 export const getShoppingList = async (): Promise<ShoppingItem[]> => {

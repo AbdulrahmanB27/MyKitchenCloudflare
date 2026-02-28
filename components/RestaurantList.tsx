@@ -4,6 +4,7 @@ import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
 import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff, BarChart3, Trophy } from 'lucide-react';
 import AuthModal from './AuthModal';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RestaurantListProps {
@@ -232,9 +233,14 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     // Share/Sync State
     const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
+    const [syncToAll, setSyncToAll] = useState(false);
     const [availableSessions, setAvailableSessions] = useState<any[]>([]);
     const currentFamilyId = db.getCurrentFamilyId();
     const pinnedFamilyId = db.getPinnedFamilyId();
+
+    // Delete Modal State
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [restaurantToDelete, setRestaurantToDelete] = useState<Restaurant | null>(null);
 
     // Schedule State for Form
     const [schedDays, setSchedDays] = useState<Set<string>>(new Set(['Mo','Tu','We','Th','Fr']));
@@ -356,11 +362,48 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Delete this restaurant for everyone?")) return;
-        if (!db.hasAuthToken()) { setShowAuth(true); return; }
-        await db.deleteRestaurant(id);
-        setRestaurants(prev => prev.filter(r => r.id !== id));
-        setIsFormOpen(false);
+        const r = restaurants.find(r => r.id === id);
+        if (!r) return;
+
+        if (r.familyId && r.familyId !== 'global' && !db.hasAuthToken()) { 
+            setShowAuth(true); 
+            return; 
+        }
+        
+        setRestaurantToDelete(r);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDeleteRestaurant = async (selectedFamilyIds: string[]) => {
+        if (!restaurantToDelete) return;
+
+        const currentFamilyId = db.getCurrentFamilyId();
+        const promises: Promise<any>[] = [];
+
+        for (const familyId of selectedFamilyIds) {
+            if (familyId === 'private' || familyId === currentFamilyId) {
+                // Local Delete (handles sync if needed)
+                promises.push(db.deleteRestaurant(restaurantToDelete.id));
+            } else {
+                // Cross Delete
+                if (db.crossDeleteRestaurant) {
+                    promises.push(db.crossDeleteRestaurant(restaurantToDelete.id, familyId));
+                }
+            }
+        }
+
+        try {
+            await Promise.all(promises);
+            await loadData();
+            setIsFormOpen(false);
+            setEditingId(null);
+        } catch (e: any) {
+            console.error(e);
+            alert(`Failed to delete: ${e.message}`);
+        } finally {
+            setShowDeleteModal(false);
+            setRestaurantToDelete(null);
+        }
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -379,9 +422,22 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 await db.upsertRestaurant(r, { localOnly: true });
             } else if (targetFamilyId === currentFamilyId) {
                 await db.upsertRestaurant(r); 
+                
+                // Sync to all if checked
+                if (syncToAll && availableSessions.length > 1) {
+                     const otherSessions = availableSessions.filter(s => s.id !== targetFamilyId);
+                     await Promise.all(otherSessions.map(s => db.crossPostRestaurant(r, s.id)));
+                }
             } else {
                 await db.crossPostRestaurant(r, targetFamilyId);
-                alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}.`);
+                
+                // Sync to all if checked
+                if (syncToAll && availableSessions.length > 1) {
+                     const otherSessions = availableSessions.filter(s => s.id !== targetFamilyId);
+                     await Promise.all(otherSessions.map(s => db.crossPostRestaurant(r, s.id)));
+                }
+
+                alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}${syncToAll ? ' and synced to all families' : ''}.`);
                 setIsFormOpen(false);
                 return;
             }
@@ -719,9 +775,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-24">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-24 pt-2">
                                 {visibleRestaurants.map(r => (
-                                    <div key={r.id} onClick={() => openForm(r)} className="bg-surface-light dark:bg-surface-dark rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative flex flex-col h-full border-2 border-transparent hover:border-primary/20 cursor-pointer">
+                                    <div key={r.id} onClick={() => openForm(r)} className="bg-surface-light dark:bg-surface-dark rounded-3xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative flex flex-col h-full border-2 border-transparent cursor-pointer">
                                         <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-gray-800">
                                             {r.image ? (
                                                 <div className="w-full h-full bg-cover bg-center transform group-hover:scale-110 transition-transform duration-700" style={{ backgroundImage: `url("${r.image}")` }}></div>
@@ -731,12 +787,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); /* Favorite Logic later */ }} 
-                                                className="absolute top-4 right-4 size-10 flex items-center justify-center bg-white/90 dark:bg-black/50 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Star className="text-yellow-500 fill-yellow-500" size={20} />
-                                            </button>
+                                            
                                             <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
                                                 {r.cuisineTags[0] && (
                                                     <span className="px-3 py-1 bg-white/90 dark:bg-black/80 backdrop-blur-md text-text-main dark:text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm">
@@ -1008,6 +1059,15 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 />
             )}
 
+            {showDeleteModal && restaurantToDelete && (
+                <DeleteConfirmationModal 
+                    isOpen={showDeleteModal} 
+                    itemName={restaurantToDelete.name} 
+                    onClose={() => { setShowDeleteModal(false); setRestaurantToDelete(null); }} 
+                    onConfirm={confirmDeleteRestaurant} 
+                />
+            )}
+
             {isFormOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}></div>
@@ -1082,7 +1142,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             <div className="w-px bg-gray-100 dark:bg-border-dark hidden sm:block"></div>
                                             <div>
                                                 <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Price</label>
-                                                <div className="inline-flex bg-gray-50 dark:bg-black/20 p-1.5 rounded-xl border border-gray-200 dark:border-border-dark">
+                                                <div className="flex flex-wrap bg-gray-50 dark:bg-black/20 p-1.5 rounded-xl border border-gray-200 dark:border-border-dark">
                                                     {['$', '$$', '$$$', '$$$$'].map(p => (
                                                         <button 
                                                             key={p} 
@@ -1227,6 +1287,19 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         ))}
                                     </select>
                                 </div>
+                                
+                                {availableSessions.length > 1 && (
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input 
+                                           type="checkbox" 
+                                           checked={syncToAll} 
+                                           onChange={e => setSyncToAll(e.target.checked)}
+                                           className="rounded text-primary focus:ring-primary w-4 h-4"
+                                        />
+                                        <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">Sync to all</span>
+                                    </label>
+                                )}
+
                                 {editingId && (
                                     <button type="button" onClick={() => handleDelete(editingId)} className="text-red-400 hover:text-red-500 text-sm font-bold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10">
                                         <Trash2 size={16} /> Delete

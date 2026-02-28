@@ -56,6 +56,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Sharing State
   const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
   const [syncToFamily, setSyncToFamily] = useState(true);
+  const [syncToAll, setSyncToAll] = useState(false);
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const currentFamilyId = db.getCurrentFamilyId();
   const pinnedFamilyId = db.getPinnedFamilyId();
@@ -491,15 +492,36 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     }
 
     try {
+        const promises: Promise<any>[] = [];
+
+        // 1. Sync to All (Broadcast)
+        if (syncToAll && availableSessions.length > 1) {
+             const otherSessions = availableSessions.filter(s => s.id !== targetFamilyId);
+             otherSessions.forEach(s => {
+                 promises.push(db.crossPostRecipe(recipe, s.id));
+             });
+        }
+
+        // 2. Handle Primary Target
         if (targetFamilyId === 'private') {
             recipe.shareToFamily = false;
-            onSave(recipe); 
+            // onSave handles the local save
         } else if (targetFamilyId === currentFamilyId) {
+            // onSave handles the local save (which includes sync to current family)
+        } else {
+            // Target is another family. We need to crossPost to it.
+            promises.push(db.crossPostRecipe(recipe, targetFamilyId));
+        }
+
+        // Wait for cross-posts
+        if (promises.length > 0) await Promise.all(promises);
+
+        // Finalize
+        if (targetFamilyId === 'private' || targetFamilyId === currentFamilyId) {
             onSave(recipe); 
         } else {
             const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
-            await db.crossPostRecipe(recipe, targetFamilyId);
-            alert(`Recipe saved to ${targetName}. It will not appear in your current list.`);
+            alert(`Recipe saved to ${targetName}${syncToAll ? ' and synced to all families' : ''}.`);
             onClose();
         }
     } catch (err: any) {
@@ -691,6 +713,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          </div>
                      )}
                  </div>
+                 
+                 {availableSessions.length > 1 && (
+                     <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                         <input 
+                            type="checkbox" 
+                            checked={syncToAll} 
+                            onChange={e => setSyncToAll(e.target.checked)}
+                            className="rounded text-primary focus:ring-primary w-4 h-4"
+                         />
+                         <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">Sync to all families</span>
+                     </label>
+                 )}
              </div>
              
              {/* ... Inputs same as before ... */}

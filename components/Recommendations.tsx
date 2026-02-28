@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Recipe, Ingredient, RecipeCategory } from '../types';
-import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X } from 'lucide-react';
+import SortMenu from './SortMenu';
 
 interface RecommendationsProps {
   onOpenMenu: () => void;
@@ -219,22 +220,17 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                      
                      <div className="flex flex-wrap gap-2 items-center">
                          {/* Sort Dropdown */}
-                         <div className="relative group">
-                             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                 <ArrowUpDown size={14} className="text-text-muted" />
-                             </div>
-                             <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                                className="pl-8 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-main dark:text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
-                             >
-                                 <option value="relevance">Sort: Relevance</option>
-                                 <option value="time">Sort: Fastest</option>
-                                 <option value="rating">Sort: Highest Rated</option>
-                                 <option value="calories">Sort: Lowest Calories</option>
-                                 <option value="name">Sort: Name (A-Z)</option>
-                             </select>
-                         </div>
+                         <SortMenu 
+                             currentSort={sortBy} 
+                             onSortChange={(val) => setSortBy(val as SortOption)} 
+                             options={[
+                                 { label: 'Relevance', value: 'relevance' },
+                                 { label: 'Fastest', value: 'time' },
+                                 { label: 'Top Rated', value: 'rating' },
+                                 { label: 'Lowest Calories', value: 'calories' },
+                                 { label: 'Name (A-Z)', value: 'name' }
+                             ]}
+                         />
 
                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
                             <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>

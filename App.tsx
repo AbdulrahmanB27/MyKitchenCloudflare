@@ -14,7 +14,9 @@ import RestaurantList from './components/RestaurantList';
 import AuthModal from './components/AuthModal';
 import ExportModal, { ExportOptions } from './components/ExportModal';
 import PublicRecipeView from './components/PublicRecipeView';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, ArrowUpDown, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw } from 'lucide-react';
+import SortMenu from './components/SortMenu';
+import DeleteConfirmationModal from './components/DeleteConfirmationModal';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -51,6 +53,10 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register' | 'switch'>('login');
   const [showExportModal, setShowExportModal] = useState(false);
+  
+  // Delete Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   
   // State to hold a recipe that is waiting for authentication to be saved
   const [pendingRecipeSave, setPendingRecipeSave] = useState<Recipe | null>(null);
@@ -419,17 +425,47 @@ const App: React.FC = () => {
 
   const handleDeleteRecipe = async (id: string) => {
     const recipe = recipes.find(r => r.id === id);
-    if (recipe?.shareToFamily && !db.hasAuthToken()) {
+    if (!recipe) return;
+
+    if (recipe.shareToFamily && !db.hasAuthToken()) {
         setAuthModalView('login');
         setShowAuthModal(true);
         return;
     }
-    if(!confirm('Delete this recipe? This cannot be undone.')) return;
-    await db.deleteRecipe(id);
-    await loadData();
-    setIsFormOpen(false);
-    setEditingRecipe(null);
-    setActiveRecipeId(null);
+    
+    setRecipeToDelete(recipe);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteRecipe = async (selectedFamilyIds: string[]) => {
+      if (!recipeToDelete) return;
+
+      const currentFamilyId = db.getCurrentFamilyId();
+      const promises: Promise<any>[] = [];
+
+      for (const familyId of selectedFamilyIds) {
+          if (familyId === 'private' || familyId === currentFamilyId) {
+              // Local Delete (handles sync if needed)
+              promises.push(db.deleteRecipe(recipeToDelete.id));
+          } else {
+              // Cross Delete
+              promises.push(db.crossDeleteRecipe(recipeToDelete.id, familyId));
+          }
+      }
+
+      try {
+          await Promise.all(promises);
+          await loadData();
+          setIsFormOpen(false);
+          setEditingRecipe(null);
+          setActiveRecipeId(null);
+      } catch (e: any) {
+          console.error(e);
+          alert(`Failed to delete: ${e.message}`);
+      } finally {
+          setShowDeleteModal(false);
+          setRecipeToDelete(null);
+      }
   };
 
   const getSyncStatus = () => {
@@ -613,17 +649,16 @@ const App: React.FC = () => {
                                         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
                                     </div>
                                     <div className="flex gap-2 items-center">
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                                <ArrowUpDown size={14} className="text-text-muted" />
-                                            </div>
-                                            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="pl-8 pr-8 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary appearance-none cursor-pointer text-sm font-bold text-text-muted hover:text-text-main dark:hover:text-white transition-colors">
-                                                <option value="name">Name (A-Z)</option>
-                                                <option value="time">Fastest</option>
-                                                <option value="rating">Highest Rated</option>
-                                                <option value="calories">Lowest Calories</option>
-                                            </select>
-                                        </div>
+                                        <SortMenu 
+                                            currentSort={sortBy} 
+                                            onSortChange={(val) => setSortBy(val as SortOption)} 
+                                            options={[
+                                                { label: 'Name (A-Z)', value: 'name' },
+                                                { label: 'Fastest', value: 'time' },
+                                                { label: 'Top Rated', value: 'rating' },
+                                                { label: 'Lowest Calories', value: 'calories' }
+                                            ]}
+                                        />
                                     </div>
                                 </div>
 
@@ -681,6 +716,14 @@ const App: React.FC = () => {
 
       {showAuthModal && <AuthModal initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
+      {showDeleteModal && recipeToDelete && (
+          <DeleteConfirmationModal 
+              isOpen={showDeleteModal} 
+              itemName={recipeToDelete.name} 
+              onClose={() => { setShowDeleteModal(false); setRecipeToDelete(null); }} 
+              onConfirm={confirmDeleteRecipe} 
+          />
+      )}
       
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 

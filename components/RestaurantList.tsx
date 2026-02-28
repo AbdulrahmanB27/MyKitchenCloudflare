@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff, BarChart3, Trophy } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff, BarChart3, Trophy, Check } from 'lucide-react';
 import AuthModal from './AuthModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { v4 as uuidv4 } from 'uuid';
@@ -1288,16 +1288,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </select>
                                 </div>
                                 
-                                {availableSessions.length > 1 && (
-                                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                                        <input 
-                                           type="checkbox" 
-                                           checked={syncToAll} 
-                                           onChange={e => setSyncToAll(e.target.checked)}
-                                           className="rounded text-primary focus:ring-primary w-4 h-4"
-                                        />
-                                        <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">Sync to all</span>
-                                    </label>
+                                {targetFamilyId !== 'private' && (
+                                    <div 
+                                        onClick={() => setSyncToAll(!syncToAll)}
+                                        className="flex items-center gap-2 cursor-pointer select-none"
+                                    >
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${syncToAll ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                                            {syncToAll && <Check size={10} className="text-white" />}
+                                        </div>
+                                        <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">
+                                            {availableSessions.length > 1 ? "Sync to all families" : "Sync to Family"}
+                                        </span>
+                                    </div>
                                 )}
 
                                 {editingId && (

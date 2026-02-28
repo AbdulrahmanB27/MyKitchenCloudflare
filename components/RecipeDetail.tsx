@@ -4,7 +4,7 @@ import { Recipe, Instruction, Ingredient, Review } from '../types';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
-import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users, Check, X, Link as LinkIcon, FileText } from 'lucide-react';
+import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users, Check, X, Link as LinkIcon, FileText, Heart } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -473,17 +473,16 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
             </div>
             <div className="flex items-center gap-2">
                 <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium text-text-muted hover:text-primary transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">star</span> Rate
+                    <span className="material-symbols-outlined text-[18px]">star</span>
                 </button>
                 <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-primary' : 'text-text-muted'} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
                     <span className="material-symbols-outlined text-[18px]">{recipe.archived ? 'unarchive' : 'archive'}</span>
                 </button>
                 <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium" title="Edit Recipe">
                     <span className="material-symbols-outlined text-[18px]">edit</span>
-                    <span className="hidden md:inline">Edit</span>
                 </button>
-                <button onClick={toggleFavorite} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-yellow-500' : 'text-gray-400'}`}>
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: recipe.favorite ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
+                <button onClick={toggleFavorite} className={`flex items-center justify-center p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-red-500' : 'text-gray-400'}`}>
+                    <Heart size={20} className={recipe.favorite ? "fill-current" : ""} />
                 </button>
             </div>
         </header>

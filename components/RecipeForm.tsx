@@ -56,7 +56,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Sharing State
   const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
   const [syncToFamily, setSyncToFamily] = useState(true);
-  const [syncToAll, setSyncToAll] = useState(false);
+  const [syncToAll, setSyncToAll] = useState(true); // Default to true for syncToAll as well
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const currentFamilyId = db.getCurrentFamilyId();
   const pinnedFamilyId = db.getPinnedFamilyId();
@@ -713,18 +713,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          </div>
                      )}
                  </div>
-                 
-                 {availableSessions.length > 1 && (
-                     <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
-                         <input 
-                            type="checkbox" 
-                            checked={syncToAll} 
-                            onChange={e => setSyncToAll(e.target.checked)}
-                            className="rounded text-primary focus:ring-primary w-4 h-4"
-                         />
-                         <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">Sync to all families</span>
-                     </label>
-                 )}
              </div>
              
              {/* ... Inputs same as before ... */}
@@ -928,13 +916,19 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
               {targetFamilyId !== 'private' && (
                   <div 
-                    onClick={() => setSyncToFamily(!syncToFamily)} 
+                    onClick={() => {
+                        if (availableSessions.length > 1) {
+                            setSyncToAll(!syncToAll);
+                        } else {
+                            setSyncToFamily(!syncToFamily);
+                        }
+                    }} 
                     className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none"
                   >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${syncToFamily ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
-                          {syncToFamily && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${(availableSessions.length > 1 ? syncToAll : syncToFamily) ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                          {(availableSessions.length > 1 ? syncToAll : syncToFamily) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
                       </div>
-                      <span>Sync to Family</span>
+                      <span>{availableSessions.length > 1 ? "Sync to all families" : "Sync to Family"}</span>
                   </div>
               )}
               <div className="flex gap-3">

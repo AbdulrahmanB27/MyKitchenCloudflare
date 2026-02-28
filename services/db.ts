@@ -216,7 +216,7 @@ export const syncDown = async () => {
     
     // Recipes
     try {
-        const remoteRecipes = await apiCall('/recipes', 'GET', undefined, { skipAuthRedirect: true });
+        const remoteRecipes = await apiCall(`/recipes?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
         if (remoteRecipes) {
             for (const r of remoteRecipes) {
                 if (r.deleted) {
@@ -233,7 +233,7 @@ export const syncDown = async () => {
 
     // Plans
     try {
-        const remotePlans = await apiCall('/plans', 'GET', undefined, { skipAuthRedirect: true });
+        const remotePlans = await apiCall(`/plans?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
         if (remotePlans) {
             for (const p of remotePlans) await idb.put(STORE_PLANS, p);
             window.dispatchEvent(new Event('plans-updated'));
@@ -243,7 +243,7 @@ export const syncDown = async () => {
     // Restaurants
     if (ENABLE_RESTAURANTS) {
         try {
-            const remoteRest = await apiCall('/restaurants', 'GET', undefined, { skipAuthRedirect: true });
+            const remoteRest = await apiCall(`/restaurants?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
             if (remoteRest) {
                 for (const r of remoteRest) {
                     if (r.deleted) {

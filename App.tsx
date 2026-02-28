@@ -257,9 +257,20 @@ const App: React.FC = () => {
         window.history.replaceState({}, '', window.location.pathname);
     }
 
+    // Listen for visibility change to sync when app comes to foreground
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && navigator.onLine && db.hasAuthToken()) {
+            console.log("App foregrounded, syncing...");
+            db.retrySync();
+            db.syncDown();
+        }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
         window.removeEventListener('recipes-updated', handleUpdates);
         window.removeEventListener('queue-updated', handleQueueUpdate);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

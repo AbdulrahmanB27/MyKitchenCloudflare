@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Recipe } from '../types';
-import { Clock, Star } from 'lucide-react';
+import { Clock, Heart } from 'lucide-react';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -49,12 +49,15 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
         
         {/* Favorite Button */}
         <button
-          onClick={(e) => onToggleFavorite(e, recipe)}
+          onClick={(e) => {
+             e.stopPropagation();
+             onToggleFavorite(e, recipe);
+          }}
           className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-black/50 backdrop-blur-sm rounded-full shadow-sm hover:bg-white dark:hover:bg-black/70 transition-colors group/btn"
         >
-          <Star 
+          <Heart 
             size={20} 
-            className={`${recipe.favorite ? 'fill-yellow-500 text-yellow-500' : 'text-text-light/30 dark:text-white/30 hover:text-yellow-500'} transition-colors`} 
+            className={`${recipe.favorite ? 'fill-red-500 text-red-500' : 'text-text-light/30 dark:text-white/30 hover:text-red-500'} transition-colors`} 
           />
         </button>
       </div>

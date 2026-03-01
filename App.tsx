@@ -16,7 +16,7 @@ import ExportModal, { ExportOptions } from './components/ExportModal';
 import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
@@ -431,7 +431,7 @@ const App: React.FC = () => {
       if (pendingRecipeSave) {
           performSave(pendingRecipeSave);
       }
-      db.getAllRecipes(); 
+      loadData(); 
   };
 
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
@@ -638,7 +638,7 @@ const App: React.FC = () => {
             <RecipeDetail 
                 recipeId={activeRecipeId}
                 onClose={() => setActiveRecipeId(null)} 
-                onEdit={(r) => { setActiveRecipeId(null); setEditingRecipe(r); }} 
+                onEdit={(r) => { setEditingRecipe(r); }} 
                 onRefreshList={loadData}
             />
         ) : (

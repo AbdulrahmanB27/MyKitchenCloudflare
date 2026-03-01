@@ -606,7 +606,10 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 {availableSessions.length > 1 && recipe.shareToFamily && (
                                     <span className="px-2 py-1 rounded bg-primary/80 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1">
                                         <Users size={12} />
-                                        {availableSessions.find(s => s.id === recipe.familyId)?.name || 'Family'}
+                                        {recipe.tenantIds && recipe.tenantIds.length > 0 
+                                            ? recipe.tenantIds.map(tid => availableSessions.find(s => s.id === tid)?.name || 'Unknown').join(', ')
+                                            : availableSessions.find(s => s.id === recipe.familyId)?.name || 'Family'
+                                        }
                                     </span>
                                 )}
                                 <span className="px-2 py-1 rounded bg-white/20 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider">{recipe.category}</span>

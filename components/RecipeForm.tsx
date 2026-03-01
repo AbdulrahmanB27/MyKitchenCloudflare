@@ -56,7 +56,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Sharing State
   const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
   const [syncToFamily, setSyncToFamily] = useState(true);
-  const [syncToAll, setSyncToAll] = useState(true); // Default to true for syncToAll as well
+  const [additionalSyncFamilyIds, setAdditionalSyncFamilyIds] = useState<Set<string>>(new Set());
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const currentFamilyId = db.getCurrentFamilyId();
   const pinnedFamilyId = db.getPinnedFamilyId();
@@ -123,12 +123,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
       // Handle Sharing Default
       if (data.shareToFamily) {
-          if (currentFamilyId) setTargetFamilyId(currentFamilyId);
+          if (data.familyId) setTargetFamilyId(data.familyId);
+          else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
           else if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
           setSyncToFamily(true);
+
+          if (data.tenantIds) {
+              setAdditionalSyncFamilyIds(new Set(data.tenantIds.filter(id => id !== data.familyId)));
+          }
       } else {
           setTargetFamilyId('private');
           setSyncToFamily(false);
+          setAdditionalSyncFamilyIds(new Set());
       }
 
       // --- Load Ingredients into Blocks ---
@@ -242,15 +248,23 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     setAvailableSessions(sessions);
     
     if (!initialData) {
+        let primary = 'private';
         if (pinnedFamilyId) {
+            primary = pinnedFamilyId;
             setTargetFamilyId(pinnedFamilyId);
             setSyncToFamily(true);
         } else if (currentFamilyId) {
+            primary = currentFamilyId;
             setTargetFamilyId(currentFamilyId);
             setSyncToFamily(true);
         } else {
             setTargetFamilyId('private');
             setSyncToFamily(false);
+        }
+
+        // Default to sync all for new recipes if multiple sessions
+        if (sessions.length > 1 && primary !== 'private') {
+            setAdditionalSyncFamilyIds(new Set(sessions.filter(s => s.id !== primary).map(s => s.id)));
         }
 
         setIngredientBlocks([{ id: uuidv4(), name: '', ingredients: [{ id: uuidv4(), amount: '', unit: '', item: '' }] }]);
@@ -527,7 +541,34 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   const handleCopyJson = () => {
       const recipe = getRecipeObject();
-      navigator.clipboard.writeText(JSON.stringify(recipe, null, 2)).then(() => showToast('Recipe JSON copied!', 'success'));
+      
+      // Create a clean copy for export/sharing
+      // 1. Remove internal/system fields and user-specific flags (favorite)
+      const { 
+          id, 
+          favorite, 
+          archived, 
+          shareToFamily, 
+          familyId, 
+          tenantId, 
+          createdAt, 
+          updatedAt, 
+          deleted,
+          components, // Legacy field, usually empty
+          ...cleanRecipe 
+      } = recipe;
+
+      // 2. Remove IDs from ingredients and instructions
+      const cleanIngredients = recipe.ingredients.map(({ id, ...rest }) => rest);
+      const cleanInstructions = recipe.instructions.map(({ id, ...rest }) => rest);
+
+      const exportData = {
+          ...cleanRecipe,
+          ingredients: cleanIngredients,
+          instructions: cleanInstructions
+      };
+
+      navigator.clipboard.writeText(JSON.stringify(exportData, null, 2)).then(() => showToast('Recipe JSON copied (clean format)!', 'success'));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -539,33 +580,67 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     }
 
     const recipe = getRecipeObject();
+    const oldFamilyId = initialData?.familyId;
+    const oldShared = initialData?.shareToFamily;
     
-    // FORK LOGIC: If existing was shared, but user turned off sync -> Clone as new Private ID
-    if (initialData?.shareToFamily && !syncToFamily && targetFamilyId === currentFamilyId) {
-        recipe.id = uuidv4();
-        recipe.shareToFamily = false;
-        showToast("Saving as a new private copy (Sync disabled).", 'success');
-    }
+    // Determine if we are moving the recipe
+    const isMovingToPrivate = oldShared && targetFamilyId === 'private';
+    const isMovingToOtherFamily = oldShared && targetFamilyId !== 'private' && targetFamilyId !== oldFamilyId;
 
     try {
+        // If it was shared and we are moving it away from that family, delete it from the old family
+        // UNLESS we are explicitly syncing to it
+        if (initialData && oldShared && (isMovingToPrivate || isMovingToOtherFamily)) {
+            const keepingOldAsSync = oldFamilyId && additionalSyncFamilyIds.has(oldFamilyId);
+            
+            if (!keepingOldAsSync) {
+                // Delete from old family
+                if (oldFamilyId === currentFamilyId || !oldFamilyId) {
+                    await db.deleteRecipe(initialData.id, { keepReviews: true });
+                } else if (oldFamilyId) {
+                    // It was in another family. We should delete it from there.
+                    await db.crossDeleteRecipe(initialData.id, oldFamilyId);
+                }
+            }
+        }
+
         const promises: Promise<any>[] = [];
 
-        // 1. Sync to All (Broadcast)
-        if (syncToAll && availableSessions.length > 1) {
-             const otherSessions = availableSessions.filter(s => s.id !== targetFamilyId);
-             otherSessions.forEach(s => {
-                 promises.push(db.crossPostRecipe(recipe, s.id));
+        // 1. Sync to Additional Families
+        if (additionalSyncFamilyIds.size > 0) {
+             additionalSyncFamilyIds.forEach(fid => {
+                 // Ensure we don't double-post if targetFamilyId is somehow in the set
+                 if (fid !== targetFamilyId) {
+                     promises.push(db.crossPostRecipe(recipe, fid));
+                 }
              });
         }
 
-        // 2. Handle Primary Target
+        // 2. Handle Removals (Stop Syncing)
+        if (initialData && initialData.tenantIds) {
+            initialData.tenantIds.forEach(oldTid => {
+                // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs
+                if (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid)) {
+                    // Check if we have access to delete it
+                    const session = availableSessions.find(s => s.id === oldTid);
+                    if (session) {
+                        promises.push(db.crossDeleteRecipe(recipe.id, oldTid));
+                    }
+                }
+            });
+        }
+
+        // 3. Handle Primary Target
         if (targetFamilyId === 'private') {
             recipe.shareToFamily = false;
-            // onSave handles the local save
+            recipe.familyId = undefined;
         } else if (targetFamilyId === currentFamilyId) {
-            // onSave handles the local save (which includes sync to current family)
+            recipe.shareToFamily = true;
+            recipe.familyId = currentFamilyId;
         } else {
             // Target is another family. We need to crossPost to it.
+            recipe.shareToFamily = true;
+            recipe.familyId = targetFamilyId;
             promises.push(db.crossPostRecipe(recipe, targetFamilyId));
         }
 
@@ -573,13 +648,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (promises.length > 0) await Promise.all(promises);
 
         // Finalize
-        if (targetFamilyId === 'private' || targetFamilyId === currentFamilyId) {
-            onSave(recipe); 
-        } else {
-            const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
-            showToast(`Recipe saved to ${targetName}${syncToAll ? ' and synced to all families' : ''}.`, 'success');
-            onClose();
+        const targetName = availableSessions.find(s => s.id === targetFamilyId)?.name || 'other family';
+        if (targetFamilyId !== 'private' && targetFamilyId !== currentFamilyId) {
+            const extraSyncCount = additionalSyncFamilyIds.size;
+            showToast(`Recipe transferred to ${targetName}${extraSyncCount > 0 ? ` and synced to ${extraSyncCount} other families` : ''}.`, 'success');
         }
+        onSave(recipe); 
     } catch (err: any) {
         console.error(err);
         showToast(`Failed to save: ${err.message}`, 'error');
@@ -718,18 +792,21 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-light dark:border-border-dark">
           <h2 className="text-xl font-bold text-text-light dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <div className="flex items-center gap-1">
-              {!initialData && (
-                  <>
-                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
-                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
-                  </>
-              )}
-              {initialData && (
-                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
-              )}
-              {initialData?.id && onDelete && (
-                  <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
-              )}
+              {/* Mobile-only icons in header */}
+              <div className="flex items-center gap-1 sm:hidden">
+                  {!initialData && (
+                      <>
+                        <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
+                        <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
+                      </>
+                  )}
+                  {initialData && (
+                      <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+                  )}
+                  {initialData?.id && onDelete && (
+                      <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+                  )}
+              </div>
               <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
           </div>
         </div>
@@ -764,21 +841,60 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                      {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
                                  </button>
                                  <div className="h-px bg-border-light dark:border-border-dark mx-3 my-1"></div>
-                                 {availableSessions.map(s => (
-                                     <button
-                                        key={s.id}
-                                        type="button"
-                                        onClick={() => { setTargetFamilyId(s.id); setSyncToFamily(true); setIsFamilySelectorOpen(false); }}
-                                        className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === s.id ? 'bg-primary/5 text-primary' : 'text-text-main dark:text-white'}`}
-                                     >
-                                         <Users size={16} />
-                                         <div className="flex flex-col">
-                                             <span className="text-sm font-bold">{s.name}</span>
-                                             {s.id === currentFamilyId && <span className="text-[10px] text-text-muted uppercase font-bold">Current</span>}
+                                 {availableSessions.map(s => {
+                                     const isPrimary = targetFamilyId === s.id;
+                                     const isSynced = additionalSyncFamilyIds.has(s.id);
+                                     
+                                     return (
+                                         <div key={s.id} className={`w-full flex items-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-primary/5' : ''}`}>
+                                             <button
+                                                type="button"
+                                                onClick={() => { 
+                                                    setTargetFamilyId(s.id); 
+                                                    setSyncToFamily(true); 
+                                                    setAdditionalSyncFamilyIds(prev => {
+                                                        const next = new Set(prev);
+                                                        next.delete(s.id);
+                                                        // If we switch primary, we might want to add the old primary to sync list?
+                                                        // For now, let's keep it simple: switching primary keeps other syncs but removes new primary from sync list.
+                                                        if (targetFamilyId !== 'private' && targetFamilyId !== s.id) {
+                                                            next.add(targetFamilyId);
+                                                        }
+                                                        return next;
+                                                    });
+                                                    setIsFamilySelectorOpen(false); 
+                                                }}
+                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-primary' : 'text-text-main dark:text-white'}`}
+                                             >
+                                                 <Users size={16} />
+                                                 <div className="flex flex-col">
+                                                     <span className="text-sm font-bold">{s.name}</span>
+                                                     {s.id === currentFamilyId && <span className="text-[10px] text-text-muted uppercase font-bold">Current</span>}
+                                                 </div>
+                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-primary">Primary</span>}
+                                             </button>
+                                             
+                                             {targetFamilyId !== 'private' && !isPrimary && (
+                                                 <div className="pr-4 pl-2 h-full flex items-center" onClick={e => e.stopPropagation()}>
+                                                     <input 
+                                                        type="checkbox"
+                                                        checked={isSynced}
+                                                        onChange={(e) => {
+                                                            setAdditionalSyncFamilyIds(prev => {
+                                                                const next = new Set(prev);
+                                                                if (e.target.checked) next.add(s.id);
+                                                                else next.delete(s.id);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                                        title={`Also sync to ${s.name}`}
+                                                     />
+                                                 </div>
+                                             )}
                                          </div>
-                                         {targetFamilyId === s.id && <Check size={14} className="ml-auto" />}
-                                     </button>
-                                 ))}
+                                     );
+                                 })}
                              </div>
                          </div>
                      )}
@@ -967,21 +1083,42 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </section>
 
         </div>
-        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
+        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
+          {/* Desktop-only icons in footer (bottom left) */}
+          <div className="hidden sm:flex items-center gap-2">
+              {!initialData && (
+                  <>
+                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
+                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
+                  </>
+              )}
+              {initialData && (
+                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+              )}
+              {initialData?.id && onDelete && (
+                  <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+              )}
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
               {targetFamilyId !== 'private' && (
                   <div 
                     onClick={() => {
                         if (availableSessions.length > 1) {
-                            setSyncToAll(!syncToAll);
+                            const isAll = availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id));
+                            if (isAll) {
+                                setAdditionalSyncFamilyIds(new Set());
+                            } else {
+                                setAdditionalSyncFamilyIds(new Set(availableSessions.filter(s => s.id !== targetFamilyId).map(s => s.id)));
+                            }
                         } else {
                             setSyncToFamily(!syncToFamily);
                         }
                     }} 
                     className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none mb-2 sm:mb-0"
                   >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${(availableSessions.length > 1 ? syncToAll : syncToFamily) ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
-                          {(availableSessions.length > 1 ? syncToAll : syncToFamily) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${(availableSessions.length > 1 ? (availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id))) : syncToFamily) ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                          {(availableSessions.length > 1 ? (availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id))) : syncToFamily) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
                       </div>
                       <span>{availableSessions.length > 1 ? "Sync to all families" : `Sync to ${availableSessions[0]?.name || 'Family'}`}</span>
                   </div>

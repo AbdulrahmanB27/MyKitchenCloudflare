@@ -106,6 +106,7 @@ export interface Recipe {
   shareToFamily: boolean; // Sync to global family DB?
   familyId?: string; // The specific family this recipe belongs to
   tenantId?: string; // For future multi-tenancy
+  tenantIds?: string[]; // List of families this recipe is synced to (local merge)
   schemaVersion?: number; 
   deleted?: boolean; // Tombstone flag for sync
 

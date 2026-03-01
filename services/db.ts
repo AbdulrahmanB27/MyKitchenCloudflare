@@ -212,24 +212,69 @@ export const retrySync = async () => {
 };
 
 export const syncDown = async () => {
-    if (!hasAuthToken() || !navigator.onLine) return;
+    if (!navigator.onLine) return;
     
-    // Recipes
+    // 1. Get all active sessions to sync recipes from ALL families
+    const sessions = getSavedSessions();
+    
+    // --- Recipes Sync (Multi-Tenant Merge) ---
     try {
-        const remoteRecipes = await apiCall(`/recipes?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
-        if (remoteRecipes) {
-            for (const r of remoteRecipes) {
-                if (r.deleted) {
-                    await idb.remove(STORE_RECIPES, r.id);
+        const allFetchedRecipes: Recipe[] = [];
+        
+        // Fetch from all sessions in parallel
+        await Promise.all(sessions.map(async (session) => {
+            try {
+                const headers: Record<string, string> = { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${session.token}` 
+                };
+                // Fetch all recipes (no 'since' for now to ensure full merge consistency)
+                const res = await fetch(`${API_BASE}/recipes?_t=${Date.now()}`, { headers });
+                if (res.ok) {
+                    const recipes = await res.json();
+                    allFetchedRecipes.push(...recipes);
+                }
+            } catch (e) {
+                console.warn(`Failed to sync session ${session.name}`, e);
+            }
+        }));
+
+        if (allFetchedRecipes.length > 0) {
+            // Group by ID to merge
+            const grouped = new Map<string, Recipe[]>();
+            for (const r of allFetchedRecipes) {
+                if (!grouped.has(r.id)) grouped.set(r.id, []);
+                grouped.get(r.id)!.push(r);
+            }
+
+            // Process merges
+            for (const [id, versions] of grouped) {
+                // Sort by updatedAt desc to use latest data as base
+                versions.sort((a, b) => b.updatedAt - a.updatedAt);
+                const latest = versions[0];
+                
+                // Collect all tenantIds where this recipe exists
+                const tenantIds = Array.from(new Set(versions.map(v => v.tenantId).filter(Boolean) as string[]));
+                
+                // Create merged object
+                const merged: Recipe = {
+                    ...latest,
+                    tenantIds: tenantIds
+                };
+                
+                if (merged.deleted) {
+                    await idb.remove(STORE_RECIPES, id);
                 } else {
-                    await idb.put(STORE_RECIPES, r);
+                    await idb.put(STORE_RECIPES, merged);
                 }
             }
             window.dispatchEvent(new Event('recipes-updated'));
         }
     } catch (e) { console.warn("Failed to sync recipes", e); }
 
-    // Shopping - Local Only, Sync Removed
+    // --- Other Stores (Current Session Only) ---
+    // For Plans and Restaurants, we stick to the current session to avoid complexity for now
+    if (!hasAuthToken()) return;
 
     // Plans
     try {
@@ -292,7 +337,23 @@ export const getAllReviews = async (): Promise<Review[]> => {
 // --- Recipes ---
 
 export const getAllRecipes = async (): Promise<Recipe[]> => {
-    const recipes = await idb.getAll<Recipe>(STORE_RECIPES);
+    const allRecipes = await idb.getAll<Recipe>(STORE_RECIPES);
+    const sessions = getSavedSessions();
+    const allowedTenants = sessions.map(s => s.id);
+
+    const recipes = allRecipes.filter(r => {
+        // Keep private recipes (not shared)
+        if (!r.shareToFamily) return true;
+        
+        // Keep recipes that belong to ANY logged-in family
+        // 1. Check primary tenantId
+        if (r.tenantId && allowedTenants.includes(r.tenantId)) return true;
+        
+        // 2. Check merged tenantIds (if recipe exists in multiple families)
+        if (r.tenantIds && r.tenantIds.some(t => allowedTenants.includes(t))) return true;
+        
+        return false;
+    });
     
     // Migration Check (One-time lazy migration)
     let migrationNeeded = false;
@@ -402,7 +463,7 @@ export const publishRecipe = async (recipe: Recipe) => {
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
     // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
-    if (recipe.shareToFamily && currentFamilyId && !options?.localOnly) {
+    if (recipe.shareToFamily && currentFamilyId && !recipe.familyId && !options?.localOnly) {
         recipe.familyId = currentFamilyId;
     }
 
@@ -410,7 +471,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     
     if (options?.localOnly) return; 
 
-    if (hasAuthToken() && recipe.shareToFamily) {
+    if (hasAuthToken() && recipe.shareToFamily && (!recipe.familyId || recipe.familyId === currentFamilyId)) {
         try {
             await apiCall('/recipes', 'POST', recipe);
         } catch (e) {
@@ -420,8 +481,10 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     }
 };
 
-export const deleteRecipe = async (id: string) => {
-    await deleteReviewsForTarget(id);
+export const deleteRecipe = async (id: string, options?: { keepReviews?: boolean }) => {
+    if (!options?.keepReviews) {
+        await deleteReviewsForTarget(id);
+    }
     await idb.remove(STORE_RECIPES, id);
     if (hasAuthToken()) {
         try {
@@ -692,6 +755,21 @@ export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId
     });
     
     if (!res.ok) throw new Error("Failed to cross-post");
+};
+
+export const crossDeleteRestaurant = async (restaurantId: string, targetFamilyId: string) => {
+    const sessions = getSavedSessions();
+    const targetSession = sessions.find(s => s.id === targetFamilyId);
+    
+    if (!targetSession) throw new Error("Not authenticated with target family");
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+    const res = await fetch(`${API_BASE}/restaurants?id=${restaurantId}`, {
+        method: 'DELETE',
+        headers
+    });
+    
+    if (!res.ok) throw new Error("Failed to cross-delete");
 };
 
 export const createVoteSession = async (subset?: Restaurant[], mode: 'list' | 'swipe' = 'list'): Promise<VoteSession | null> => {

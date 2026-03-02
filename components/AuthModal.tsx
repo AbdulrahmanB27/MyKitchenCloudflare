@@ -203,7 +203,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             {/* Turnstile Container */}
                             <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
 
-                            <button type="submit" disabled={loading} className="w-full py-3 bg-primary hover:bg-green-600 text-white rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-primary hover:bg-primary-dark text-inverse rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
                             </button>
@@ -255,7 +255,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none dark:text-white" placeholder="Required to verify" />
                             </div>
 
-                            <button type="submit" disabled={loading} className={`w-full py-3 text-white rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-green-600'}`}>
+                            <button type="submit" disabled={loading} className={`w-full py-3 rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-primary hover:bg-primary-dark text-inverse'}`}>
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
                             </button>

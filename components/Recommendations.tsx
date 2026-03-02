@@ -234,7 +234,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
 
                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
                             <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                                {ignoreSeasonings && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                                {ignoreSeasonings && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
                             </div>
                             <input type="checkbox" className="hidden" checked={ignoreSeasonings} onChange={e => setIgnoreSeasonings(e.target.checked)} />
                             <span className="text-xs font-bold text-text-main dark:text-gray-200">Ignore Staples</span>
@@ -242,7 +242,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
 
                         <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
                             <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                                {showMissingOne && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                                {showMissingOne && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
                             </div>
                             <input type="checkbox" className="hidden" checked={showMissingOne} onChange={e => setShowMissingOne(e.target.checked)} />
                             <span className="text-xs font-bold text-text-main dark:text-gray-200">Missing 1</span>
@@ -258,7 +258,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             onClick={() => setFilterCategory(cat as any)} 
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${
                                 filterCategory === cat 
-                                    ? 'bg-primary text-white border-primary' 
+                                    ? 'bg-primary text-inverse border-primary' 
                                     : 'bg-background-light dark:bg-background-dark text-text-muted border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5'
                             }`}
                          >
@@ -287,7 +287,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             onClick={() => toggleSelection(ing)}
                             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border ${
                                 isSelected 
-                                    ? 'bg-primary text-white border-primary shadow-md shadow-primary/20 scale-105' 
+                                    ? 'bg-primary text-inverse border-primary shadow-md shadow-primary/20 scale-105' 
                                     : 'bg-background-light dark:bg-white/5 text-text-main dark:text-gray-300 border-border-light dark:border-gray-700 hover:border-primary/50'
                             }`}
                         >

@@ -242,7 +242,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
     };
 
     if (loading) return <div className="flex items-center justify-center h-screen text-primary font-bold">Loading...</div>;
-    if (error || !recipe) return <div className="flex items-center justify-center h-screen text-red-500 font-bold">{error || "Recipe not found"}</div>;
+    if (error || !recipe) return <div className="flex items-center justify-center h-screen text-text-main dark:text-white font-bold">{error || "Recipe not found"}</div>;
 
     const originalServings = recipe.servings || 1;
     const scalingFactor = currentServings / originalServings;
@@ -264,7 +264,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
         return (
             <div className="flex items-start gap-3 w-full" onClick={() => handleToggleIngredient(globalIdx)}>
                  <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isChecked ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-600'}`}>
-                    {isChecked && <Check size={14} className="text-white" />}
+                    {isChecked && <Check size={14} className="text-inverse" />}
                 </div>
                 <span className={`flex-1 cursor-pointer ${isChecked ? 'opacity-50 line-through' : ''}`}>
                     <span className="font-bold text-primary dark:text-primary-dark mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
@@ -290,7 +290,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                     )}
                     <h2 className="text-lg font-bold font-display text-text-main dark:text-white line-clamp-1">{recipe.name}</h2>
                 </div>
-                <div className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
+                <div className="text-sm font-medium text-text-main dark:text-white bg-gray-100 dark:bg-white/10 px-3 py-1 rounded-full">
                     Read Only
                 </div>
             </header>
@@ -342,14 +342,14 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
 
                         {/* Actions */}
                         <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center no-scrollbar">
-                            <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-accent-light dark:bg-accent-dark hover:bg-primary hover:text-white text-primary dark:text-primary-dark dark:hover:text-white font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
+                            <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 hover:bg-primary hover:text-inverse text-primary dark:text-white dark:hover:text-inverse font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
                                 <Play size={24} fill="currentColor" />
                                 <span className="text-sm">Start Cooking</span>
                             </button>
                             <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
                             <div className="flex gap-2 ml-auto md:ml-0">
                                 <button onClick={() => setShowShareModal(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
-                                    <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
+                                    <div className="rounded-full bg-gray-100 dark:bg-white/10 p-2.5 group-hover:bg-primary/20 transition-colors">
                                         <Share size={20} className="text-text-main dark:text-white" />
                                     </div>
                                     <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
@@ -361,13 +361,13 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                         {/* Ingredients */}
                         <div className="lg:col-span-4 flex flex-col gap-6 order-2 lg:order-1">
-                            <div className="flex flex-col gap-4 bg-accent-light/30 dark:bg-accent-dark/30 p-4 rounded-xl border border-border-light dark:border-border-dark">
+                            <div className="flex flex-col gap-4 bg-gray-100/30 dark:bg-white/5 p-4 rounded-xl border border-border-light dark:border-border-dark">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-xl font-bold text-text-main dark:text-white">Ingredients</h3>
                                 </div>
                                 <button 
                                     onClick={handleAddToShoppingList}
-                                    className="w-full py-2.5 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                    className="w-full py-2.5 bg-primary text-inverse rounded-lg font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-sm"
                                 >
                                     <ShoppingCart size={18} />
                                     <span>Add {checkedIngredients.size > 0 ? checkedIngredients.size : 'All'} to List</span>
@@ -431,7 +431,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                                 {text}
                                                             </p>
                                                             {tip && (
-                                                                <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
+                                                                <div className="flex items-start gap-2 bg-gray-100 dark:bg-white/10 text-text-main dark:text-white p-3 rounded-lg border border-border-light dark:border-border-dark text-sm font-medium">
                                                                     <Lightbulb size={16} className="shrink-0 mt-0.5" />
                                                                     <span>{tip}</span>
                                                                 </div>
@@ -452,7 +452,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
             {/* Toast Notification */}
             {toast.visible && (
                 <div className="fixed bottom-6 right-6 z-[100] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
-                    <Check size={20} className="text-green-400" />
+                    <Check size={20} className="text-white" />
                     <span className="font-medium text-sm">{toast.message}</span>
                 </div>
             )}
@@ -478,7 +478,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                         onClick={() => handleLinkAction('copy')}
                                         className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
                                     >
-                                        <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                        <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
                                             <LinkIcon size={20} />
                                         </div>
                                         <div className="flex-1">
@@ -504,7 +504,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                         onClick={() => handleTextAction('copy')}
                                         className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
                                     >
-                                        <div className="p-2 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                        <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
                                             <FileText size={20} />
                                         </div>
                                         <div className="flex-1">

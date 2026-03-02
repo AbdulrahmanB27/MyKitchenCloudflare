@@ -506,22 +506,24 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden font-display bg-background-light dark:bg-background-dark text-text-main dark:text-text-main-dark transition-colors duration-200">
+    <div className="flex h-screen overflow-hidden font-sans bg-bg-white text-text-main antialiased">
       
       {/* Sidebar */}
       <aside 
-        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
+        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin bg-sidebar-light flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
       >
         <div className={`p-6 flex items-center h-[72px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
             {!isSidebarCollapsed ? (
                 <div>
-                    <h1 className="text-xl font-bold dark:text-white whitespace-nowrap truncate w-40" title={currentFamilyName}>{currentFamilyName}</h1>
-                    <button onClick={toggleAutoSync} className={`text-xs whitespace-nowrap flex items-center gap-1 ${syncStatus.color} hover:underline`} title="Click to toggle auto-sync">
+                    <h1 className="text-xl font-black uppercase tracking-tighter text-accent-black whitespace-nowrap truncate w-40" title={currentFamilyName}>
+                        {currentFamilyName}<span className="text-accent-lime">.</span>
+                    </h1>
+                    <button onClick={toggleAutoSync} className={`text-[10px] uppercase tracking-widest font-bold whitespace-nowrap flex items-center gap-1 ${syncStatus.color} hover:underline`} title="Click to toggle auto-sync">
                         {syncStatus.icon} {syncStatus.text}
                     </button>
                 </div>
             ) : (
-                <span className="material-symbols-outlined text-primary text-3xl">local_dining</span>
+                <span className="material-symbols-outlined text-accent-black text-3xl">local_dining</span>
             )}
             <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden"><span className="material-symbols-outlined">close</span></button>
         </div>
@@ -529,7 +531,7 @@ const App: React.FC = () => {
         {/* Desktop Sidebar Toggle */}
         <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="hidden md:flex absolute -right-3 top-20 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-full p-1 text-text-muted hover:text-primary shadow-sm z-50 items-center justify-center"
+            className="hidden md:flex absolute -right-3 top-20 bg-bg-white border border-border-thin rounded-full p-1 text-text-secondary hover:text-accent-black shadow-sm z-50 items-center justify-center"
         >
             {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
@@ -549,15 +551,15 @@ const App: React.FC = () => {
                     className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Recommendations"
                 >
-                    <span className="material-symbols-outlined">kitchen</span> 
-                    {!isSidebarCollapsed && "What can I make?"}
+                    <span className="material-symbols-outlined">smart_toy</span> 
+                    {!isSidebarCollapsed && "Suggestions"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                     className={`nav-btn ${currentView === 'planner' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Planner"
                 >
-                    <span className="material-symbols-outlined">calendar_month</span> 
+                    <span className="material-symbols-outlined">calendar_today</span> 
                     {!isSidebarCollapsed && "Planner"}
                 </button>
                 <button 
@@ -566,7 +568,7 @@ const App: React.FC = () => {
                     title="Shopping List"
                 >
                     <span className="material-symbols-outlined">shopping_cart</span> 
-                    {!isSidebarCollapsed && "Shopping List"}
+                    {!isSidebarCollapsed && "Shop"}
                 </button>
                 
                 {/* Eat Out Module */}
@@ -574,65 +576,65 @@ const App: React.FC = () => {
                     <button 
                         onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                         className={`nav-btn ${currentView === 'restaurants' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                        title="Eat Out"
+                        title="Dining"
                     >
-                        <UtensilsCrossed size={20} className="shrink-0" />
-                        {!isSidebarCollapsed && "Eat Out"}
+                        <span className="material-symbols-outlined">restaurant</span>
+                        {!isSidebarCollapsed && "Dining"}
                     </button>
                 )}
             </div>
             
-             <div className={`border-t border-border-light dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
-                 {!isSidebarCollapsed && <h4 className="text-xs font-bold uppercase text-text-muted px-3 mb-2">Filters</h4>}
+             <div className={`border-t border-border-thin pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
+                 {!isSidebarCollapsed && <h4 className="text-[10px] font-bold uppercase text-text-main/50 tracking-widest px-3 mb-2">Filters</h4>}
                  
                  {!isSidebarCollapsed ? (
                     <>
-                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${showArchived ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
+                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-secondary hover:text-accent-black transition-colors select-none">
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${showArchived ? 'bg-accent-black border-accent-black' : 'border-gray-300 bg-transparent'}`}>
                                 {showArchived && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
                             </div>
                             <span className="font-medium">Show Archived</span>
                         </div>
                         
                         <div className="px-3 py-2">
-                             <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-1">
-                                 <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'all' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>All</button>
-                                 <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'mine' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>Mine</button>
-                                 <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'family' ? 'bg-white dark:bg-surface-dark shadow text-primary' : 'text-text-muted'}`}>Family</button>
+                             <div className="flex bg-gray-100 rounded-lg p-1">
+                                 <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'all' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>All</button>
+                                 <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'mine' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>Mine</button>
+                                 <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'family' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>Family</button>
                              </div>
                         </div>
                     </>
                  ) : (
                     <>
-                         <button onClick={() => setShowArchived(!showArchived)} className={`nav-btn justify-center px-0 ${showArchived ? 'text-primary' : ''}`} title="Archived">
+                         <button onClick={() => setShowArchived(!showArchived)} className={`nav-btn justify-center px-0 ${showArchived ? 'text-accent-black' : ''}`} title="Archived">
                             <span className="material-symbols-outlined">archive</span>
                          </button>
-                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`nav-btn justify-center px-0 ${familyFilter !== 'all' ? 'text-primary' : ''}`} title="Family Filter">
+                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`nav-btn justify-center px-0 ${familyFilter !== 'all' ? 'text-accent-black' : ''}`} title="Family Filter">
                             <Users size={20} />
                          </button>
                     </>
                  )}
              </div>
         </nav>
-        <div className={`p-4 border-t border-border-light dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
+        <div className={`p-4 border-t border-border-thin flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
             <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-3'}`}>
-                <button onClick={handleImportClick} className="text-gray-500 hover:text-primary transition-colors" title="Import Recipes"><Upload size={18} /></button>
-                <button onClick={() => setShowExportModal(true)} className="text-gray-500 hover:text-primary transition-colors" title="Backup/Export"><Download size={18} /></button>
+                <button onClick={handleImportClick} className="text-text-secondary hover:text-accent-black transition-colors" title="Import Recipes"><Upload size={18} /></button>
+                <button onClick={() => setShowExportModal(true)} className="text-text-secondary hover:text-accent-black transition-colors" title="Backup/Export"><Download size={18} /></button>
                 <button 
                     onClick={() => { setAuthModalView('switch'); setShowAuthModal(true); }} 
-                    className="text-gray-500 hover:text-primary transition-colors" 
+                    className="text-text-secondary hover:text-accent-black transition-colors" 
                     title="Switch Family / Logout"
                 >
                     <Users size={18}/>
                 </button>
             </div>
-            <button onClick={toggleTheme} className="text-gray-500 hover:text-primary transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button onClick={toggleTheme} className="text-text-secondary hover:text-accent-black transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
+      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-bg-white">
         
         {activeRecipeId && !editingRecipe ? (
             <RecipeDetail 
@@ -650,13 +652,13 @@ const App: React.FC = () => {
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
-                        <div className="md:hidden p-4 flex items-center gap-3 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-10">
-                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
+                        <div className="md:hidden p-4 flex items-center gap-3 bg-bg-white border-b border-border-thin sticky top-0 z-10">
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main">
                                 <span className="material-symbols-outlined">menu</span>
                             </button>
                             <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-sm text-text-main dark:text-white placeholder:text-text-muted" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
+                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-bg-white border-none focus:ring-2 focus:ring-accent-black text-sm text-text-main placeholder:text-text-secondary" />
                             </div>
                             <SortMenu 
                                 currentSort={sortBy} 
@@ -673,11 +675,15 @@ const App: React.FC = () => {
                         <div className="flex-1 overflow-y-auto p-4 md:p-8">
                             <div className="max-w-7xl mx-auto space-y-6">
                                 <div className="flex flex-col md:flex-row gap-4 justify-between">
-                                    <div className="relative flex-1 max-w-lg hidden md:block">
-                                        <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
-                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border-none focus:ring-2 focus:ring-primary" />
+                                    <div className="relative flex-1 max-w-xl hidden md:block group">
+                                        <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-accent-black transition-colors" size={24} />
+                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full bg-transparent border-0 border-b border-gray-200 focus:border-accent-black focus:ring-0 pl-10 pr-4 py-3 text-lg placeholder-gray-300 outline-none transition-all font-light" />
                                     </div>
                                     <div className="hidden md:flex gap-2 items-center">
+                                        <div className="flex items-center gap-2 text-sm font-medium mr-4 text-text-main">
+                                            Jason M.
+                                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold border border-gray-200">JM</div>
+                                        </div>
                                         <SortMenu 
                                             currentSort={sortBy} 
                                             onSortChange={(val) => setSortBy(val as SortOption)} 
@@ -691,19 +697,27 @@ const App: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex items-baseline justify-between mb-8">
+                                    <h2 className="text-4xl font-light tracking-tighter text-accent-black">My Recipes</h2>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3 mb-8">
                                     {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                        <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-surface-light dark:bg-surface-dark text-text-muted hover:bg-gray-100 dark:hover:bg-white/5'}`}>
+                                        <button 
+                                            key={cat} 
+                                            onClick={() => setSelectedCategory(cat as any)} 
+                                            className={`px-8 py-2.5 rounded-full text-sm font-medium transition-all border ${selectedCategory === cat ? 'bg-accent-black text-white border-accent-black shadow-lg -translate-y-0.5' : 'bg-white text-text-main border-gray-200 hover:border-accent-black'}`}
+                                        >
                                             {cat}
                                         </button>
                                     ))}
                                 </div>
 
-                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
                                     {availableTags.map(tag => {
                                         const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                         return (
-                                            <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-text-main dark:bg-white text-white dark:text-text-main border-transparent' : 'border-border-light dark:border-border-dark text-text-muted'}`}>
+                                            <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-accent-black text-white border-transparent' : 'border-border-thin text-text-secondary'}`}>
                                                 {tag}
                                             </button>
                                         );
@@ -711,7 +725,7 @@ const App: React.FC = () => {
                                 </div>
 
                                 {filteredRecipes.length === 0 ? (
-                                    <div className="text-center py-20 text-text-muted border-2 border-dashed border-border-light dark:border-border-dark rounded-2xl">
+                                    <div className="text-center py-20 text-text-secondary border-2 border-dashed border-border-thin rounded-2xl">
                                         <p>No recipes found.</p>
                                     </div>
                                 ) : (
@@ -724,8 +738,8 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-6 right-6 size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform z-30">
-                            <Plus size={28} />
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-12 right-12 size-16 bg-[#bef264] text-black rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-30 ring-4 ring-white">
+                            <Plus size={32} strokeWidth={3} />
                         </button>
                     </div>
                 )}
@@ -758,22 +772,16 @@ const App: React.FC = () => {
 
       {/* Toast Notification */}
       {toast.visible && (
-          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900 dark:bg-white dark:text-black'}`}>
+          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
               {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
               {toast.message}
           </div>
       )}
 
       <style>{`
-        .nav-btn { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem 1rem; border-radius: 0.5rem; color: #4e9767; font-weight: 500; font-size: 0.875rem; transition: all; }
-        .nav-btn:hover { background-color: rgba(23, 207, 84, 0.1); color: #17cf54; }
-        .nav-btn.active { background-color: rgba(23, 207, 84, 0.1); color: #17cf54; font-weight: 700; }
-        .dark .nav-btn { color: #8bc49e; }
-        .dark .nav-btn:hover, .dark .nav-btn.active { color: #17cf54; }
-        .btn-secondary { display: flex; align-items: center; justify-content: center; padding: 0.5rem 1rem; background-color: white; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #0e1b12; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); cursor: pointer; }
-        .dark .btn-secondary { background-color: #1a2c20; color: white; }
-        .btn-secondary:hover { background-color: #f3f4f6; }
-        .dark .btn-secondary:hover { background-color: #2a4030; }
+        .nav-btn { display: flex; align-items: center; gap: 1rem; width: 100%; padding: 0.75rem 1.25rem; border-radius: 9999px; color: #525252; font-weight: 500; font-size: 0.875rem; transition: all; }
+        .nav-btn:hover { background-color: white; color: #000000; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .nav-btn.active { background-color: #000000; color: #ffffff; font-weight: 600; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
       `}</style>
     </div>
   );

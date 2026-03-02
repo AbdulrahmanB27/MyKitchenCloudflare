@@ -55,7 +55,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   // Sharing State
   const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
-  const [syncToFamily, setSyncToFamily] = useState(true);
+  // syncToFamily removed - derived from targetFamilyId !== 'private'
   const [additionalSyncFamilyIds, setAdditionalSyncFamilyIds] = useState<Set<string>>(new Set());
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const currentFamilyId = db.getCurrentFamilyId();
@@ -126,14 +126,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           if (data.familyId) setTargetFamilyId(data.familyId);
           else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
           else if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
-          setSyncToFamily(true);
 
           if (data.tenantIds) {
               setAdditionalSyncFamilyIds(new Set(data.tenantIds.filter(id => id !== data.familyId)));
           }
       } else {
           setTargetFamilyId('private');
-          setSyncToFamily(false);
           setAdditionalSyncFamilyIds(new Set());
       }
 
@@ -252,14 +250,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (pinnedFamilyId) {
             primary = pinnedFamilyId;
             setTargetFamilyId(pinnedFamilyId);
-            setSyncToFamily(true);
         } else if (currentFamilyId) {
             primary = currentFamilyId;
             setTargetFamilyId(currentFamilyId);
-            setSyncToFamily(true);
         } else {
             setTargetFamilyId('private');
-            setSyncToFamily(false);
         }
 
         // Default to sync all for new recipes if multiple sessions
@@ -535,7 +530,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       components: [], 
       createdAt: initialData?.createdAt || Date.now(),
       updatedAt: Date.now(),
-      shareToFamily: syncToFamily
+      shareToFamily: targetFamilyId !== 'private'
     };
   };
 
@@ -804,7 +799,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                       <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
                   )}
                   {initialData?.id && onDelete && (
-                      <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+                      <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-text-main hover:text-black dark:text-white dark:hover:text-gray-300 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
                   )}
               </div>
               <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
@@ -814,7 +809,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           {/* Basics */}
           <section className="space-y-4">
              <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
-                 <h3 className="text-lg font-bold text-primary">Basics</h3>
+                 <h3 className="text-lg font-bold text-text-main dark:text-white">Basics</h3>
                  
                  {/* Custom Family Selector */}
                  <div className="relative" ref={dropdownRef}>
@@ -833,7 +828,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                              <div className="py-1">
                                  <button
                                     type="button"
-                                    onClick={() => { setTargetFamilyId('private'); setSyncToFamily(false); setIsFamilySelectorOpen(false); }}
+                                    onClick={() => { setTargetFamilyId('private'); setIsFamilySelectorOpen(false); }}
                                     className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-primary/5 text-primary' : 'text-text-main dark:text-white'}`}
                                  >
                                      <Lock size={16} />
@@ -846,12 +841,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                      const isSynced = additionalSyncFamilyIds.has(s.id);
                                      
                                      return (
-                                         <div key={s.id} className={`w-full flex items-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-primary/5' : ''}`}>
+                                         <div key={s.id} className={`w-full flex items-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-gray-100 dark:bg-white/10' : ''}`}>
                                              <button
                                                 type="button"
                                                 onClick={() => { 
                                                     setTargetFamilyId(s.id); 
-                                                    setSyncToFamily(true); 
                                                     setAdditionalSyncFamilyIds(prev => {
                                                         const next = new Set(prev);
                                                         next.delete(s.id);
@@ -864,32 +858,32 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                     });
                                                     setIsFamilySelectorOpen(false); 
                                                 }}
-                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-primary' : 'text-text-main dark:text-white'}`}
+                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-text-main dark:text-white' : 'text-text-main dark:text-white'}`}
                                              >
                                                  <Users size={16} />
                                                  <div className="flex flex-col">
                                                      <span className="text-sm font-bold">{s.name}</span>
                                                      {s.id === currentFamilyId && <span className="text-[10px] text-text-muted uppercase font-bold">Current</span>}
                                                  </div>
-                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-primary">Primary</span>}
+                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-text-main dark:text-white">Primary</span>}
                                              </button>
                                              
                                              {targetFamilyId !== 'private' && !isPrimary && (
                                                  <div className="pr-4 pl-2 h-full flex items-center" onClick={e => e.stopPropagation()}>
-                                                     <input 
-                                                        type="checkbox"
-                                                        checked={isSynced}
-                                                        onChange={(e) => {
+                                                     <div 
+                                                        onClick={() => {
                                                             setAdditionalSyncFamilyIds(prev => {
                                                                 const next = new Set(prev);
-                                                                if (e.target.checked) next.add(s.id);
-                                                                else next.delete(s.id);
+                                                                if (isSynced) next.delete(s.id);
+                                                                else next.add(s.id);
                                                                 return next;
                                                             });
                                                         }}
-                                                        className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer ${isSynced ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}
                                                         title={`Also sync to ${s.name}`}
-                                                     />
+                                                     >
+                                                         {isSynced && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
+                                                     </div>
                                                  </div>
                                              )}
                                          </div>
@@ -950,12 +944,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </section>
 
           <section className="space-y-4">
-             <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Ingredients</h3>
+             <h3 className="text-lg font-bold text-text-main dark:text-white border-b border-border-light dark:border-border-dark pb-2">Ingredients</h3>
              {ingredientBlocks.map((block, bIdx) => (
                  <div key={block.id} className="relative bg-background-light dark:bg-surface-dark/50 rounded-xl p-4 border border-border-light dark:border-border-dark">
                      <div className="flex items-center gap-2 mb-3">
-                         <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-primary placeholder:text-primary/40 focus:outline-none w-full"/>
-                         {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
+                         <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-text-main dark:text-white placeholder:text-text-main/40 focus:outline-none w-full"/>
+                         {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-text-muted p-1 hover:text-text-main transition-colors"><Trash2 size={16}/></button>}
                      </div>
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
@@ -992,15 +986,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  )}
                              </div>
                          ))}
-                         <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-primary flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
+                         <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-text-main dark:text-white flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
                      </div>
                  </div>
              ))}
-             <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Ingredient Group</button>
+             <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-border-light dark:border-border-dark text-text-main dark:text-white font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5">+ Add Ingredient Group</button>
           </section>
 
           <section className="space-y-4">
-             <h3 className="text-lg font-bold text-primary border-b border-border-light dark:border-border-dark pb-2">Instructions</h3>
+             <h3 className="text-lg font-bold text-text-main dark:text-white border-b border-border-light dark:border-border-dark pb-2">Instructions</h3>
              {instructionBlocks.map((block, bIdx) => (
                  <div key={block.id} className="relative bg-background-light dark:bg-surface-dark/50 rounded-xl p-4 border border-border-light dark:border-border-dark">
                      <div className="flex items-center gap-2 mb-3">
@@ -1101,31 +1095,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
-              {targetFamilyId !== 'private' && (
-                  <div 
-                    onClick={() => {
-                        if (availableSessions.length > 1) {
-                            const isAll = availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id));
-                            if (isAll) {
-                                setAdditionalSyncFamilyIds(new Set());
-                            } else {
-                                setAdditionalSyncFamilyIds(new Set(availableSessions.filter(s => s.id !== targetFamilyId).map(s => s.id)));
-                            }
-                        } else {
-                            setSyncToFamily(!syncToFamily);
-                        }
-                    }} 
-                    className="flex items-center justify-center gap-2 cursor-pointer text-sm text-text-muted hover:text-text-main dark:hover:text-white transition-colors select-none mb-2 sm:mb-0"
-                  >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${(availableSessions.length > 1 ? (availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id))) : syncToFamily) ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
-                          {(availableSessions.length > 1 ? (availableSessions.every(s => s.id === targetFamilyId || additionalSyncFamilyIds.has(s.id))) : syncToFamily) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
-                      </div>
-                      <span>{availableSessions.length > 1 ? "Sync to all families" : `Sync to ${availableSessions[0]?.name || 'Family'}`}</span>
-                  </div>
-              )}
               <div className="flex gap-3 w-full sm:w-auto">
                 <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-primary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
+                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-primary text-inverse font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
                     {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
                     Save
                 </button>
@@ -1149,7 +1121,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     />
                     <div className="flex justify-end gap-3">
                         <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-muted hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                        <button onClick={handleTextImport} className="px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-green-600">Import</button>
+                        <button onClick={handleTextImport} className="px-4 py-2 bg-primary text-inverse rounded-lg font-bold hover:bg-gray-800 dark:hover:bg-gray-200">Import</button>
                     </div>
                 </div>
             </div>
@@ -1164,7 +1136,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
       )}
 
-      <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: #4e9767; margin-bottom: 0.25rem; } .dark .label { color: #8bc49e; } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #e7f3eb; background-color: #f8fcf9; color: #0e1b12; outline: none; } .dark .input { border-color: #2a4030; background-color: #1a2c20; color: white; }`}</style>
+      <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--color-text-muted); margin-bottom: 0.25rem; } .dark .label { color: var(--color-text-muted-dark); } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--color-border); background-color: var(--color-surface); color: var(--color-text-main); outline: none; } .dark .input { border-color: var(--color-border-dark); background-color: var(--color-surface-dark); color: var(--color-text-main-dark); }`}</style>
     </div>
   );
 };

@@ -34,7 +34,7 @@ const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () 
             : 'border-gray-400 dark:border-gray-500 hover:border-primary bg-transparent'
     }`}
   >
-    <span className={`material-symbols-outlined text-white text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
+    <span className={`material-symbols-outlined text-inverse text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
   </div>
 );
 
@@ -217,13 +217,13 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 <div className="flex gap-2 text-sm mt-1">
                     <button 
                          onClick={() => setViewMode('combined')}
-                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-primary text-white border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
+                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-primary text-inverse border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
                     >
                         Combined
                     </button>
                     <button 
                         onClick={() => setViewMode('by-recipe')}
-                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-primary text-white border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
+                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-primary text-inverse border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
                     >
                         By Recipe
                     </button>

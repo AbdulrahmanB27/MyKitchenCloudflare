@@ -47,7 +47,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
 
-  const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Helper to extract text from Instruction or String
@@ -127,20 +127,47 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
 
   // --- Effects ---
 
+  // --- Wake Lock ---
   useEffect(() => {
-    // Try Wake Lock
-    if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(setWakeLock).catch(console.warn);
-    }
-    // Load user notes safely
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null;
+          });
+        } catch (err) {
+          console.error('Wake Lock request failed:', err);
+        }
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+      }
+    };
+  }, []);
+
+  // --- Load Notes ---
+  useEffect(() => {
     const savedNotes = db.safeGetItem(`user_mistakes_${recipe.id}`);
     if (savedNotes) {
         try {
             setUserNotes(JSON.parse(savedNotes));
         } catch (e) {}
     }
-
-    return () => { if(wakeLock) wakeLock.release().catch(() => {}); };
   }, [recipe.id]);
 
   // Parse Step Timer

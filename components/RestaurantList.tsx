@@ -138,14 +138,14 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                 onMouseLeave={handleTouchEnd}
             >
                 {/* Overlay Indicators */}
-                <div className="absolute top-8 left-8 z-30 border-4 border-green-500 rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none bg-green-500/10 backdrop-blur-sm" style={{ opacity: opacityRight }}>
-                    <span className="text-green-500 font-extrabold text-3xl uppercase tracking-widest">Like</span>
+                <div className="absolute top-8 left-8 z-30 border-4 border-text-main rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none bg-text-main/10 backdrop-blur-sm" style={{ opacity: opacityRight }}>
+                    <span className="text-text-main font-extrabold text-3xl uppercase tracking-widest">Like</span>
                 </div>
-                <div className="absolute top-8 right-8 z-30 border-4 border-red-500 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none bg-red-500/10 backdrop-blur-sm" style={{ opacity: opacityLeft }}>
-                    <span className="text-red-500 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
+                <div className="absolute top-8 right-8 z-30 border-4 border-gray-400 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none bg-gray-400/10 backdrop-blur-sm" style={{ opacity: opacityLeft }}>
+                    <span className="text-gray-400 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
                 </div>
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 border-4 border-blue-400 rounded-lg px-4 py-1 transition-opacity pointer-events-none bg-blue-400/10 backdrop-blur-sm" style={{ opacity: opacitySkip }}>
-                    <span className="text-blue-400 font-extrabold text-3xl uppercase tracking-widest">Skip</span>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 border-4 border-gray-300 rounded-lg px-4 py-1 transition-opacity pointer-events-none bg-gray-300/10 backdrop-blur-sm" style={{ opacity: opacitySkip }}>
+                    <span className="text-gray-300 font-extrabold text-3xl uppercase tracking-widest">Skip</span>
                 </div>
 
                 {/* Card Content */}
@@ -177,9 +177,9 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                         <div className="flex justify-between items-start gap-2">
                             <h2 className="text-2xl font-display font-extrabold text-text-main dark:text-white leading-tight line-clamp-2">{restaurant.name}</h2>
                             {restaurant.stars > 0 && (
-                                <div className="flex items-center bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-lg shrink-0">
-                                    <Star size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
-                                    <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{restaurant.stars}</span>
+                                <div className="flex items-center bg-gray-100 dark:bg-white/10 px-2 py-1 rounded-lg shrink-0">
+                                    <Star size={14} className="text-text-main fill-text-main mr-1" />
+                                    <span className="text-sm font-bold text-text-main dark:text-white">{restaurant.stars}</span>
                                 </div>
                             )}
                         </div>
@@ -201,13 +201,13 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
             {/* Buttons - Outside card to stay fixed and below */}
             <div className="absolute -bottom-24 left-0 right-0 px-8 flex items-center justify-center gap-6 sm:gap-10 pointer-events-auto z-30">
                 <button onClick={() => finishVote(-1)} disabled={animating} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 border border-gray-100 dark:border-gray-800">
-                    <X className="text-red-500" size={32} />
+                    <X className="text-text-main" size={32} />
                 </button>
                 <button onClick={() => finishVote(0)} disabled={animating} className="group pointer-events-auto relative flex items-center justify-center size-12 rounded-full bg-white dark:bg-surface-dark shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 -mt-4 border border-gray-100 dark:border-gray-800">
-                    <ArrowRight className="text-blue-400" size={24} />
+                    <ArrowRight className="text-text-muted" size={24} />
                 </button>
                 <button onClick={() => finishVote(1)} disabled={animating} className="group pointer-events-auto relative flex items-center justify-center size-16 rounded-full bg-primary shadow-xl shadow-primary/30 hover:scale-110 active:scale-95 transition-all duration-200">
-                    <Heart className="text-white fill-white" size={32} />
+                    <Heart className="text-inverse fill-inverse" size={32} />
                 </button>
             </div>
         </div>
@@ -686,7 +686,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         maxLength={4}
                         autoFocus
                     />
-                    <button onClick={() => handleJoinSession()} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
+                    <button onClick={() => handleJoinSession()} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-primary text-inverse font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
                         {loading ? <Loader className="animate-spin mx-auto" /> : 'Join'}
                     </button>
                 </div>
@@ -739,12 +739,12 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 <div className="flex gap-2">
                                     <button 
                                         onClick={() => setShowResults(!showResults)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all ${showResults ? 'bg-primary text-white' : 'bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-muted hover:text-primary'}`}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all ${showResults ? 'bg-primary text-inverse' : 'bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-muted hover:text-primary'}`}
                                     >
                                         <BarChart3 size={18} />
                                         <span className="hidden sm:inline">{showResults ? 'Hide Results' : 'Results'}</span>
                                     </button>
-                                    <button onClick={handleBackToList} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-red-500 hover:text-red-600 border-red-200 dark:border-red-900/30">
+                                    <button onClick={handleBackToList} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-main hover:text-black dark:text-white border-border-light dark:border-white/10">
                                         {isHost ? 'End' : 'Exit'}
                                     </button>
                                 </div>
@@ -770,7 +770,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </button>
                                 ))}
                                 <div className="w-[1px] bg-border-light dark:border-border-dark mx-2"></div>
-                                <button onClick={() => setShowArchived(!showArchived)} className={`flex shrink-0 items-center justify-center gap-x-2 rounded-2xl px-4 py-2 border transition-all ${showArchived ? 'bg-primary text-white border-primary' : 'bg-surface-light dark:bg-surface-dark text-text-muted border-transparent shadow-sm'}`}>
+                                <button onClick={() => setShowArchived(!showArchived)} className={`flex shrink-0 items-center justify-center gap-x-2 rounded-2xl px-4 py-2 border transition-all ${showArchived ? 'bg-primary text-inverse border-primary' : 'bg-surface-light dark:bg-surface-dark text-text-muted border-transparent shadow-sm'}`}>
                                     <span className="text-sm font-medium font-display">Archived</span>
                                 </button>
                             </div>
@@ -795,7 +795,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     </span>
                                                 )}
                                                 {r.stars > 0 && (
-                                                    <div className="flex gap-0.5 text-yellow-400 drop-shadow-md">
+                                                    <div className="flex gap-0.5 text-text-main drop-shadow-md">
                                                         {Array.from({length: r.stars}).map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
                                                     </div>
                                                 )}
@@ -886,7 +886,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             <span className="text-sm font-semibold text-text-muted bg-gray-100 dark:bg-white/5 px-3 py-1 rounded-full animate-pulse">
                                                 ✨ {selection.size} restaurants selected
                                             </span>
-                                            <button onClick={startSession} disabled={selection.size === 0} className="w-full bg-primary hover:bg-green-600 text-white font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
+                                            <button onClick={startSession} disabled={selection.size === 0} className="w-full bg-primary hover:bg-primary-dark text-inverse font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
                                                 Start Session
                                                 <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                                             </button>
@@ -995,7 +995,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     <div className="grid gap-3 pt-2">
                                                         <button 
                                                             onClick={() => setShowResults(true)} 
-                                                            className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-green-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                                            className="w-full py-3 bg-primary text-inverse rounded-xl font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                                                         >
                                                             <BarChart3 size={20} /> View Live Results
                                                         </button>
@@ -1043,7 +1043,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                     </button>
                     <button 
                         onClick={() => openForm()}
-                        className="size-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform"
+                        className="size-14 bg-primary text-inverse rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform"
                         title="Add Restaurant"
                     >
                         <Plus size={28} />
@@ -1076,7 +1076,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-primary/10 dark:border-border-dark bg-white dark:bg-surface-dark">
                             <div className="flex items-center gap-3">
-                                <div className="bg-primary text-white p-2 rounded-xl shadow-sm shadow-primary/30">
+                                <div className="bg-primary text-inverse p-2 rounded-xl shadow-sm shadow-primary/30">
                                     <UtensilsCrossed size={20} />
                                 </div>
                                 <h2 className="text-xl font-display font-bold text-text-main dark:text-white">
@@ -1167,7 +1167,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     key={day.id}
                                                     type="button" 
                                                     onClick={() => toggleSchedDay(day.id)}
-                                                    className={`size-9 shrink-0 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-primary text-white border-primary shadow-md shadow-primary/30' : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-border-dark text-gray-400 hover:border-primary/50'}`}
+                                                    className={`size-9 shrink-0 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-primary text-inverse border-primary shadow-md shadow-primary/30' : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-border-dark text-gray-400 hover:border-primary/50'}`}
                                                 >
                                                     {day.label}
                                                 </button>
@@ -1294,7 +1294,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         className="flex items-center gap-2 cursor-pointer select-none"
                                     >
                                         <div className={`w-4 h-4 rounded border flex items-center justify-center ${syncToAll ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}>
-                                            {syncToAll && <Check size={10} className="text-white" />}
+                                            {syncToAll && <Check size={10} className="text-inverse" />}
                                         </div>
                                         <span className="text-xs font-bold text-text-muted hover:text-primary transition-colors">
                                             {availableSessions.length > 1 ? "Sync to all families" : "Sync to Family"}
@@ -1312,7 +1312,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
                                     Cancel
                                 </button>
-                                <button type="submit" className="flex-1 sm:flex-none px-8 py-3 rounded-xl text-sm font-bold bg-primary text-white hover:bg-green-600 shadow-lg shadow-primary/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+                                <button type="submit" className="flex-1 sm:flex-none px-8 py-3 rounded-xl text-sm font-bold bg-primary text-inverse hover:bg-primary-dark shadow-lg shadow-primary/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
                                     {editingId ? 'Update Gem' : 'Save Gem'}
                                 </button>
                             </div>

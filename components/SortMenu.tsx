@@ -40,7 +40,7 @@ const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center justify-center size-10 rounded-lg border transition-colors ${
             isOpen 
-                ? 'bg-primary text-white border-primary' 
+                ? 'bg-primary text-inverse border-primary' 
                 : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark text-text-muted hover:text-text-main dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
         }`}
         title={`Sort by: ${currentLabel}`}

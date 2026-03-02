@@ -345,7 +345,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
               {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
-              {ing.optional && <span className="text-blue-500 text-[10px] font-bold uppercase ml-2 bg-blue-50 dark:bg-blue-900/10 px-1.5 py-0.5 rounded">Optional</span>}
+              {ing.optional && <span className="text-text-main dark:text-white text-[10px] font-bold uppercase ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Optional</span>}
           </span>
       );
   };
@@ -537,7 +537,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                     onClick={() => handleLinkAction('copy')}
                                     className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
                                 >
-                                    <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                    <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
                                         <LinkIcon size={20} />
                                     </div>
                                     <div className="flex-1">
@@ -563,7 +563,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                     onClick={() => handleTextAction('copy')}
                                     className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
                                 >
-                                    <div className="p-2 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                    <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
                                         <FileText size={20} />
                                     </div>
                                     <div className="flex-1">
@@ -624,7 +624,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                             </div>
                             <h1 className="text-white text-3xl md:text-5xl font-bold font-display leading-tight drop-shadow-sm">{recipe.name}</h1>
                             <div className="flex items-center gap-2 text-white/90 text-sm">
-                                <div className="flex text-yellow-400">
+                                <div className="flex text-white">
                                     {[1,2,3,4,5].map(i => (
                                         <span key={i} className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: `'FILL' ${i <= Math.round(visualStars) ? 1 : 0}` }}>star</span>
                                     ))}
@@ -669,14 +669,14 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
                     {/* Actions */}
                     <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center no-scrollbar">
-                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-accent-light dark:bg-accent-dark hover:bg-primary hover:text-white text-primary dark:text-primary-dark dark:hover:text-white font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
+                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 hover:bg-primary hover:text-inverse text-primary dark:text-white dark:hover:text-inverse font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
                             <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
                             <span className="text-sm">Start Cooking</span>
                         </button>
                         <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
                         <div className="flex gap-2 ml-auto md:ml-0">
                              <button onClick={() => setIsShareOpen(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
-                                <div className="rounded-full bg-accent-light dark:bg-accent-dark p-2.5 group-hover:bg-primary/20 transition-colors">
+                                <div className="rounded-full bg-gray-100 dark:bg-white/10 p-2.5 group-hover:bg-primary/20 transition-colors">
                                     <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">share</span>
                                 </div>
                                 <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
@@ -778,7 +778,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                          </div>
 
                          {/* Add to List Button */}
-                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm shadow-primary/20">
+                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-gray-800 dark:hover:bg-gray-200 text-inverse font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm shadow-primary/20">
                             <span className="material-symbols-outlined text-[20px]">shopping_cart</span> 
                             <span className="whitespace-nowrap">Add to List</span>
                         </button>

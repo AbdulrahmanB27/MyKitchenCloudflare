@@ -346,7 +346,8 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
         if (!r.shareToFamily) return true;
         
         // Keep recipes that belong to ANY logged-in family
-        // 1. Check primary tenantId
+        // 1. Check primary tenantId / familyId
+        if (r.familyId && allowedTenants.includes(r.familyId)) return true;
         if (r.tenantId && allowedTenants.includes(r.tenantId)) return true;
         
         // 2. Check merged tenantIds (if recipe exists in multiple families)

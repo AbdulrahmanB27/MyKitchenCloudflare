@@ -124,7 +124,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
         <div className="absolute inset-0 flex items-center justify-center p-4">
             <div 
                 ref={cardRef}
-                className="w-full max-w-sm aspect-[3/4] bg-white dark:bg-card-dark rounded-3xl shadow-2xl border border-border-thin dark:border-border-dark overflow-hidden relative touch-none select-none cursor-grab active:cursor-grabbing z-20"
+                className="w-full max-w-sm aspect-[3/4] bg-white dark:bg-card-dark rounded-3xl shadow-2xl overflow-hidden relative touch-none select-none cursor-grab active:cursor-grabbing z-20"
                 style={{ 
                     transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
                     transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
@@ -843,7 +843,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <div 
                                         key={r.id} 
                                         onClick={() => openForm(r)}
-                                        className="group bg-white dark:bg-card-dark rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-border-thin dark:border-border-dark flex flex-col cursor-pointer relative"
+                                        className="group bg-white dark:bg-card-dark rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col cursor-pointer relative hover:-translate-y-1"
                                     >
                                         <div className="relative h-48 overflow-hidden bg-gray-100 dark:bg-gray-800">
                                             {r.image ? (
@@ -894,7 +894,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </div>
                                 </div>
                             ) : !activeSession ? (
-                                <div className="w-full max-w-md mx-auto bg-white dark:bg-card-dark rounded-3xl shadow-xl overflow-hidden flex flex-col h-[85vh] max-h-[800px] relative border border-border-thin dark:border-border-dark">
+                                <div className="w-full max-w-md mx-auto bg-white dark:bg-card-dark rounded-3xl shadow-xl overflow-hidden flex flex-col h-[85vh] max-h-[800px] relative">
                                     <button 
                                         onClick={() => setView('list')}
                                         className="absolute top-4 right-4 p-2 rounded-full hover:bg-bg-subtle dark:hover:bg-white/10 z-10"
@@ -997,7 +997,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 const score = calculateScore(r.id);
                                                 const myVote = myVotes.get(r.id);
                                                 return (
-                                                    <div key={r.id} className="bg-white dark:bg-card-dark rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 relative group border border-border-thin dark:border-border-dark">
+                                                    <div key={r.id} className="bg-white dark:bg-card-dark rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 relative group">
                                                         {idx === 0 && score > 0 && (
                                                             <div className="absolute top-4 right-4 z-10 bg-white/95 dark:bg-black/80 backdrop-blur text-forest-green dark:text-accent-herb px-3 py-1.5 rounded-lg font-bold shadow-sm flex items-center gap-1 border border-black/5 dark:border-white/10">
                                                                 <Heart size={16} fill="currentColor" /> Top Match
@@ -1046,7 +1046,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                     No restaurants found for session.
                                                 </div>
                                             ) : swipeFinished ? (
-                                                <div className="w-full max-w-sm mx-auto bg-white dark:bg-card-dark rounded-3xl shadow-xl p-8 text-center space-y-6 border border-border-thin dark:border-border-dark animate-in zoom-in">
+                                                <div className="w-full max-w-sm mx-auto bg-white dark:bg-card-dark rounded-3xl shadow-xl p-8 text-center space-y-6 animate-in zoom-in">
                                                     <div className="inline-flex p-6 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full mb-2">
                                                         <CheckCircle size={48} />
                                                     </div>
@@ -1094,20 +1094,20 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             </main>
 
             {view === 'list' && (
-                <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-30">
+                <div className="absolute bottom-8 right-8 flex flex-col gap-4 z-30">
                     <button 
                         onClick={() => setView('decide')}
-                        className="size-14 bg-white dark:bg-card-dark text-forest-green dark:text-accent-herb border-2 border-forest-green/20 dark:border-accent-herb/20 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+                        className="size-16 bg-white dark:bg-card-dark text-forest-green dark:text-accent-herb rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-all duration-300 group"
                         title="Help us Decide"
                     >
-                        <Play size={24} fill="currentColor" />
+                        <Play size={28} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                     </button>
                     <button 
                         onClick={() => openForm()}
-                        className="size-14 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform"
+                        className="size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl flex items-center justify-center hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group"
                         title="Add Restaurant"
                     >
-                        <Plus size={28} />
+                        <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
                     </button>
                 </div>
             )}

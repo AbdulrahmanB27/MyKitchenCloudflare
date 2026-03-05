@@ -33,7 +33,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
   return (
     <div 
       onClick={() => onClick(recipe)}
-      className="bg-white dark:bg-card-dark rounded-xl overflow-hidden shadow-card hover:shadow-hover transition-all duration-300 group cursor-pointer border-t-4 border-transparent hover:border-forest-green border-x border-b border-border-thin dark:border-border-dark relative flex flex-col h-full"
+      className="bg-white dark:bg-card-dark rounded-xl overflow-hidden shadow-card hover:shadow-hover transition-all duration-300 group cursor-pointer relative flex flex-col h-full hover:-translate-y-1"
     >
       <div className="aspect-[4/3] relative overflow-hidden bg-bg-subtle dark:bg-white/10">
         {recipe.image ? (
@@ -49,12 +49,6 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
           </div>
         )}
         
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4 justify-center">
-            <button className="bg-white dark:bg-accent-herb text-black px-4 py-2 rounded-full text-xs font-bold shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                View Recipe
-            </button>
-        </div>
-
         <button
           onClick={(e) => {
              e.stopPropagation();
@@ -64,7 +58,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
         >
           <Heart 
             size={20} 
-            className={`${recipe.favorite ? 'fill-red-500 text-red-500' : 'text-text-secondary dark:text-text-secondary-dark hover:text-red-500'} transition-colors`} 
+            className={`${recipe.favorite ? 'fill-red-500 text-red-500' : 'text-gray-400 dark:text-white/50 hover:text-red-500'} transition-colors`} 
           />
         </button>
       </div>
@@ -80,19 +74,19 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
             )}
         </div>
         
-        <p className="text-sm text-text-secondary dark:text-text-secondary-dark line-clamp-2 mb-4 flex-1">
+        <p className="text-sm text-text-secondary dark:text-gray-400 line-clamp-2 mb-4 flex-1">
             {recipe.description || "No description available."}
         </p>
 
-        <div className="flex items-center justify-between text-xs font-medium text-text-secondary dark:text-text-secondary-dark pt-4 border-t border-border-thin dark:border-border-dark mt-auto">
+        <div className="flex items-center justify-between text-xs font-medium text-text-secondary dark:text-gray-500 pt-4 border-t border-border-thin dark:border-border-dark mt-auto">
             <div className="flex items-center gap-1.5">
-                <Clock size={16} className="text-forest-green dark:text-text-secondary-dark" />
+                <Clock size={16} className="text-forest-green dark:text-gray-500" />
                 <span>{timeDisplay}</span>
             </div>
             
             {recipe.nutrition?.calories && (
                 <div className="flex items-center gap-1.5">
-                    <Flame size={16} className="text-forest-green dark:text-text-secondary-dark" />
+                    <Flame size={16} className="text-forest-green dark:text-gray-500" />
                     <span>{recipe.nutrition.calories} kcal</span>
                 </div>
             )}

@@ -31,8 +31,8 @@ interface InstructionBlock {
 }
 
 const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, onClose }) => {
-  const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-white/5 text-text-main dark:text-white outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
-  const LABEL_CLASS = "block text-sm font-bold text-text-secondary mb-1 dark:text-gray-400";
+  const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
+  const LABEL_CLASS = "block text-sm font-bold text-text-secondary mb-1 dark:text-accent-herb/80";
 
   const [formData, setFormData] = useState<Partial<Recipe>>({
     name: '',
@@ -788,7 +788,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
       <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-thin dark:border-border-dark">
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-thin dark:border-border-dark">
-          <h2 className="text-xl font-bold text-text-main dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
+          <h2 className="text-xl font-bold text-text-main dark:text-text-main-dark">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <div className="flex items-center gap-1">
               {/* Mobile-only icons in header */}
               <div className="flex items-center gap-1 sm:hidden">
@@ -798,11 +798,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                         <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
                       </>
                   )}
-                  {initialData && (
-                      <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
-                  )}
                   {initialData?.id && onDelete && (
                       <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+                  )}
+                  {initialData && (
+                      <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
                   )}
               </div>
               <button type="button" onClick={onClose} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-full transition-colors"><X size={20} className="text-text-secondary" /></button>
@@ -819,7 +819,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      <button 
                         type="button"
                         onClick={() => setIsFamilySelectorOpen(!isFamilySelectorOpen)}
-                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-bg-subtle dark:bg-surface-dark border border-border-thin dark:border-border-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50 text-xs font-bold text-text-main dark:text-white transition-all shadow-sm"
+                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-bg-subtle dark:bg-card-dark border border-border-thin dark:border-border-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50 text-xs font-bold text-text-main dark:text-text-main-dark transition-all shadow-sm"
                      >
                          {targetFamilyId === 'private' ? <Lock size={14} className="text-forest-green dark:text-accent-herb" /> : <Users size={14} className="text-forest-green dark:text-accent-herb" />}
                          <span>{getTargetFamilyName()}</span>
@@ -832,7 +832,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  <button
                                     type="button"
                                     onClick={() => { setTargetFamilyId('private'); setIsFamilySelectorOpen(false); }}
-                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}
+                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
                                  >
                                      <Lock size={16} />
                                      <span className="text-sm font-bold">Private (This Device)</span>
@@ -861,7 +861,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                     });
                                                     setIsFamilySelectorOpen(false); 
                                                 }}
-                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}
+                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
                                              >
                                                  <Users size={16} />
                                                  <div className="flex flex-col">
@@ -1010,7 +1010,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-2 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
                                  <div className="flex-1 space-y-2">
                                      <div className="flex gap-2 items-center">
-                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1" />
+                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1 dark:text-text-main-dark" />
                                         <div className="flex gap-1">
                                             <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
@@ -1089,18 +1089,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
                   </>
               )}
-              {initialData && (
-                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
-              )}
               {initialData?.id && onDelete && (
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+              )}
+              {initialData && (
+                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
               )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
               <div className="flex gap-3 w-full sm:w-auto">
                 <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-thin dark:border-border-dark hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-black/10 hover:shadow-black/20 transition-all">
+                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-black/10 hover:shadow-black/20 transition-all">
                     {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
                     Save
                 </button>

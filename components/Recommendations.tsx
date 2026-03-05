@@ -202,7 +202,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
         </div>
 
         {/* Ingredients Selector */}
-        <div className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-border-thin dark:border-border-dark space-y-4">
+        <div className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm space-y-4">
             
             {/* Controls Row */}
             <div className="flex flex-col gap-4">
@@ -333,7 +333,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             <div 
                                 key={recipe.id}
                                 onClick={() => onOpenRecipe(recipe)}
-                                className="bg-white dark:bg-card-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer border border-border-thin dark:border-border-dark overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                className="bg-white dark:bg-card-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
                             >
                                 <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${recipe.image || ''}")` }}>
                                     {!recipe.image && <div className="absolute inset-0 bg-bg-subtle dark:bg-white/10 flex items-center justify-center"><span className="text-2xl">🍳</span></div>}

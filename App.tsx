@@ -676,12 +676,24 @@ const App: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="flex gap-2">
-                                        {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                            <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
-                                                {cat}
-                                            </button>
-                                        ))}
+                                    <div className="flex justify-between items-center gap-4">
+                                        <div className="flex gap-2">
+                                            {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <SortMenu 
+                                            currentSort={sortBy} 
+                                            onSortChange={(val) => setSortBy(val as SortOption)} 
+                                            options={[
+                                                { label: 'Name (A-Z)', value: 'name' },
+                                                { label: 'Fastest', value: 'time' },
+                                                { label: 'Top Rated', value: 'rating' },
+                                                { label: 'Lowest Calories', value: 'calories' }
+                                            ]}
+                                        />
                                     </div>
 
                                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
@@ -701,23 +713,11 @@ const App: React.FC = () => {
                                                 </button>
                                             );
                                         })}
-                                        <div className="ml-auto pl-2">
-                                            <SortMenu 
-                                                currentSort={sortBy} 
-                                                onSortChange={(val) => setSortBy(val as SortOption)} 
-                                                options={[
-                                                    { label: 'Name (A-Z)', value: 'name' },
-                                                    { label: 'Fastest', value: 'time' },
-                                                    { label: 'Top Rated', value: 'rating' },
-                                                    { label: 'Lowest Calories', value: 'calories' }
-                                                ]}
-                                            />
-                                        </div>
                                     </div>
                                 </div>
 
                                 {filteredRecipes.length === 0 ? (
-                                    <div className="text-center py-20 text-text-secondary border-2 border-dashed border-border-thin dark:border-border-dark rounded-2xl bg-white/50 dark:bg-card-dark/30">
+                                    <div className="text-center py-20 text-text-secondary rounded-2xl bg-white/50 dark:bg-card-dark/30">
                                         <p className="text-lg">No recipes found.</p>
                                         <p className="text-sm mt-2 opacity-70">Try adjusting your search or filters.</p>
                                     </div>
@@ -731,7 +731,7 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group ring-4 ring-bg-white/50 dark:ring-bg-dark/50 flex items-center justify-center z-30">
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
                             <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
                         </button>
                     </div>

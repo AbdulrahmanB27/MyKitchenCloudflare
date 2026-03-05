@@ -16,10 +16,13 @@ import ExportModal, { ExportOptions } from './components/ExportModal';
 import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator } from 'lucide-react';
 
 const App: React.FC = () => {
-  // --- State ---
+  const NAV_BTN_BASE = "flex items-center gap-4 px-5 py-3 rounded-lg text-sm font-medium transition-all w-full";
+  const NAV_BTN_INACTIVE = "text-text-secondary dark:text-text-secondary-dark hover:bg-white/5 dark:hover:bg-white/5 hover:text-forest-green dark:hover:text-white";
+  const NAV_BTN_ACTIVE = "bg-forest-green text-white dark:bg-active-green dark:text-accent-herb font-bold shadow-sm hover:bg-forest-green/90 dark:hover:bg-active-green/90";
+
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pinnedTags, setPinnedTags] = useState<string[]>(['Dinner', 'Healthy', 'Quick']); // Defaults
   const [settings, setSettings] = useState<AppSettings>({ theme: 'system', autoSync: true });
@@ -506,135 +509,133 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans bg-bg-white text-text-main antialiased">
+    <div className="flex h-screen overflow-hidden font-sans bg-bg-white dark:bg-bg-dark text-text-main dark:text-white transition-colors duration-200">
       
       {/* Sidebar */}
       <aside 
-        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin bg-sidebar-light flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
+        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
       >
-        <div className={`p-6 flex items-center h-[72px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`p-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-3'}`}>
             {!isSidebarCollapsed ? (
-                <div>
-                    <h1 className="text-xl font-black uppercase tracking-tighter text-accent-black whitespace-nowrap truncate w-40" title={currentFamilyName}>
-                        {currentFamilyName}<span className="text-accent-lime">.</span>
-                    </h1>
-                    <button onClick={toggleAutoSync} className={`text-[10px] uppercase tracking-widest font-bold whitespace-nowrap flex items-center gap-1 ${syncStatus.color} hover:underline`} title="Click to toggle auto-sync">
-                        {syncStatus.icon} {syncStatus.text}
-                    </button>
-                </div>
+                <>
+                    <UtensilsCrossed className="size-8 text-accent-herb" />
+                    <h1 className="text-2xl font-black tracking-tightest text-text-main dark:text-white uppercase">MyKitchen</h1>
+                </>
             ) : (
-                <span className="material-symbols-outlined text-accent-black text-3xl">local_dining</span>
+                <UtensilsCrossed className="size-8 text-accent-herb" />
             )}
-            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden"><span className="material-symbols-outlined">close</span></button>
+            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden ml-auto text-text-secondary hover:text-text-main dark:hover:text-white transition-colors">
+                <CloseIcon size={24} />
+            </button>
         </div>
 
         {/* Desktop Sidebar Toggle */}
         <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="hidden md:flex absolute -right-3 top-20 bg-bg-white border border-border-thin rounded-full p-1 text-text-secondary hover:text-accent-black shadow-sm z-50 items-center justify-center"
+            className="hidden md:flex absolute -right-3 top-20 bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark rounded-full p-1 text-text-secondary hover:text-forest-green dark:hover:text-white shadow-sm z-50 items-center justify-center transition-colors"
         >
             {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto mt-2">
-            <div className="pb-4">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto mt-2">
+            <div className="pb-4 space-y-1">
                 <button 
                     onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`nav-btn ${currentView === 'recipes' && !activeRecipeId ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'recipes' && !activeRecipeId ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Recipes"
                 >
-                    <span className="material-symbols-outlined">menu_book</span> 
+                    <BookOpen size={20} className={currentView === 'recipes' && !activeRecipeId ? 'text-white dark:text-accent-herb' : ''} /> 
                     {!isSidebarCollapsed && "Recipes"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`nav-btn ${currentView === 'recommendations' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                    title="Recommendations"
+                    className={`${NAV_BTN_BASE} ${currentView === 'recommendations' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    title="What can I make?"
                 >
-                    <span className="material-symbols-outlined">smart_toy</span> 
-                    {!isSidebarCollapsed && "Suggestions"}
+                    <Refrigerator size={20} className={currentView === 'recommendations' ? 'text-white dark:text-accent-herb' : ''} /> 
+                    {!isSidebarCollapsed && "What can I make?"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`nav-btn ${currentView === 'planner' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'planner' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Planner"
                 >
-                    <span className="material-symbols-outlined">calendar_today</span> 
+                    <Calendar size={20} className={currentView === 'planner' ? 'text-white dark:text-accent-herb' : ''} /> 
                     {!isSidebarCollapsed && "Planner"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('shopping'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`nav-btn ${currentView === 'shopping' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'shopping' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
                     title="Shopping List"
                 >
-                    <span className="material-symbols-outlined">shopping_cart</span> 
-                    {!isSidebarCollapsed && "Shop"}
+                    <ShoppingCart size={20} className={currentView === 'shopping' ? 'text-white dark:text-accent-herb' : ''} /> 
+                    {!isSidebarCollapsed && "Shopping List"}
                 </button>
                 
                 {/* Eat Out Module */}
                 {ENABLE_RESTAURANTS && (
                     <button 
                         onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                        className={`nav-btn ${currentView === 'restaurants' ? 'active' : ''} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-                        title="Dining"
+                        className={`${NAV_BTN_BASE} ${currentView === 'restaurants' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                        title="Eat Out"
                     >
-                        <span className="material-symbols-outlined">restaurant</span>
-                        {!isSidebarCollapsed && "Dining"}
+                        <UtensilsCrossed size={20} className={currentView === 'restaurants' ? 'text-white dark:text-accent-herb' : ''} />
+                        {!isSidebarCollapsed && "Eat Out"}
                     </button>
                 )}
             </div>
             
-             <div className={`border-t border-border-thin pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
-                 {!isSidebarCollapsed && <h4 className="text-[10px] font-bold uppercase text-text-main/50 tracking-widest px-3 mb-2">Filters</h4>}
+             <div className={`border-t border-border-thin dark:border-border-dark pt-4 ${isSidebarCollapsed ? 'flex flex-col items-center gap-4' : 'space-y-1'}`}>
+                 {!isSidebarCollapsed && <h4 className="text-xs font-bold uppercase text-text-secondary px-3 mb-2 tracking-wider">Filters</h4>}
                  
                  {!isSidebarCollapsed ? (
                     <>
-                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-secondary hover:text-accent-black transition-colors select-none">
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${showArchived ? 'bg-accent-black border-accent-black' : 'border-gray-300 bg-transparent'}`}>
-                                {showArchived && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-secondary dark:text-text-secondary-dark hover:text-forest-green dark:hover:text-white transition-colors select-none rounded-lg hover:bg-white dark:hover:bg-white/5 group">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors bg-bg-white dark:bg-card-dark ${showArchived ? 'border-forest-green dark:border-accent-herb' : 'border-gray-400 dark:border-border-sage group-hover:border-forest-green dark:group-hover:border-accent-herb'}`}>
+                                <div className={`w-3 h-3 bg-forest-green dark:bg-accent-herb rounded-sm transition-all ${showArchived ? 'opacity-100 scale-100' : 'opacity-0 scale-0 group-hover:opacity-40 group-hover:scale-75'}`}></div>
                             </div>
                             <span className="font-medium">Show Archived</span>
                         </div>
                         
                         <div className="px-3 py-2">
-                             <div className="flex bg-gray-100 rounded-lg p-1">
-                                 <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'all' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>All</button>
-                                 <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'mine' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>Mine</button>
-                                 <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1 rounded ${familyFilter === 'family' ? 'bg-white shadow text-accent-black' : 'text-text-secondary'}`}>Family</button>
-                             </div>
+                                     <div className="flex bg-gray-200 dark:bg-black/40 rounded-lg p-1">
+                                         <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'all' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>All</button>
+                                         <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'mine' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>Mine</button>
+                                         <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'family' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>Family</button>
+                                     </div>
                         </div>
                     </>
                  ) : (
                     <>
-                         <button onClick={() => setShowArchived(!showArchived)} className={`nav-btn justify-center px-0 ${showArchived ? 'text-accent-black' : ''}`} title="Archived">
-                            <span className="material-symbols-outlined">archive</span>
+                         <button onClick={() => setShowArchived(!showArchived)} className={`${NAV_BTN_BASE} justify-center px-0 ${showArchived ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Archived">
+                            <Archive size={20} />
                          </button>
-                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`nav-btn justify-center px-0 ${familyFilter !== 'all' ? 'text-accent-black' : ''}`} title="Family Filter">
+                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`${NAV_BTN_BASE} justify-center px-0 ${familyFilter !== 'all' ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Family Filter">
                             <Users size={20} />
                          </button>
                     </>
                  )}
              </div>
         </nav>
-        <div className={`p-4 border-t border-border-thin flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
-            <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-3'}`}>
-                <button onClick={handleImportClick} className="text-text-secondary hover:text-accent-black transition-colors" title="Import Recipes"><Upload size={18} /></button>
-                <button onClick={() => setShowExportModal(true)} className="text-text-secondary hover:text-accent-black transition-colors" title="Backup/Export"><Download size={18} /></button>
+        <div className={`p-4 border-t border-border-thin dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
+            <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-1'}`}>
+                <button onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Import Recipes"><Upload size={18} /></button>
+                <button onClick={() => setShowExportModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Backup/Export"><Download size={18} /></button>
                 <button 
                     onClick={() => { setAuthModalView('switch'); setShowAuthModal(true); }} 
-                    className="text-text-secondary hover:text-accent-black transition-colors" 
+                    className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" 
                     title="Switch Family / Logout"
                 >
                     <Users size={18}/>
                 </button>
             </div>
-            <button onClick={toggleTheme} className="text-text-secondary hover:text-accent-black transition-colors">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button onClick={toggleTheme} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-bg-white">
+      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-bg-subtle dark:bg-bg-dark">
         
         {activeRecipeId && !editingRecipe ? (
             <RecipeDetail 
@@ -652,81 +653,73 @@ const App: React.FC = () => {
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
-                        <div className="md:hidden p-4 flex items-center gap-3 bg-bg-white border-b border-border-thin sticky top-0 z-10">
-                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main">
-                                <span className="material-symbols-outlined">menu</span>
+                        <div className="md:hidden p-4 flex items-center gap-3 bg-bg-white dark:bg-sidebar-dark border-b border-border-thin dark:border-border-dark sticky top-0 z-10">
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
+                                <Menu size={24} />
                             </button>
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={18} />
-                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search recipes..." className="w-full pl-10 pr-4 py-2 rounded-lg bg-bg-white border-none focus:ring-2 focus:ring-accent-black text-sm text-text-main placeholder:text-text-secondary" />
+                            <div className="relative flex-1 group">
+                                <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
+                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" />
                             </div>
-                            <SortMenu 
-                                currentSort={sortBy} 
-                                onSortChange={(val) => setSortBy(val as SortOption)} 
-                                options={[
-                                    { label: 'Name (A-Z)', value: 'name' },
-                                    { label: 'Fastest', value: 'time' },
-                                    { label: 'Top Rated', value: 'rating' },
-                                    { label: 'Lowest Calories', value: 'calories' }
-                                ]}
-                            />
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 md:p-8">
-                            <div className="max-w-7xl mx-auto space-y-6">
-                                <div className="flex flex-col md:flex-row gap-4 justify-between">
+                            <div className="max-w-7xl mx-auto space-y-8">
+                                <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                                     <div className="relative flex-1 max-w-xl hidden md:block group">
-                                        <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-accent-black transition-colors" size={24} />
-                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full bg-transparent border-0 border-b border-gray-200 focus:border-accent-black focus:ring-0 pl-10 pr-4 py-3 text-lg placeholder-gray-300 outline-none transition-all font-light" />
+                                        <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={20} />
+                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" />
                                     </div>
                                     <div className="hidden md:flex gap-2 items-center">
-                                        <div className="flex items-center gap-2 text-sm font-medium mr-4 text-text-main">
-                                            Jason M.
-                                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold border border-gray-200">JM</div>
-                                        </div>
-                                        <SortMenu 
-                                            currentSort={sortBy} 
-                                            onSortChange={(val) => setSortBy(val as SortOption)} 
-                                            options={[
-                                                { label: 'Name (A-Z)', value: 'name' },
-                                                { label: 'Fastest', value: 'time' },
-                                                { label: 'Top Rated', value: 'rating' },
-                                                { label: 'Lowest Calories', value: 'calories' }
-                                            ]}
-                                        />
+                                        {/* SortMenu moved from here */}
                                     </div>
                                 </div>
 
-                                <div className="flex items-baseline justify-between mb-8">
-                                    <h2 className="text-4xl font-light tracking-tighter text-accent-black">My Recipes</h2>
-                                </div>
-
-                                <div className="flex flex-wrap gap-3 mb-8">
-                                    {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                        <button 
-                                            key={cat} 
-                                            onClick={() => setSelectedCategory(cat as any)} 
-                                            className={`px-8 py-2.5 rounded-full text-sm font-medium transition-all border ${selectedCategory === cat ? 'bg-accent-black text-white border-accent-black shadow-lg -translate-y-0.5' : 'bg-white text-text-main border-gray-200 hover:border-accent-black'}`}
-                                        >
-                                            {cat}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-                                    {availableTags.map(tag => {
-                                        const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
-                                        return (
-                                            <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1 rounded border text-xs font-bold whitespace-nowrap transition-colors ${isActive ? 'bg-accent-black text-white border-transparent' : 'border-border-thin text-text-secondary'}`}>
-                                                {tag}
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
+                                            <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                {cat}
                                             </button>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
+                                        {availableTags.map(tag => {
+                                            const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
+                                            
+                                            let activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
+                                            if (tag === 'All') {
+                                                activeClass = "bg-forest-green dark:bg-white text-white dark:text-black border-forest-green dark:border-white";
+                                            } else if (tag === 'Favorites') {
+                                                activeClass = "bg-forest-green dark:bg-card-dark text-white dark:text-accent-herb border-forest-green dark:border-border-dark";
+                                            }
+
+                                            return (
+                                                <button key={tag} onClick={() => handleToggleTag(tag)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border ${isActive ? activeClass + ' shadow-sm' : 'bg-transparent border-border-thin dark:border-border-dark text-text-secondary dark:text-text-secondary-dark hover:border-forest-green dark:hover:border-gray-500'}`}>
+                                                    {tag}
+                                                </button>
+                                            );
+                                        })}
+                                        <div className="ml-auto pl-2">
+                                            <SortMenu 
+                                                currentSort={sortBy} 
+                                                onSortChange={(val) => setSortBy(val as SortOption)} 
+                                                options={[
+                                                    { label: 'Name (A-Z)', value: 'name' },
+                                                    { label: 'Fastest', value: 'time' },
+                                                    { label: 'Top Rated', value: 'rating' },
+                                                    { label: 'Lowest Calories', value: 'calories' }
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {filteredRecipes.length === 0 ? (
-                                    <div className="text-center py-20 text-text-secondary border-2 border-dashed border-border-thin rounded-2xl">
-                                        <p>No recipes found.</p>
+                                    <div className="text-center py-20 text-text-secondary border-2 border-dashed border-border-thin dark:border-border-dark rounded-2xl bg-white/50 dark:bg-card-dark/30">
+                                        <p className="text-lg">No recipes found.</p>
+                                        <p className="text-sm mt-2 opacity-70">Try adjusting your search or filters.</p>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
@@ -738,8 +731,8 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-12 right-12 size-16 bg-[#bef264] text-black rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform z-30 ring-4 ring-white">
-                            <Plus size={32} strokeWidth={3} />
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group ring-4 ring-bg-white/50 dark:ring-bg-dark/50 flex items-center justify-center z-30">
+                            <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
                         </button>
                     </div>
                 )}
@@ -768,21 +761,15 @@ const App: React.FC = () => {
           />
       )}
       
-      {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
+      {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 
       {/* Toast Notification */}
       {toast.visible && (
-          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
+          <div className={`fixed bottom-4 left-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-forest-green dark:bg-white dark:text-black'}`}>
               {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
               {toast.message}
           </div>
       )}
-
-      <style>{`
-        .nav-btn { display: flex; align-items: center; gap: 1rem; width: 100%; padding: 0.75rem 1.25rem; border-radius: 9999px; color: #525252; font-weight: 500; font-size: 0.875rem; transition: all; }
-        .nav-btn:hover { background-color: white; color: #000000; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .nav-btn.active { background-color: #000000; color: #ffffff; font-weight: 600; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
-      `}</style>
     </div>
   );
 };

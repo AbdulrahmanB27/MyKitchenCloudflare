@@ -31,6 +31,9 @@ interface InstructionBlock {
 }
 
 const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, onClose }) => {
+  const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-white/5 text-text-main dark:text-white outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
+  const LABEL_CLASS = "block text-sm font-bold text-text-secondary mb-1 dark:text-gray-400";
+
   const [formData, setFormData] = useState<Partial<Recipe>>({
     name: '',
     description: '',
@@ -783,65 +786,65 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
-      <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-card-light dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-light dark:border-border-dark">
-        <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-light dark:border-border-dark">
-          <h2 className="text-xl font-bold text-text-light dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
+      <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-thin dark:border-border-dark">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-thin dark:border-border-dark">
+          <h2 className="text-xl font-bold text-text-main dark:text-white">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <div className="flex items-center gap-1">
               {/* Mobile-only icons in header */}
               <div className="flex items-center gap-1 sm:hidden">
                   {!initialData && (
                       <>
-                        <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
-                        <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
+                        <button type="button" onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Upload JSON File"><Upload size={20} /></button>
+                        <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
                       </>
                   )}
                   {initialData && (
-                      <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+                      <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
                   )}
                   {initialData?.id && onDelete && (
-                      <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-text-main hover:text-black dark:text-white dark:hover:text-gray-300 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
+                      <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
                   )}
               </div>
-              <button type="button" onClick={onClose} className="p-2 hover:bg-background-light dark:hover:bg-border-dark rounded-full transition-colors"><X size={20} className="text-text-light/50" /></button>
+              <button type="button" onClick={onClose} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-full transition-colors"><X size={20} className="text-text-secondary" /></button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
           {/* Basics */}
           <section className="space-y-4">
-             <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-2">
-                 <h3 className="text-lg font-bold text-text-main dark:text-white">Basics</h3>
+             <div className="flex items-center justify-between border-b border-border-thin dark:border-border-dark pb-2">
+                 <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb">Basics</h3>
                  
                  {/* Custom Family Selector */}
                  <div className="relative" ref={dropdownRef}>
                      <button 
                         type="button"
                         onClick={() => setIsFamilySelectorOpen(!isFamilySelectorOpen)}
-                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-background-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:border-primary/50 text-xs font-bold text-text-main dark:text-white transition-all shadow-sm"
+                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-bg-subtle dark:bg-surface-dark border border-border-thin dark:border-border-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50 text-xs font-bold text-text-main dark:text-white transition-all shadow-sm"
                      >
-                         {targetFamilyId === 'private' ? <Lock size={14} className="text-primary" /> : <Users size={14} className="text-primary" />}
+                         {targetFamilyId === 'private' ? <Lock size={14} className="text-forest-green dark:text-accent-herb" /> : <Users size={14} className="text-forest-green dark:text-accent-herb" />}
                          <span>{getTargetFamilyName()}</span>
-                         <ChevronDown size={14} className={`text-text-muted transition-transform ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
+                         <ChevronDown size={14} className={`text-text-secondary transition-transform ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
                      </button>
 
                      {isFamilySelectorOpen && (
-                         <div className="absolute right-0 top-full mt-2 w-56 bg-surface-light dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                         <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
                              <div className="py-1">
                                  <button
                                     type="button"
                                     onClick={() => { setTargetFamilyId('private'); setIsFamilySelectorOpen(false); }}
-                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-primary/5 text-primary' : 'text-text-main dark:text-white'}`}
+                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}
                                  >
                                      <Lock size={16} />
                                      <span className="text-sm font-bold">Private (This Device)</span>
                                      {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
                                  </button>
-                                 <div className="h-px bg-border-light dark:border-border-dark mx-3 my-1"></div>
+                                 <div className="h-px bg-border-thin dark:border-border-dark mx-3 my-1"></div>
                                  {availableSessions.map(s => {
                                      const isPrimary = targetFamilyId === s.id;
                                      const isSynced = additionalSyncFamilyIds.has(s.id);
                                      
                                      return (
-                                         <div key={s.id} className={`w-full flex items-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-gray-100 dark:bg-white/10' : ''}`}>
+                                         <div key={s.id} className={`w-full flex items-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-forest-green/5 dark:bg-accent-herb/10' : ''}`}>
                                              <button
                                                 type="button"
                                                 onClick={() => { 
@@ -858,14 +861,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                     });
                                                     setIsFamilySelectorOpen(false); 
                                                 }}
-                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-text-main dark:text-white' : 'text-text-main dark:text-white'}`}
+                                                className={`flex-1 text-left px-4 py-3 flex items-center gap-3 ${isPrimary ? 'text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}
                                              >
                                                  <Users size={16} />
                                                  <div className="flex flex-col">
                                                      <span className="text-sm font-bold">{s.name}</span>
-                                                     {s.id === currentFamilyId && <span className="text-[10px] text-text-muted uppercase font-bold">Current</span>}
+                                                     {s.id === currentFamilyId && <span className="text-[10px] text-text-secondary uppercase font-bold">Current</span>}
                                                  </div>
-                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-text-main dark:text-white">Primary</span>}
+                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-forest-green dark:text-accent-herb">Primary</span>}
                                              </button>
                                              
                                              {targetFamilyId !== 'private' && !isPrimary && (
@@ -879,10 +882,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                                 return next;
                                                             });
                                                         }}
-                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer ${isSynced ? 'bg-primary border-primary' : 'border-gray-400 bg-transparent'}`}
+                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer ${isSynced ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-gray-400 bg-transparent'}`}
                                                         title={`Also sync to ${s.name}`}
                                                      >
-                                                         {isSynced && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
+                                                         {isSynced && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
                                                      </div>
                                                  </div>
                                              )}
@@ -898,65 +901,65 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              {/* ... Inputs same as before ... */}
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
-                  <div><label className="label">Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className="input" placeholder="Recipe Title" /></div>
-                  <div><label className="label">Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className="input"><option value="Entrees">Entrees</option><option value="Sides">Sides</option><option value="Desserts">Desserts</option></select></div>
+                  <div><label className={LABEL_CLASS}>Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className={INPUT_CLASS} placeholder="Recipe Title" /></div>
+                  <div><label className={LABEL_CLASS}>Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className={INPUT_CLASS}><option value="Entrees">Entrees</option><option value="Sides">Sides</option><option value="Desserts">Desserts</option></select></div>
                 </div>
-                <div><label className="label">Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className="input resize-none" placeholder="Short description..." /></div>
+                <div><label className={LABEL_CLASS}>Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className={`${INPUT_CLASS} resize-none`} placeholder="Short description..." /></div>
              </div>
              {/* ... Time Inputs ... */}
              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                <div className="col-span-1">
-                   <label className="label">Prep Time</label>
-                   <input type="text" value={prepTimeStr} onChange={e => setPrepTimeStr(e.target.value)} className="input" placeholder="e.g. 15" />
+                   <label className={LABEL_CLASS}>Prep Time</label>
+                   <input type="text" value={prepTimeStr} onChange={e => setPrepTimeStr(e.target.value)} className={INPUT_CLASS} placeholder="e.g. 15" />
                </div>
                <div className="col-span-1">
-                   <label className="label">Cook Time</label>
-                   <input type="text" value={cookTimeStr} onChange={e => setCookTimeStr(e.target.value)} className="input" placeholder="e.g. 30" />
+                   <label className={LABEL_CLASS}>Cook Time</label>
+                   <input type="text" value={cookTimeStr} onChange={e => setCookTimeStr(e.target.value)} className={INPUT_CLASS} placeholder="e.g. 30" />
                </div>
                <div className="col-span-2 md:col-span-1">
-                   <label className="label">Yield</label>
+                   <label className={LABEL_CLASS}>Yield</label>
                    <div className="flex gap-2">
-                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className="input w-20 text-center" placeholder="1"/>
-                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className="input flex-1 min-w-[100px]" placeholder="servings" />
+                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className={`${INPUT_CLASS} w-20 text-center`} placeholder="1"/>
+                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-[100px]`} placeholder="servings" />
                    </div>
                </div>
              </div>
              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                    <label className="label">Tags</label>
-                    <input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className="input" placeholder="Healthy, Quick..." />
+                    <label className={LABEL_CLASS}>Tags</label>
+                    <input type="text" value={rawTags} onChange={e => setRawTags(e.target.value)} className={INPUT_CLASS} placeholder="Healthy, Quick..." />
                 </div>
                 <div>
-                    <label className="label !flex items-center gap-2"><CookingPot size={16} /> Required Cookware</label>
-                    <input type="text" value={rawCookware} onChange={e => setRawCookware(e.target.value)} className="input" placeholder="Dutch Oven, Blender..." />
+                    <label className={`${LABEL_CLASS} !flex items-center gap-2`}><CookingPot size={16} /> Required Cookware</label>
+                    <input type="text" value={rawCookware} onChange={e => setRawCookware(e.target.value)} className={INPUT_CLASS} placeholder="Dutch Oven, Blender..." />
                 </div>
              </div>
              <div className="pt-2">
-                 <label className="label">Image</label>
+                 <label className={LABEL_CLASS}>Image</label>
                  <div className="flex gap-2">
-                     <input type="text" value={formData.image || ''} onChange={e => handleChange('image', e.target.value)} className="input" placeholder="https://..." disabled={isUploading} />
-                     <label className={`p-2 border border-border-light dark:border-border-dark rounded cursor-pointer transition-colors ${isUploading ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-white/5 bg-background-light dark:bg-surface-dark'}`}>
+                     <input type="text" value={formData.image || ''} onChange={e => handleChange('image', e.target.value)} className={INPUT_CLASS} placeholder="https://..." disabled={isUploading} />
+                     <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`}>
                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
-                         {isUploading ? <Loader className="animate-spin text-primary" size={20} /> : <Upload size={20} className="text-primary" />}
+                         {isUploading ? <Loader className="animate-spin text-forest-green dark:text-accent-herb" size={20} /> : <Upload size={20} className="text-forest-green dark:text-accent-herb" />}
                      </label>
                  </div>
              </div>
           </section>
 
           <section className="space-y-4">
-             <h3 className="text-lg font-bold text-text-main dark:text-white border-b border-border-light dark:border-border-dark pb-2">Ingredients</h3>
+             <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Ingredients</h3>
              {ingredientBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative bg-background-light dark:bg-surface-dark/50 rounded-xl p-4 border border-border-light dark:border-border-dark">
+                 <div key={block.id} className="relative bg-bg-subtle dark:bg-white/5 rounded-xl p-4 border border-border-thin dark:border-border-dark">
                      <div className="flex items-center gap-2 mb-3">
-                         <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-text-main dark:text-white placeholder:text-text-main/40 focus:outline-none w-full"/>
-                         {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-text-muted p-1 hover:text-text-main transition-colors"><Trash2 size={16}/></button>}
+                         <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
+                         {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col gap-2 p-3 rounded-lg bg-white/50 dark:bg-black/20 border border-transparent hover:border-border-light dark:hover:border-border-dark transition-colors">
+                             <div key={ing.id} className="flex flex-col gap-2 p-3 rounded-lg bg-white dark:bg-white/10 border border-transparent hover:border-border-thin dark:hover:border-border-dark transition-colors">
                                  <div className="grid grid-cols-12 gap-2 items-center">
                                       <div className="col-span-12 sm:col-span-6">
-                                          <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`input p-2 text-sm font-medium ${ing.optional ? 'text-text-muted italic' : ''}`} />
+                                          <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`input p-2 text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : ''}`} />
                                       </div>
                                       <div className="col-span-3 sm:col-span-2">
                                           <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="input p-2 text-sm text-center" />
@@ -986,30 +989,30 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  )}
                              </div>
                          ))}
-                         <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-text-main dark:text-white flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
+                         <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
                      </div>
                  </div>
              ))}
-             <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-border-light dark:border-border-dark text-text-main dark:text-white font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5">+ Add Ingredient Group</button>
+             <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Ingredient Group</button>
           </section>
 
           <section className="space-y-4">
-             <h3 className="text-lg font-bold text-text-main dark:text-white border-b border-border-light dark:border-border-dark pb-2">Instructions</h3>
+             <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Instructions</h3>
              {instructionBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative bg-background-light dark:bg-surface-dark/50 rounded-xl p-4 border border-border-light dark:border-border-dark">
+                 <div key={block.id} className="relative bg-bg-subtle dark:bg-white/5 rounded-xl p-4 border border-border-thin dark:border-border-dark">
                      <div className="flex items-center gap-2 mb-3">
-                         <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-primary placeholder:text-primary/40 focus:outline-none w-full"/>
+                         <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
                      <div className="space-y-3">
                          {block.steps.map((step, idx) => (
                              <div key={step.id} className="flex gap-3">
-                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-2 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-primary/10 text-primary'}`}>{idx + 1}</div>
+                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-2 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
                                  <div className="flex-1 space-y-2">
                                      <div className="flex gap-2 items-center">
                                         <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1" />
                                         <div className="flex gap-1">
-                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-primary bg-primary/10 dark:bg-primary/20' : 'text-gray-300 hover:text-primary'}`} title="Add Timer"><Clock size={16}/></button>
+                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
                                             <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
                                         </div>
@@ -1017,10 +1020,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                      <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="input text-sm" />
                                      <div className="flex flex-wrap gap-2">
                                          {step.timer !== undefined && (
-                                             <div className="flex items-center gap-1 bg-primary/5 border border-primary/20 rounded-md px-2 py-1">
-                                                 <Clock size={12} className="text-primary"/>
+                                             <div className="flex items-center gap-1 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-md px-2 py-1">
+                                                 <Clock size={12} className="text-forest-green dark:text-accent-herb"/>
                                                  <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0" placeholder="Min" />
-                                                 <span className="text-xs text-primary font-medium">min</span>
+                                                 <span className="text-xs text-forest-green dark:text-accent-herb font-medium">min</span>
                                              </div>
                                          )}
                                          {step.tip !== undefined && (
@@ -1033,61 +1036,61 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 mt-2 hover:bg-red-50 dark:hover:bg-red-900/10 p-1 rounded transition-colors h-fit"><Trash2 size={16}/></button>
                              </div>
                          ))}
-                         <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
+                         <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
                      </div>
                  </div>
              ))}
-             <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/5">+ Add Instruction Section</button>
+             <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Instruction Section</button>
           </section>
 
-          <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
-             <h3 className="text-lg font-bold text-primary">Nutrition & Storage</h3>
+          <section className="space-y-4 pt-4 border-t border-border-thin dark:border-border-dark">
+             <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb">Nutrition & Storage</h3>
              <div className="grid grid-cols-4 gap-2">
                 <div className="col-span-4 md:col-span-1">
-                   <label className="label">Calories</label>
-                   <input type="number" value={getNumValue(formData.nutrition?.calories)} onChange={e => updateNested('nutrition', 'calories', e.target.value)} className="input" placeholder="kcal" />
+                   <label className={LABEL_CLASS}>Calories</label>
+                   <input type="number" value={getNumValue(formData.nutrition?.calories)} onChange={e => updateNested('nutrition', 'calories', e.target.value)} className={INPUT_CLASS} placeholder="kcal" />
                 </div>
                 {/* ... other macros ... */}
-                <div className="col-span-4 md:col-span-1"><label className="label">Protein (g)</label><input type="number" value={getNumValue(formData.nutrition?.protein)} onChange={e => updateNested('nutrition', 'protein', e.target.value)} className="input" placeholder="g" /></div>
-                <div className="col-span-4 md:col-span-1"><label className="label">Carbs (g)</label><input type="number" value={getNumValue(formData.nutrition?.carbs)} onChange={e => updateNested('nutrition', 'carbs', e.target.value)} className="input" placeholder="g" /></div>
-                <div className="col-span-4 md:col-span-1"><label className="label">Fat (g)</label><input type="number" value={getNumValue(formData.nutrition?.fat)} onChange={e => updateNested('nutrition', 'fat', e.target.value)} className="input" placeholder="g" /></div>
+                <div className="col-span-4 md:col-span-1"><label className={LABEL_CLASS}>Protein (g)</label><input type="number" value={getNumValue(formData.nutrition?.protein)} onChange={e => updateNested('nutrition', 'protein', e.target.value)} className={INPUT_CLASS} placeholder="g" /></div>
+                <div className="col-span-4 md:col-span-1"><label className={LABEL_CLASS}>Carbs (g)</label><input type="number" value={getNumValue(formData.nutrition?.carbs)} onChange={e => updateNested('nutrition', 'carbs', e.target.value)} className={INPUT_CLASS} placeholder="g" /></div>
+                <div className="col-span-4 md:col-span-1"><label className={LABEL_CLASS}>Fat (g)</label><input type="number" value={getNumValue(formData.nutrition?.fat)} onChange={e => updateNested('nutrition', 'fat', e.target.value)} className={INPUT_CLASS} placeholder="g" /></div>
             </div>
             <div>
-                <label className="label">Storage & Reheating</label>
-                <textarea value={formData.storageNotes || ''} onChange={e => handleChange('storageNotes', e.target.value)} rows={2} className="input resize-none" placeholder="e.g. Keeps for 3 days in fridge..." />
+                <label className={LABEL_CLASS}>Storage & Reheating</label>
+                <textarea value={formData.storageNotes || ''} onChange={e => handleChange('storageNotes', e.target.value)} rows={2} className={`${INPUT_CLASS} resize-none`} placeholder="e.g. Keeps for 3 days in fridge..." />
             </div>
           </section>
 
-          <section className="space-y-4 pt-4 border-t border-border-light dark:border-border-dark">
-             <h3 className="text-lg font-bold text-primary">Attribution</h3>
+          <section className="space-y-4 pt-4 border-t border-border-thin dark:border-border-dark">
+             <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb">Attribution</h3>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                  <div>
-                     <label className="label !flex items-center gap-2"><User size={16} /> Added By</label>
-                     <input type="text" value={formData.addedBy || ''} onChange={e => handleChange('addedBy', e.target.value)} className="input" placeholder="Your Name" />
+                     <label className={`${LABEL_CLASS} !flex items-center gap-2`}><User size={16} /> Added By</label>
+                     <input type="text" value={formData.addedBy || ''} onChange={e => handleChange('addedBy', e.target.value)} className={INPUT_CLASS} placeholder="Your Name" />
                  </div>
                  <div>
-                     <label className="label !flex items-center gap-2"><LinkIcon size={16} /> Source Name</label>
-                     <input type="text" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className="input" placeholder="e.g. NYT Cooking" />
+                     <label className={`${LABEL_CLASS} !flex items-center gap-2`}><LinkIcon size={16} /> Source Name</label>
+                     <input type="text" value={formData.source?.name || ''} onChange={e => updateNested('source', 'name', e.target.value)} className={INPUT_CLASS} placeholder="e.g. NYT Cooking" />
                  </div>
                  <div>
-                     <label className="label !flex items-center gap-2"><LinkIcon size={16} /> Source URL</label>
-                     <input type="text" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className="input" placeholder="https://..." />
+                     <label className={`${LABEL_CLASS} !flex items-center gap-2`}><LinkIcon size={16} /> Source URL</label>
+                     <input type="text" value={formData.source?.url || ''} onChange={e => updateNested('source', 'url', e.target.value)} className={INPUT_CLASS} placeholder="https://..." />
                  </div>
              </div>
           </section>
 
         </div>
-        <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-card-light dark:bg-card-dark rounded-b-2xl">
+        <div className="p-4 border-t border-border-thin dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-card-dark rounded-b-2xl">
           {/* Desktop-only icons in footer (bottom left) */}
           <div className="hidden sm:flex items-center gap-2">
               {!initialData && (
                   <>
-                    <button type="button" onClick={handleImportClick} className="p-2 text-text-muted hover:text-primary transition-colors" title="Upload JSON File"><Upload size={20} /></button>
-                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-muted hover:text-primary transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
+                    <button type="button" onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Upload JSON File"><Upload size={20} /></button>
+                    <button type="button" onClick={() => setShowJsonModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Paste JSON Text"><Clipboard size={20} /></button>
                   </>
               )}
               {initialData && (
-                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-muted hover:text-primary transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
+                  <button type="button" onClick={handleCopyJson} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Copy Recipe JSON"><Copy size={20} /></button>
               )}
               {initialData?.id && onDelete && (
                   <button type="button" onClick={() => onDelete(initialData.id)} className="p-2 text-red-500 hover:text-red-600 transition-colors" title="Delete Recipe"><Trash2 size={20} /></button>
@@ -1096,8 +1099,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
               <div className="flex gap-3 w-full sm:w-auto">
-                <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-primary text-inverse font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
+                <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-thin dark:border-border-dark hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors">Cancel</button>
+                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-black/10 hover:shadow-black/20 transition-all">
                     {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
                     Save
                 </button>
@@ -1109,19 +1112,19 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         {/* JSON/Text Paste Modal */}
         {showJsonModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowJsonModal(false)}>
-                <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-2xl w-full max-w-lg shadow-2xl border border-border-light dark:border-border-dark flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+                <div className="bg-white dark:bg-card-dark p-6 rounded-2xl w-full max-w-lg shadow-2xl border border-border-thin dark:border-border-dark flex flex-col gap-4" onClick={e => e.stopPropagation()}>
                     <h3 className="text-lg font-bold text-text-main dark:text-white">Paste Recipe Data</h3>
-                    <p className="text-xs text-text-muted">Paste JSON object or copied recipe text (with "Ingredients" and "Instructions" headers).</p>
+                    <p className="text-xs text-text-secondary">Paste JSON object or copied recipe text (with "Ingredients" and "Instructions" headers).</p>
                     <textarea 
                         value={jsonText}
                         onChange={e => setJsonText(e.target.value)}
-                        className="w-full h-64 p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark font-mono text-xs resize-none focus:ring-2 focus:ring-primary outline-none"
+                        className="w-full h-64 p-3 rounded-lg bg-bg-subtle dark:bg-white/10 border border-border-thin dark:border-border-dark font-mono text-xs resize-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white"
                         placeholder='Paste content here...'
                         autoFocus
                     />
                     <div className="flex justify-end gap-3">
-                        <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-muted hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                        <button onClick={handleTextImport} className="px-4 py-2 bg-primary text-inverse rounded-lg font-bold hover:bg-gray-800 dark:hover:bg-gray-200">Import</button>
+                        <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-secondary hover:bg-bg-subtle dark:hover:bg-white/5">Cancel</button>
+                        <button onClick={handleTextImport} className="px-4 py-2 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg font-bold hover:opacity-90 transition-opacity">Import</button>
                     </div>
                 </div>
             </div>
@@ -1136,7 +1139,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
       )}
 
-      <style>{`.label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--color-text-muted); margin-bottom: 0.25rem; } .dark .label { color: var(--color-text-muted-dark); } .input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--color-border); background-color: var(--color-surface); color: var(--color-text-main); outline: none; } .dark .input { border-color: var(--color-border-dark); background-color: var(--color-surface-dark); color: var(--color-text-main-dark); }`}</style>
     </div>
   );
 };

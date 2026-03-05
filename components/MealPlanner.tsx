@@ -138,27 +138,27 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
   }, [allRecipes, searchQuery]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-background-light dark:bg-background-dark">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-white dark:bg-bg-dark">
         <div className="max-w-7xl mx-auto space-y-6">
             
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                  <div className="flex items-center gap-4">
-                     <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+                     <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-bg-subtle dark:hover:bg-white/10">
                          <span className="material-symbols-outlined">menu</span>
                      </button>
                      <div>
                          <h1 className="text-2xl font-bold font-display text-text-main dark:text-white">Meal Calendar</h1>
-                         <p className="text-sm text-text-muted">Plan your week ahead</p>
+                         <p className="text-sm text-text-secondary">Plan your week ahead</p>
                      </div>
                  </div>
                  
-                 <div className="flex items-center gap-2 bg-surface-light dark:bg-surface-dark p-1 rounded-lg border border-border-light dark:border-border-dark shadow-sm">
-                     <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md"><ChevronLeft size={20} /></button>
-                     <span className="px-4 font-mono font-bold text-sm">
+                 <div className="flex items-center gap-2 bg-white dark:bg-card-dark p-1 rounded-lg border border-border-thin dark:border-border-dark shadow-sm">
+                     <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-md"><ChevronLeft size={20} /></button>
+                     <span className="px-4 font-mono font-bold text-sm text-text-main dark:text-white">
                          {weekDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {weekDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                      </span>
-                     <button onClick={() => changeWeek(1)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md"><ChevronRight size={20} /></button>
+                     <button onClick={() => changeWeek(1)} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-md"><ChevronRight size={20} /></button>
                  </div>
 
                  <button onClick={addToShoppingList} className="btn-secondary flex items-center gap-2">
@@ -173,10 +173,10 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
                     const isToday = formatDateKey(new Date()) === dateStr;
                     
                     return (
-                        <div key={dateStr} className={`flex flex-col gap-3 min-w-[140px] md:min-w-0 ${isToday ? 'bg-primary/5 rounded-xl -m-2 p-2 ring-1 ring-primary/20' : ''}`}>
+                        <div key={dateStr} className={`flex flex-col gap-3 min-w-[140px] md:min-w-0 ${isToday ? 'bg-forest-green/5 dark:bg-accent-herb/10 rounded-xl -m-2 p-2 ring-1 ring-forest-green/20 dark:ring-accent-herb/20' : ''}`}>
                             {/* Day Header */}
-                            <div className="text-center p-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
-                                <span className="block text-xs font-bold uppercase text-text-muted">{day.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                            <div className="text-center p-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark shadow-sm">
+                                <span className="block text-xs font-bold uppercase text-text-secondary">{day.toLocaleDateString(undefined, { weekday: 'short' })}</span>
                                 <span className="block text-lg font-bold text-text-main dark:text-white">{day.getDate()}</span>
                             </div>
 
@@ -187,14 +187,14 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
                                 
                                 return (
                                     <div key={slot} className="flex flex-col">
-                                        <span className="text-[10px] font-bold uppercase text-text-muted mb-1 ml-1">{slot}</span>
+                                        <span className="text-[10px] font-bold uppercase text-text-secondary mb-1 ml-1">{slot}</span>
                                         {recipe ? (
-                                            <div className="group relative p-3 rounded-lg bg-surface-light dark:bg-surface-dark border border-primary/30 dark:border-primary/30 shadow-sm hover:shadow-md transition-all">
+                                            <div className="group relative p-3 rounded-lg bg-white dark:bg-card-dark border border-forest-green/30 dark:border-accent-herb/30 shadow-sm hover:shadow-md transition-all">
                                                 <button onClick={() => removePlan(plan!.id)} className="absolute top-1 right-1 p-1 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
                                                     <Trash2 size={12} />
                                                 </button>
                                                 <div className="text-sm font-bold text-text-main dark:text-white line-clamp-2 leading-tight mb-1">{recipe.name}</div>
-                                                <div className="flex items-center gap-1 text-[10px] text-text-muted">
+                                                <div className="flex items-center gap-1 text-[10px] text-text-secondary">
                                                     <span className="material-symbols-outlined text-[10px]">timer</span>
                                                     {(recipe.prepTime || 0) + (recipe.cookTime || 0)}m
                                                 </div>
@@ -202,7 +202,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
                                         ) : (
                                             <button 
                                                 onClick={() => openPicker(dateStr, slot)}
-                                                className="p-3 rounded-lg border-2 border-dashed border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5 text-text-muted transition-all flex items-center justify-center gap-1 h-[60px]"
+                                                className="p-3 rounded-lg border-2 border-dashed border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-forest-green/5 dark:hover:bg-accent-herb/5 text-text-secondary transition-all flex items-center justify-center gap-1 h-[60px]"
                                             >
                                                 <Plus size={16} />
                                             </button>
@@ -219,42 +219,42 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
         {/* Recipe Picker Modal */}
         {isPickerOpen && (
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsPickerOpen(false)}></div>
-                <div className="relative w-full max-w-lg bg-surface-light dark:bg-surface-dark rounded-2xl shadow-xl flex flex-col max-h-[80vh]">
-                    <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
-                        <h3 className="font-bold text-lg dark:text-white">Select Meal</h3>
-                        <button onClick={() => setIsPickerOpen(false)}><span className="material-symbols-outlined">close</span></button>
+                <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={() => setIsPickerOpen(false)}></div>
+                <div className="relative w-full max-w-lg bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[80vh] border border-border-thin dark:border-border-dark">
+                    <div className="p-4 border-b border-border-thin dark:border-border-dark flex justify-between items-center">
+                        <h3 className="font-bold text-lg text-text-main dark:text-white">Select Meal</h3>
+                        <button onClick={() => setIsPickerOpen(false)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><span className="material-symbols-outlined">close</span></button>
                     </div>
                     
-                    <div className="p-4 border-b border-border-light dark:border-border-dark">
+                    <div className="p-4 border-b border-border-thin dark:border-border-dark">
                          <div className="relative">
-                             <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
+                             <Search className="absolute left-3 top-2.5 text-text-secondary" size={18} />
                              <input 
                                 autoFocus
                                 type="text" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
                                 placeholder="Search recipes..." 
-                                className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary dark:text-white"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg bg-bg-subtle dark:bg-bg-dark border-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb text-text-main dark:text-white placeholder:text-text-secondary"
                              />
                          </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-2">
+                    <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                         {filteredRecipes.map(recipe => (
                             <button 
                                 key={recipe.id} 
                                 onClick={() => selectRecipe(recipe)}
-                                className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg flex items-center gap-3 transition-colors"
+                                className="w-full text-left p-3 hover:bg-bg-subtle dark:hover:bg-white/5 rounded-lg flex items-center gap-3 transition-colors"
                             >
-                                <div className="size-10 rounded bg-gray-200 dark:bg-gray-700 bg-cover bg-center shrink-0" style={{ backgroundImage: `url("${recipe.image}")` }}></div>
+                                <div className="size-10 rounded bg-bg-subtle dark:bg-white/10 bg-cover bg-center shrink-0" style={{ backgroundImage: `url("${recipe.image}")` }}></div>
                                 <div>
                                     <div className="font-bold text-sm text-text-main dark:text-white">{recipe.name}</div>
-                                    <div className="text-xs text-text-muted">{recipe.category} • {(recipe.prepTime || 0) + (recipe.cookTime || 0)}m</div>
+                                    <div className="text-xs text-text-secondary">{recipe.category} • {(recipe.prepTime || 0) + (recipe.cookTime || 0)}m</div>
                                 </div>
                             </button>
                         ))}
-                        {filteredRecipes.length === 0 && <p className="text-center p-4 text-text-muted">No matching recipes.</p>}
+                        {filteredRecipes.length === 0 && <p className="text-center p-4 text-text-secondary">No matching recipes.</p>}
                     </div>
                 </div>
             </div>

@@ -127,13 +127,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <div className="relative w-full max-w-md bg-surface-light dark:bg-surface-dark rounded-2xl shadow-2xl border border-border-light dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="relative w-full max-w-md bg-white dark:bg-card-dark rounded-2xl shadow-2xl border border-border-thin dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 
                 {/* Header */}
-                <div className="p-6 bg-background-light dark:bg-background-dark border-b border-border-light dark:border-border-dark flex justify-between items-center">
+                <div className="p-6 bg-white dark:bg-card-dark border-b border-border-thin dark:border-border-dark flex justify-between items-center">
                     <h2 className="text-xl font-bold text-text-main dark:text-white flex items-center gap-2">
-                        {mode === 'login' && <Lock size={20} className="text-primary"/>}
-                        {mode === 'register' && <UserPlus size={20} className="text-primary"/>}
+                        {mode === 'login' && <Lock size={20} className="text-forest-green dark:text-accent-herb"/>}
+                        {mode === 'register' && <UserPlus size={20} className="text-forest-green dark:text-accent-herb"/>}
                         {mode === 'admin' && <ShieldAlert size={20} className="text-red-500"/>}
                         {mode === 'switch' && <Users size={20} className="text-blue-500"/>}
                         
@@ -142,39 +142,39 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         {mode === 'admin' && 'Admin Settings'}
                         {mode === 'switch' && 'Switch Account'}
                     </h2>
-                    <button onClick={onClose}><X size={20} className="text-text-muted"/></button>
+                    <button onClick={onClose}><X size={20} className="text-text-secondary hover:text-text-main dark:hover:text-white"/></button>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div className="p-6 overflow-y-auto custom-scrollbar bg-bg-subtle dark:bg-bg-dark">
                     {error && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center gap-2">
+                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center gap-2 border border-red-100 dark:border-red-900/30">
                             <ShieldAlert size={16} /> {error}
                         </div>
                     )}
 
                     {mode === 'switch' && (
                         <div className="space-y-3">
-                            <p className="text-sm text-text-muted mb-2">Select a saved family session:</p>
+                            <p className="text-sm text-text-secondary mb-2">Select a saved family session:</p>
                             {sessions.map(s => (
                                 <button 
                                     key={s.id} 
                                     onClick={() => db.switchFamily(s.id)}
-                                    className={`w-full p-4 rounded-xl border flex items-center justify-between group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-primary bg-primary/5' : 'border-border-light dark:border-border-dark hover:border-primary/50'}`}
+                                    className={`w-full p-4 rounded-xl border flex items-center justify-between group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                 >
                                     <span className="font-bold text-text-main dark:text-white">{s.name}</span>
-                                    {s.id === db.getCurrentFamilyId() && <CheckCircle size={16} className="text-primary"/>}
+                                    {s.id === db.getCurrentFamilyId() && <CheckCircle size={16} className="text-forest-green dark:text-accent-herb"/>}
                                 </button>
                             ))}
                             
-                            <div className="pt-4 border-t border-border-light dark:border-border-dark flex flex-col gap-2">
-                                <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
+                            <div className="pt-4 border-t border-border-thin dark:border-border-dark flex flex-col gap-2">
+                                <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
                                     <Plus size={18} /> Join Family
                                 </button>
-                                <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-light dark:border-border-dark text-text-muted hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-2 font-medium">
+                                <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
                                     <UserPlus size={18} /> Create New Family
                                 </button>
-                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 font-bold mt-2">
+                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 font-bold mt-2 border border-red-100 dark:border-red-900/30">
                                     <LogOut size={18} /> Log Out All
                                 </button>
                             </div>
@@ -184,35 +184,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                     {(mode === 'login' || mode === 'register') && (
                         <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Family Name</label>
-                                <input required type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="The Smiths" />
+                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Family Name</label>
+                                <input required type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="The Smiths" />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Access Password</label>
-                                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="Shared family password" />
+                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Access Password</label>
+                                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password" />
                             </div>
                             
                             {mode === 'register' && (
                                 <div>
-                                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">Admin Password</label>
-                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="For managing settings" />
-                                    <p className="text-[10px] text-text-muted mt-1">Keep this safe! Needed for renaming or deleting the family.</p>
+                                    <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Admin Password</label>
+                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="For managing settings" />
+                                    <p className="text-[10px] text-text-secondary mt-1">Keep this safe! Needed for renaming or deleting the family.</p>
                                 </div>
                             )}
 
                             {/* Turnstile Container */}
                             <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
 
-                            <button type="submit" disabled={loading} className="w-full py-3 bg-primary hover:bg-primary-dark text-inverse rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
                             </button>
 
                             <div className="text-center pt-2">
                                 {mode === 'login' ? (
-                                    <button type="button" onClick={() => setMode('register')} className="text-sm text-text-muted hover:underline">Need a new family account?</button>
+                                    <button type="button" onClick={() => setMode('register')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">Need a new family account?</button>
                                 ) : (
-                                    <button type="button" onClick={() => setMode('login')} className="text-sm text-text-muted hover:underline">Already have an account?</button>
+                                    <button type="button" onClick={() => setMode('login')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">Already have an account?</button>
                                 )}
                             </div>
                         </form>
@@ -220,15 +220,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
                     {mode === 'admin' && (
                         <form onSubmit={handleAdminSubmit} className="space-y-4">
-                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-100 dark:border-yellow-900/30">
+                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-100 dark:border-yellow-900/30">
                                 <p className="text-xs text-yellow-800 dark:text-yellow-200">
                                     Current Family: <strong>{db.getCurrentFamilyName()}</strong>
                                 </p>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Action</label>
-                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white cursor-pointer">
+                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Action</label>
+                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white cursor-pointer transition-all">
                                     <option value="update">Update Passwords</option>
                                     <option value="rename">Rename Family</option>
                                     <option value="delete">Delete Family Data</option>
@@ -236,26 +236,26 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             </div>
 
                             {adminAction === 'update' && (
-                                <div className="space-y-3 p-3 border border-border-light dark:border-border-dark rounded-xl">
-                                    <h4 className="text-sm font-bold dark:text-white">New Credentials (Optional)</h4>
-                                    <input type="password" value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark dark:text-white" placeholder="New Access Password" />
-                                    <input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark dark:text-white" placeholder="New Admin Password" />
+                                <div className="space-y-3 p-3 border border-border-thin dark:border-border-dark rounded-xl bg-white dark:bg-card-dark">
+                                    <h4 className="text-sm font-bold text-text-main dark:text-white">New Credentials (Optional)</h4>
+                                    <input type="password" value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Access Password" />
+                                    <input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Admin Password" />
                                 </div>
                             )}
 
                             {adminAction === 'rename' && (
                                 <div>
-                                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">New Family Name</label>
-                                    <input required type="text" value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary outline-none dark:text-white" placeholder="New Name" />
+                                    <label className="block text-xs font-bold text-text-secondary uppercase mb-1">New Family Name</label>
+                                    <input required type="text" value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="New Name" />
                                 </div>
                             )}
 
                             <div>
-                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">Current Admin Password</label>
-                                <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-lg bg-background-light dark:bg-black/20 border border-border-light dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none dark:text-white" placeholder="Required to verify" />
+                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
+                                <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Required to verify" />
                             </div>
 
-                            <button type="submit" disabled={loading} className={`w-full py-3 rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-primary hover:bg-primary-dark text-inverse'}`}>
+                            <button type="submit" disabled={loading} className={`w-full py-3 text-white dark:text-black rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white dark:text-white shadow-red-500/20' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover shadow-forest-green/20 dark:shadow-accent-herb/20'}`}>
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
                             </button>

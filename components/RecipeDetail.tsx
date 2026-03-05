@@ -174,8 +174,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   }, [recipe]);
 
   if (loading) return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background-light dark:bg-background-dark">
-          <div className="text-primary font-bold">Loading Recipe...</div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-white dark:bg-bg-dark">
+          <div className="text-forest-green dark:text-white font-bold">Loading Recipe...</div>
       </div>
   );
 
@@ -345,7 +345,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
               <span className="text-text-main dark:text-gray-200">{ing.item}</span>
               {ing.notes && <span className="text-text-muted text-sm italic ml-1">({ing.notes})</span>}
               {ing.substitution && <span className="text-text-muted text-sm ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Sub: {ing.substitution}</span>}
-              {ing.optional && <span className="text-text-main dark:text-white text-[10px] font-bold uppercase ml-2 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">Optional</span>}
+              {ing.optional && <span className="text-blue-500 text-[10px] font-bold uppercase ml-2 bg-blue-50 dark:bg-blue-900/10 px-1.5 py-0.5 rounded">Optional</span>}
           </span>
       );
   };
@@ -461,10 +461,10 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   let globalStepCounter = 0;
 
   return (
-    <div className="recipe-detail-view w-full h-full bg-background-light dark:bg-background-dark overflow-y-auto animate-in fade-in duration-200">
+    <div className="recipe-detail-view w-full h-full bg-bg-white dark:bg-bg-dark overflow-y-auto animate-in fade-in duration-200">
         
         {/* Sticky Header */}
-        <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-border-light dark:border-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 md:px-6">
+        <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-forest-green/20 dark:border-white/10 bg-white/95 dark:bg-bg-dark/95 backdrop-blur-md px-4 py-3 md:px-6">
             <div className="flex items-center gap-4">
                 <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
                     <span className="material-symbols-outlined">arrow_back</span>
@@ -472,13 +472,13 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <h2 className="text-lg font-bold font-display text-text-main dark:text-white line-clamp-1">{recipe.name}</h2>
             </div>
             <div className="flex items-center gap-2">
-                <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-primary' : ''} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
+                <button onClick={toggleArchive} className={`flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium ${recipe.archived ? 'text-forest-green dark:text-accent-herb' : ''} transition-colors`} title={recipe.archived ? "Unarchive" : "Archive"}>
                     <span className="material-symbols-outlined text-[18px]">{recipe.archived ? 'unarchive' : 'archive'}</span>
                 </button>
-                <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium" title="Edit Recipe">
+                <button onClick={() => onEdit(recipe)} className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium" title="Edit Recipe">
                     <span className="material-symbols-outlined text-[18px]">edit</span>
                 </button>
-                <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium hover:text-primary transition-colors" title="Rate Recipe">
+                <button onClick={() => setIsRatingOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-sm font-medium hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Rate Recipe">
                     <span className="material-symbols-outlined text-[18px]">star</span>
                 </button>
                 <button onClick={toggleFavorite} className={`flex items-center justify-center p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 ${recipe.favorite ? 'text-red-500' : 'text-gray-400'}`} title={recipe.favorite ? "Remove from Favorites" : "Add to Favorites"}>
@@ -490,23 +490,23 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         {/* Rating Modal */}
         {isRatingOpen && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsRatingOpen(false)}>
-                <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
+                <div className="bg-white dark:bg-card-dark rounded-xl p-6 w-full max-w-sm border border-border-thin dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
                     <div className="text-center mb-6">
                         <h3 className="text-xl font-bold font-display mb-1 dark:text-white">Rate this Recipe</h3>
-                        <p className="text-sm text-text-muted">How was it? (1-10)</p>
+                        <p className="text-sm text-text-secondary">How was it? (1-10)</p>
                     </div>
                     <div className="grid grid-cols-5 gap-3 mb-4">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
                             <button 
                                 key={score}
                                 onClick={() => handleRate(score)}
-                                className="aspect-square flex items-center justify-center rounded-lg border-2 border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/10 hover:text-primary font-bold text-lg transition-all dark:text-white"
+                                className="aspect-square flex items-center justify-center rounded-lg border-2 border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-forest-green/5 dark:hover:bg-accent-herb/10 hover:text-forest-green dark:hover:text-accent-herb font-bold text-lg transition-all dark:text-white"
                             >
                                 {score}
                             </button>
                         ))}
                     </div>
-                    <button onClick={() => setIsRatingOpen(false)} className="w-full py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-muted hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                    <button onClick={() => setIsRatingOpen(false)} className="w-full py-3 rounded-lg bg-gray-100 dark:bg-white/5 text-sm font-bold text-text-secondary hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
                         Cancel
                     </button>
                 </div>
@@ -516,14 +516,14 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         {/* Share Modal */}
         {isShareOpen && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
-                <div className="bg-surface-light dark:bg-surface-dark rounded-xl w-full max-w-sm border border-border-light dark:border-border-dark shadow-2xl transform scale-100 overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="bg-white dark:bg-card-dark rounded-xl w-full max-w-sm border border-border-thin dark:border-border-dark shadow-2xl transform scale-100 overflow-hidden" onClick={e => e.stopPropagation()}>
                     
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-border-light dark:border-border-dark bg-gray-50/50 dark:bg-white/5">
+                    <div className="flex items-center justify-between p-4 border-b border-border-thin dark:border-border-dark bg-gray-50/50 dark:bg-white/5">
                         <h3 className="text-lg font-bold font-display dark:text-white flex items-center gap-2">
-                            <Share size={18} className="text-primary"/> Share Recipe
+                            <Share size={18} className="text-forest-green dark:text-accent-herb"/> Share Recipe
                         </h3>
-                        <button onClick={() => setIsShareOpen(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-text-muted">
+                        <button onClick={() => setIsShareOpen(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-text-secondary">
                             <X size={20} />
                         </button>
                     </div>
@@ -532,23 +532,23 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         
                         {/* Copy Link Split Button */}
                         <div className="flex flex-col gap-1">
-                            <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                            <div className="flex w-full rounded-xl border border-border-thin dark:border-border-dark overflow-hidden shadow-sm group">
                                 <button 
                                     onClick={() => handleLinkAction('copy')}
-                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-white dark:bg-card-dark"
                                 >
-                                    <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
+                                    <div className="p-2 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                                         <LinkIcon size={20} />
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-text-main dark:text-white text-sm">Copy Link</p>
-                                        <p className="text-xs text-text-muted">Share view-only web link</p>
+                                        <p className="text-xs text-text-secondary">Share view-only web link</p>
                                     </div>
                                 </button>
-                                <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                <div className="w-[1px] bg-border-thin dark:border-border-dark"></div>
                                 <button 
                                     onClick={() => handleLinkAction('share')}
-                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-secondary hover:text-forest-green dark:hover:text-accent-herb bg-gray-50/50 dark:bg-white/5"
                                     title="Share Link via..."
                                 >
                                     <Share size={20} />
@@ -558,23 +558,23 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
 
                         {/* Copy Text Split Button */}
                         <div className="flex flex-col gap-1">
-                            <div className="flex w-full rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm group">
+                            <div className="flex w-full rounded-xl border border-border-thin dark:border-border-dark overflow-hidden shadow-sm group">
                                 <button 
                                     onClick={() => handleTextAction('copy')}
-                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-surface-light dark:bg-surface-dark"
+                                    className="flex-1 flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left bg-white dark:bg-card-dark"
                                 >
-                                    <div className="p-2 rounded-full bg-gray-100 text-text-main dark:bg-white/10 dark:text-white">
+                                    <div className="p-2 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
                                         <FileText size={20} />
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-text-main dark:text-white text-sm">Copy Text</p>
-                                        <p className="text-xs text-text-muted">Ingredients & Instructions</p>
+                                        <p className="text-xs text-text-secondary">Ingredients & Instructions</p>
                                     </div>
                                 </button>
-                                <div className="w-[1px] bg-border-light dark:border-border-dark"></div>
+                                <div className="w-[1px] bg-border-thin dark:border-border-dark"></div>
                                 <button 
                                     onClick={() => handleTextAction('share')}
-                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-muted hover:text-primary bg-gray-50/50 dark:bg-white/5"
+                                    className="w-14 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-text-secondary hover:text-forest-green dark:hover:text-accent-herb bg-gray-50/50 dark:bg-white/5"
                                     title="Share Text via..."
                                 >
                                     <Share size={20} />
@@ -593,11 +593,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 {/* Hero Image */}
                 <div className="w-full">
                     <div 
-                        className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative group bg-gray-200 dark:bg-gray-800" 
+                        className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative group bg-gray-900" 
                         style={{ backgroundImage: `linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 50%), url("${recipe.image || ''}")` }}
                     >
                         {!recipe.image && (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-900">
                                 <span className="material-symbols-outlined text-[64px]">restaurant_menu</span>
                             </div>
                         )}
@@ -624,7 +624,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                             </div>
                             <h1 className="text-white text-3xl md:text-5xl font-bold font-display leading-tight drop-shadow-sm">{recipe.name}</h1>
                             <div className="flex items-center gap-2 text-white/90 text-sm">
-                                <div className="flex text-white">
+                                <div className="flex text-yellow-400">
                                     {[1,2,3,4,5].map(i => (
                                         <span key={i} className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: `'FILL' ${i <= Math.round(visualStars) ? 1 : 0}` }}>star</span>
                                     ))}
@@ -642,25 +642,25 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
                     {/* Stats */}
                     <div className="flex flex-wrap gap-3 w-full md:w-auto">
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-forest-green/20 dark:border-white/10 bg-white dark:bg-card-dark p-3 items-center text-center shadow-sm">
                             <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{formatRange(recipe.prepTime, recipe.prepTimeMax)}</p>
-                            <div className="flex items-center gap-1 text-text-muted">
+                            <div className="flex items-center gap-1 text-forest-green dark:text-accent-herb">
                                 <span className="material-symbols-outlined text-[16px]">schedule</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Prep</p>
                             </div>
                         </div>
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-forest-green/20 dark:border-white/10 bg-white dark:bg-card-dark p-3 items-center text-center shadow-sm">
                             <p className="text-text-main dark:text-white text-xl font-bold leading-tight">{formatRange(recipe.cookTime, recipe.cookTimeMax)}</p>
-                            <div className="flex items-center gap-1 text-text-muted">
+                            <div className="flex items-center gap-1 text-forest-green dark:text-accent-herb">
                                 <span className="material-symbols-outlined text-[16px]">outdoor_grill</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Cook</p>
                             </div>
                         </div>
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-3 items-center text-center shadow-sm">
+                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-forest-green/20 dark:border-white/10 bg-white dark:bg-card-dark p-3 items-center text-center shadow-sm">
                             <p className="text-text-main dark:text-white text-xl font-bold leading-tight">
-                                {originalServings} <span className="text-xs font-normal text-text-muted">{recipe.yieldUnit || 'srv'}</span>
+                                {originalServings} <span className="text-xs font-normal text-text-secondary dark:text-text-secondary-dark">{recipe.yieldUnit || 'srv'}</span>
                             </p>
-                            <div className="flex items-center gap-1 text-text-muted">
+                            <div className="flex items-center gap-1 text-forest-green dark:text-accent-herb">
                                 <span className="material-symbols-outlined text-[16px]">restaurant</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Yield</p>
                             </div>
@@ -668,35 +668,33 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center no-scrollbar">
-                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 hover:bg-primary hover:text-inverse text-primary dark:text-white dark:hover:text-inverse font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
+                    <div className="flex gap-3 w-full md:w-auto items-center">
+                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-forest-green hover:bg-green-900 text-white font-medium py-2 px-6 rounded-xl transition-all group shadow-sm h-[50px] whitespace-nowrap">
                             <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
                             <span className="text-sm">Start Cooking</span>
                         </button>
-                        <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block"></div>
-                        <div className="flex gap-2 ml-auto md:ml-0">
-                             <button onClick={() => setIsShareOpen(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
-                                <div className="rounded-full bg-gray-100 dark:bg-white/10 p-2.5 group-hover:bg-primary/20 transition-colors">
-                                    <span className="material-symbols-outlined text-text-main dark:text-white text-[20px]">share</span>
-                                </div>
-                                <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
-                            </button>
-                        </div>
+                        
+                        <button onClick={() => setIsShareOpen(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 p-2 transition-colors">
+                            <div className="rounded-full p-1">
+                                <span className="material-symbols-outlined text-text-main dark:text-white text-[24px]">share</span>
+                            </div>
+                            <span className="text-text-main dark:text-gray-300 text-[10px] font-medium uppercase">Share</span>
+                        </button>
                     </div>
                 </div>
 
-                <hr className="border-border-light dark:border-border-dark w-full"/>
+                <hr className="border-accent-herb dark:border-white/10 w-full"/>
 
                 {/* Required Cookware Section */}
                 {recipe.cookware && recipe.cookware.length > 0 && (
                     <div className="flex flex-col gap-3">
                         <h3 className="text-lg font-bold text-text-main dark:text-white flex items-center gap-2">
-                             <CookingPot className="text-primary" size={20} />
+                             <CookingPot className="text-forest-green dark:text-accent-herb" size={20} />
                              Required Equipment
                         </h3>
                         <div className="flex flex-wrap gap-2">
                             {recipe.cookware.map((item, idx) => (
-                                <span key={idx} className="px-3 py-1.5 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-medium text-text-main dark:text-gray-200">
+                                <span key={idx} className="px-3 py-1.5 rounded-lg bg-white dark:bg-card-dark border border-forest-green/20 dark:border-white/10 text-sm font-medium text-text-main dark:text-gray-200">
                                     {item}
                                 </span>
                             ))}
@@ -710,16 +708,16 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                     {/* Left Column: Ingredients */}
                     <div className="lg:col-span-4 flex flex-col gap-4">
                          
-                         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm">
+                         <div className="bg-white dark:bg-card-dark rounded-xl border border-accent-herb dark:border-white/10 overflow-hidden shadow-sm">
                              {/* Header with Scaler */}
-                             <div className="flex items-center justify-between p-3 md:p-4 border-b border-border-light dark:border-border-dark bg-gray-50/80 dark:bg-white/5 backdrop-blur-sm">
-                                <h3 className="font-bold text-text-main dark:text-white text-lg">Ingredients</h3>
+                             <div className="flex items-center justify-between p-3 md:p-4 border-b border-accent-herb dark:border-white/10 bg-gray-50/80 dark:bg-white/5 backdrop-blur-sm">
+                                <h3 className="font-bold text-forest-green dark:text-white text-lg">Ingredients</h3>
                                 
                                 {/* Compact Scaling Input */}
-                                <div className="flex items-center bg-white dark:bg-black/20 rounded-lg border border-border-light dark:border-border-dark overflow-hidden h-10">
+                                <div className="flex items-center bg-white dark:bg-white/10 rounded-lg border border-accent-herb dark:border-white/10 overflow-hidden h-10">
                                      <button 
                                         onClick={() => adjustServings(-1)}
-                                        className="w-10 h-full flex items-center justify-center text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-r border-border-light dark:border-border-dark"
+                                        className="w-10 h-full flex items-center justify-center text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-r border-accent-herb dark:border-white/10"
                                         aria-label="Decrease servings"
                                      >
                                         <span className="material-symbols-outlined text-[20px]">remove</span>
@@ -733,14 +731,14 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                             value={currentServings}
                                             onChange={(e) => handleServingsChange(e.target.value)}
                                             onBlur={handleServingsBlur}
-                                            className="w-full bg-transparent border-none p-0 text-lg font-bold focus:ring-0 text-text-main dark:text-white text-center leading-none"
+                                            className="w-full bg-transparent border-none p-0 text-lg font-bold focus:ring-0 text-text-main dark:text-white text-center leading-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                          />
-                                         <span className="text-[10px] uppercase font-bold text-text-muted leading-none mt-0.5">{recipe.yieldUnit || 'Srv'}</span>
+                                         <span className="text-[10px] uppercase font-bold text-text-secondary dark:text-text-secondary-dark leading-none mt-0.5">{recipe.yieldUnit || 'Srv'}</span>
                                      </div>
 
                                      <button 
                                         onClick={() => adjustServings(1)}
-                                        className="w-10 h-full flex items-center justify-center text-text-muted hover:text-primary hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-l border-border-light dark:border-border-dark"
+                                        className="w-10 h-full flex items-center justify-center text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:bg-gray-50 dark:hover:bg-white/10 transition-colors border-l border-accent-herb dark:border-white/10"
                                         aria-label="Increase servings"
                                      >
                                         <span className="material-symbols-outlined text-[20px]">add</span>
@@ -751,9 +749,9 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                              {/* Ingredients List */}
                              <div className="flex flex-col">
                                  {groupedIngredients.map((group, gIdx) => (
-                                     <div key={`grp-${gIdx}`} className={groupedIngredients.length > 1 ? "border-b last:border-0 border-border-light dark:border-border-dark" : ""}>
+                                     <div key={`grp-${gIdx}`} className={groupedIngredients.length > 1 ? "border-b last:border-0 border-accent-herb dark:border-white/10" : ""}>
                                          {groupedIngredients.length > 1 && (
-                                             <div className="px-4 py-2 bg-gray-50/50 dark:bg-white/5 text-xs font-bold text-text-muted uppercase tracking-wider border-b border-border-light dark:border-border-dark">
+                                             <div className="px-4 py-2 bg-gray-50/50 dark:bg-white/5 text-xs font-bold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider border-b border-accent-herb dark:border-white/10">
                                                  {group.title}
                                              </div>
                                          )}
@@ -761,11 +759,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                              {group.items.map((ing, idx) => (
                                                  <label key={`${group.title}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-all group/item">
                                                      <div className="relative flex items-center pt-0.5">
-                                                        <input type="checkbox" checked={checkedIngredients.has(`${group.title}-${ing.id}`)} onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-full border border-gray-300 dark:border-gray-600 checked:bg-primary checked:border-primary transition-all" />
-                                                        <span className="material-symbols-outlined absolute pointer-events-none opacity-0 peer-checked:opacity-100 text-white text-[14px] left-[3px] top-[3px]">check</span>
+                                                        <input type="checkbox" checked={checkedIngredients.has(`${group.title}-${ing.id}`)} onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 dark:border-gray-600 checked:bg-forest-green dark:checked:bg-accent-herb checked:border-forest-green dark:checked:border-accent-herb transition-all" />
+                                                        <span className="material-symbols-outlined absolute pointer-events-none opacity-0 peer-checked:opacity-100 text-white text-[16px] left-[2px] top-[2px]">check</span>
                                                      </div>
                                                      <div className="flex-1">
-                                                         <p className={`text-sm md:text-base font-medium transition-colors ${checkedIngredients.has(`${group.title}-${ing.id}`) ? 'line-through opacity-50' : ''}`}>
+                                                         <p className={`text-sm md:text-base font-medium transition-colors group-hover/item:text-forest-green dark:group-hover/item:text-accent-herb ${checkedIngredients.has(`${group.title}-${ing.id}`) ? 'line-through opacity-50' : ''}`}>
                                                              {renderIngredient(ing)}
                                                          </p>
                                                      </div>
@@ -778,7 +776,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                          </div>
 
                          {/* Add to List Button */}
-                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-gray-800 dark:hover:bg-gray-200 text-inverse font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm shadow-primary/20">
+                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-forest-green hover:bg-green-900 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm">
                             <span className="material-symbols-outlined text-[20px]">shopping_cart</span> 
                             <span className="whitespace-nowrap">Add to List</span>
                         </button>
@@ -789,7 +787,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         
                         {/* Video */}
                         {recipe.video?.url && (
-                             <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-border-light dark:border-border-dark no-print">
+                             <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-border-thin dark:border-border-dark no-print">
                                 <iframe src={recipe.video.url} className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                             </div>
                         )}
@@ -798,14 +796,19 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                         <div>
                              <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl font-bold font-display text-text-main dark:text-white">Focused Instructions</h3>
-                                <span className="text-xs font-medium text-text-muted">{recipe.instructions.length + (recipe.components?.reduce((a, b) => a + b.instructions.length, 0) || 0)} steps</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="h-2 w-24 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full w-1/4 bg-gradient-to-r from-accent-herb to-forest-green rounded-full"></div>
+                                    </div>
+                                    <span className="text-xs font-medium text-text-secondary dark:text-text-secondary-dark">{recipe.instructions.length + (recipe.components?.reduce((a, b) => a + b.instructions.length, 0) || 0)} steps</span>
+                                </div>
                             </div>
 
                             <div className="flex flex-col gap-10">
                                 {groupedInstructions.map((group, gIdx) => (
                                     <div key={gIdx}>
                                         {group.title && (
-                                            <h4 className="text-lg font-bold font-display text-text-main dark:text-white mb-6 border-b border-border-light dark:border-border-dark pb-2">
+                                            <h4 className="text-lg font-bold font-display text-text-main dark:text-white mb-6 border-b border-border-thin dark:border-border-dark pb-2">
                                                 {group.title}
                                             </h4>
                                         )}
@@ -834,14 +837,14 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                             <div className={`flex items-center justify-center size-10 rounded-full border-2 font-bold transition-colors shadow-sm ${
                                                                 optional 
                                                                     ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 text-blue-600' 
-                                                                    : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-gray-600 text-gray-500 group-hover:border-primary group-hover:text-primary'
+                                                                    : 'bg-white dark:bg-card-dark border-accent-herb dark:border-gray-600 text-gray-500 group-hover:border-forest-green group-hover:text-forest-green dark:group-hover:border-accent-herb dark:group-hover:text-accent-herb'
                                                             }`}>
                                                                 {optional ? <span className="text-[10px] uppercase">Opt</span> : globalStepCounter}
                                                             </div>
                                                         </div>
                                                         {/* Connecting Line */}
                                                         {idx !== group.steps.length - 1 && (
-                                                            <div className="absolute left-[19px] top-10 bottom-[-32px] w-[2px] bg-border-light dark:bg-white/5"></div>
+                                                            <div className="absolute left-[19px] top-10 bottom-[-32px] w-[2px] bg-accent-herb/30 dark:bg-white/5"></div>
                                                         )}
                                                         <div className="flex flex-col gap-2 pt-1 pb-4 flex-1">
                                                             <div className="flex items-center gap-2">
@@ -869,7 +872,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                                             ? isOvertime
                                                                                 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 animate-pulse'
                                                                                 : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                                                                            : 'bg-primary/10 text-primary hover:bg-primary/20'
+                                                                            : 'bg-forest-green/5 text-forest-green hover:bg-forest-green/10 dark:bg-accent-herb/10 dark:text-accent-herb dark:hover:bg-accent-herb/20'
                                                                     }`}
                                                                 >
                                                                     {isRunning ? (
@@ -900,14 +903,14 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 
                 {/* Storage & Info Block */}
                 {recipe.storageNotes && (
-                    <div className="w-full bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl p-5 shadow-sm mt-4">
+                    <div className="w-full bg-sidebar-mint dark:bg-blue-900/10 border border-forest-green/20 dark:border-blue-900/20 rounded-xl p-5 shadow-sm mt-4">
                         <div className="flex flex-col sm:flex-row gap-6">
                             <div className="flex-1 flex flex-col gap-3">
-                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-1">
+                                <div className="flex items-center gap-2 text-forest-green dark:text-blue-400 mb-1">
                                     <span className="material-symbols-outlined">inventory_2</span>
                                     <h3 className="font-bold text-lg font-display">Storage & Reheating</h3>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                <p className="text-sm text-gray-700 dark:text-gray-300">
                                     {recipe.storageNotes}
                                 </p>
                             </div>
@@ -917,7 +920,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 
                 {/* Source & Attribution - Moved to bottom */}
                 {(recipe.source?.name || recipe.addedBy) && (
-                    <div className="w-full mt-6 pt-6 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between gap-4 text-sm text-text-muted">
+                    <div className="w-full mt-6 pt-6 border-t border-border-thin dark:border-border-dark flex flex-col sm:flex-row justify-between gap-4 text-sm text-text-secondary dark:text-text-secondary-dark">
                         {recipe.addedBy && (
                             <div className="flex items-center gap-2">
                                 <User size={16} />
@@ -929,7 +932,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 <ExternalLink size={16} />
                                 <span>Source:</span>
                                 {recipe.source?.url ? (
-                                    <a href={recipe.source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                                    <a href={recipe.source.url} target="_blank" rel="noopener noreferrer" className="text-forest-green dark:text-accent-herb hover:underline font-medium">
                                         {recipe.source.name || 'Link'}
                                     </a>
                                 ) : (
@@ -945,8 +948,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
         </main>
         {/* Toast Notification */}
         {toast.visible && (
-            <div className="fixed bottom-6 right-6 z-[120] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
-                <Check size={20} className="text-green-400" />
+            <div className="fixed bottom-6 right-6 z-[120] bg-forest-green dark:bg-white text-white dark:text-black px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                <Check size={20} className="text-accent-herb dark:text-green-600" />
                 <span className="font-medium text-sm">{toast.message}</span>
             </div>
         )}

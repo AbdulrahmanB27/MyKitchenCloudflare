@@ -38,10 +38,10 @@ const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange 
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-center size-10 rounded-lg border transition-colors ${
+        className={`flex items-center justify-center size-10 transition-colors ${
             isOpen 
-                ? 'bg-primary text-inverse border-primary' 
-                : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark text-text-muted hover:text-text-main dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
+                ? 'text-forest-green dark:text-accent-herb' 
+                : 'text-text-secondary hover:text-text-main dark:hover:text-white'
         }`}
         title={`Sort by: ${currentLabel}`}
       >
@@ -49,7 +49,7 @@ const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange 
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-48 bg-surface-light dark:bg-surface-dark rounded-xl shadow-xl border border-border-light dark:border-border-dark z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="py-1">
             {options.map((option) => (
               <button
@@ -57,8 +57,8 @@ const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange 
                 onClick={() => handleSelect(option.value)}
                 className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center justify-between transition-colors ${
                   currentSort === option.value
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-text-main dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                    ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'
+                    : 'text-text-main dark:text-gray-300 hover:bg-bg-subtle dark:hover:bg-white/5'
                 }`}
               >
                 {option.label}

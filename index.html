@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,141 +6,14 @@
     <title>MyKitchen - Recipe Dashboard</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3565/3565418.png">
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              "bg-white": "#ffffff",
-              "bg-subtle": "#fafafa",
-              "sidebar-light": "#f5f5f5", 
-              "border-thin": "#e5e5e5",
-              "accent-black": "#000000",
-              "text-main": "#000000",
-              "text-secondary": "#525252",
-              "accent-lime": "#bef264", 
-              "lime-hover": "#a3e635",
-              // Keep old mappings for compatibility if needed, but prioritize snippet names
-              primary: '#000000',
-              'background-light': '#ffffff',
-              'surface-light': '#f9f9f9',
-              'text-muted': '#525252',
-              'border-light': '#e5e5e5',
-              'inverse': '#ffffff',
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              display: ['Inter', 'sans-serif'],
-              body: ['Inter', 'sans-serif'],
-            },
-            boxShadow: {
-              'minimal': '0 4px 20px rgba(0,0,0,0.03)',
-              'hover': '0 10px 40px rgba(0,0,0,0.06)',
-              'card': '0 2px 10px rgba(0,0,0,0.02)',
-            },
-            borderRadius: {
-              'card': '0.5rem',
-              'btn': '0.25rem',
-              'pill': '9999px',
-            }
-          }
-        }
-      }
-    </script>
     <link href="https://fonts.googleapis.com" rel="preconnect"/>
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    <style>
-      .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-      }
-      .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-      body {
-          font-family: 'Inter', sans-serif;
-      }
-      
-      /* Keep some utility styles but remove the complex :root/.dark blocks that might conflict */
-      input[type="checkbox"]:checked {
-          background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
-      }
-      input[type=number]::-webkit-inner-spin-button, 
-      input[type=number]::-webkit-outer-spin-button { 
-        -webkit-appearance: none; 
-        margin: 0; 
-      }
-      input[type=number] {
-        -moz-appearance: textfield;
-      }
-
-      @media print {
-        body {
-          background: white !important;
-          color: black !important;
-        }
-        
-        /* If a recipe detail is open, hide everything else */
-        body > *:not(.recipe-detail-view) {
-          display: none !important;
-        }
-
-        .recipe-detail-view {
-          display: block !important;
-          position: static !important;
-          overflow: visible !important;
-          height: auto !important;
-          background: white !important;
-          color: black !important;
-          width: 100% !important;
-          z-index: 9999;
-        }
-
-        .recipe-detail-view * {
-          visibility: visible !important;
-        }
-
-        /* Hide specific interactive elements in the recipe detail when printing */
-        .recipe-detail-view header,
-        .recipe-detail-view button,
-        .recipe-detail-view .no-print {
-          display: none !important;
-        }
-
-        /* Ensure proper scrolling/flow for the content */
-        .recipe-detail-view main {
-          overflow: visible !important;
-          height: auto !important;
-        }
-
-        /* Fix image aspect ratios if needed */
-        .bg-cover {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-      }
-    </style>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "uuid": "https://esm.sh/uuid@^13.0.0",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
-  }
-}
-</script>
-  <link rel="stylesheet" href="/index.css">
-</head>
-  <body class="bg-bg-white text-text-main min-h-screen flex flex-col antialiased selection:bg-accent-lime selection:text-black">
+    <link rel="stylesheet" href="/index.css">
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>

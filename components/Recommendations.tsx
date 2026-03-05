@@ -185,36 +185,36 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
   const clearSelection = () => setSelectedIngredients(new Set());
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-background-light dark:bg-background-dark">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-white dark:bg-bg-dark">
       <div className="max-w-5xl mx-auto space-y-6">
         
         {/* Header */}
         <div className="flex items-center gap-4 mb-2">
-            <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+            <button onClick={onOpenMenu} className="md:hidden p-2 rounded-full hover:bg-bg-subtle dark:hover:bg-white/10">
                 <span className="material-symbols-outlined">menu</span>
             </button>
             <div>
                 <h1 className="text-2xl font-bold font-display text-text-main dark:text-white flex items-center gap-2">
-                    <ChefHat className="text-primary" /> What can I make?
+                    <ChefHat className="text-forest-green dark:text-accent-herb" /> What can I make?
                 </h1>
-                <p className="text-sm text-text-muted">Select ingredients you have to find recipes.</p>
+                <p className="text-sm text-text-secondary">Select ingredients you have to find recipes.</p>
             </div>
         </div>
 
         {/* Ingredients Selector */}
-        <div className="bg-surface-light dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-border-light dark:border-border-dark space-y-4">
+        <div className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-border-thin dark:border-border-dark space-y-4">
             
             {/* Controls Row */}
             <div className="flex flex-col gap-4">
                  <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                      <div className="relative flex-1 w-full md:max-w-md">
-                         <Search className="absolute left-3 top-2.5 text-text-muted" size={18} />
+                         <Search className="absolute left-3 top-2.5 text-text-secondary" size={18} />
                          <input 
                             type="text" 
                             value={ingredientSearch} 
                             onChange={e => setIngredientSearch(e.target.value)} 
                             placeholder="Search ingredients..." 
-                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary focus:outline-none text-text-main dark:text-white"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-bg-subtle dark:bg-bg-dark border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-text-main dark:text-white placeholder:text-text-secondary"
                          />
                      </div>
                      
@@ -232,17 +232,17 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                              ]}
                          />
 
-                         <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                                {ignoreSeasonings && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
+                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-thin dark:hover:border-border-dark select-none">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-border-thin dark:border-border-dark'}`}>
+                                {ignoreSeasonings && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
                             </div>
                             <input type="checkbox" className="hidden" checked={ignoreSeasonings} onChange={e => setIgnoreSeasonings(e.target.checked)} />
                             <span className="text-xs font-bold text-text-main dark:text-gray-200">Ignore Staples</span>
                         </label>
 
-                        <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-light dark:hover:border-border-dark select-none">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-primary border-primary' : 'border-gray-300 dark:border-gray-500'}`}>
-                                {showMissingOne && <span className="material-symbols-outlined text-inverse text-[10px]">check</span>}
+                        <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-thin dark:hover:border-border-dark select-none">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-border-thin dark:border-border-dark'}`}>
+                                {showMissingOne && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
                             </div>
                             <input type="checkbox" className="hidden" checked={showMissingOne} onChange={e => setShowMissingOne(e.target.checked)} />
                             <span className="text-xs font-bold text-text-main dark:text-gray-200">Missing 1</span>
@@ -258,8 +258,8 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             onClick={() => setFilterCategory(cat as any)} 
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${
                                 filterCategory === cat 
-                                    ? 'bg-primary text-inverse border-primary' 
-                                    : 'bg-background-light dark:bg-background-dark text-text-muted border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-white/5'
+                                    ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' 
+                                    : 'bg-bg-subtle dark:bg-bg-dark text-text-secondary border-border-thin dark:border-border-dark hover:bg-bg-subtle dark:hover:bg-white/5'
                             }`}
                          >
                              {cat}
@@ -268,8 +268,8 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                 </div>
             </div>
             
-            <div className="flex items-center justify-between border-t border-border-light dark:border-border-dark pt-4">
-                <span className="text-xs font-bold uppercase text-text-muted">{visibleIngredients.length} Ingredients Available</span>
+            <div className="flex items-center justify-between border-t border-border-thin dark:border-border-dark pt-4">
+                <span className="text-xs font-bold uppercase text-text-secondary">{visibleIngredients.length} Ingredients Available</span>
                 {selectedIngredients.size > 0 && (
                     <button onClick={clearSelection} className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1">
                         <X size={14} /> Clear Selection ({selectedIngredients.size})
@@ -287,8 +287,8 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             onClick={() => toggleSelection(ing)}
                             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border ${
                                 isSelected 
-                                    ? 'bg-primary text-inverse border-primary shadow-md shadow-primary/20 scale-105' 
-                                    : 'bg-background-light dark:bg-white/5 text-text-main dark:text-gray-300 border-border-light dark:border-gray-700 hover:border-primary/50'
+                                    ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md shadow-black/10 scale-105' 
+                                    : 'bg-bg-subtle dark:bg-white/5 text-text-main dark:text-gray-300 border-border-thin dark:border-gray-700 hover:border-forest-green/50 dark:hover:border-accent-herb/50'
                             }`}
                         >
                             <span className="capitalize">{ing}</span>
@@ -296,7 +296,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                     );
                 })}
                 {visibleIngredients.length === 0 && (
-                    <div className="w-full py-8 text-center text-text-muted text-sm">
+                    <div className="w-full py-8 text-center text-text-secondary text-sm">
                         No ingredients found matching "{ingredientSearch}".
                     </div>
                 )}
@@ -309,7 +309,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
             <h2 className="text-lg font-bold text-text-main dark:text-white flex items-center gap-2">
                 Matching Recipes
                 {selectedIngredients.size > 0 && (
-                    <span className="text-xs font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-normal bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb px-2 py-0.5 rounded-full">
                         {recommendations.length} found
                     </span>
                 )}
@@ -317,13 +317,13 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
 
             {selectedIngredients.size === 0 ? (
                 <div className="text-center py-16 opacity-50">
-                    <Search className="w-12 h-12 mx-auto mb-4 text-text-muted" />
-                    <p>Select ingredients above to see what you can cook!</p>
+                    <Search className="w-12 h-12 mx-auto mb-4 text-text-secondary" />
+                    <p className="text-text-secondary">Select ingredients above to see what you can cook!</p>
                 </div>
             ) : recommendations.length === 0 ? (
                 <div className="text-center py-16 opacity-50">
-                    <Filter className="w-12 h-12 mx-auto mb-4 text-text-muted" />
-                    <p>No matching recipes found. Try enabling "Missing 1" or adding more ingredients.</p>
+                    <Filter className="w-12 h-12 mx-auto mb-4 text-text-secondary" />
+                    <p className="text-text-secondary">No matching recipes found. Try enabling "Missing 1" or adding more ingredients.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -333,10 +333,10 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             <div 
                                 key={recipe.id}
                                 onClick={() => onOpenRecipe(recipe)}
-                                className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                className="bg-white dark:bg-card-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer border border-border-thin dark:border-border-dark overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
                             >
                                 <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${recipe.image || ''}")` }}>
-                                    {!recipe.image && <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 flex items-center justify-center"><span className="text-2xl">🍳</span></div>}
+                                    {!recipe.image && <div className="absolute inset-0 bg-bg-subtle dark:bg-white/10 flex items-center justify-center"><span className="text-2xl">🍳</span></div>}
                                     <div className="absolute top-2 right-2">
                                         {isPerfect ? (
                                             <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
@@ -351,7 +351,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                                 </div>
                                 <div className="p-4 flex-1 flex flex-col">
                                     <h3 className="font-bold text-lg text-text-main dark:text-white line-clamp-1 mb-1">{recipe.name}</h3>
-                                    <div className="flex items-center gap-2 text-xs text-text-muted mb-3">
+                                    <div className="flex items-center gap-2 text-xs text-text-secondary mb-3">
                                         <span className="material-symbols-outlined text-[14px]">schedule</span>
                                         {(recipe.prepTime || 0) + (recipe.cookTime || 0)} min
                                     </div>

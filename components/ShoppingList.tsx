@@ -30,11 +30,11 @@ const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () 
     onClick={(e) => { e.stopPropagation(); onChange(); }}
     className={`w-5 h-5 rounded-[6px] border-[2px] flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
         checked 
-            ? 'bg-primary border-primary' 
-            : 'border-gray-400 dark:border-gray-500 hover:border-primary bg-transparent'
+            ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' 
+            : 'border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb bg-transparent'
     }`}
   >
-    <span className={`material-symbols-outlined text-inverse text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
+    <span className={`material-symbols-outlined text-white dark:text-black text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
   </div>
 );
 
@@ -195,10 +195,10 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 
   // --- Render ---
 
-  if (loading) return <div className="p-8 text-center text-text-muted">Loading list...</div>;
+  if (loading) return <div className="p-8 text-center text-text-secondary">Loading list...</div>;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 scroll-smooth">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 scroll-smooth bg-bg-white dark:bg-bg-dark">
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Mobile Header */}
@@ -206,24 +206,24 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           <button onClick={onOpenMenu} className="text-text-main dark:text-white p-1 -ml-1">
             <span className="material-symbols-outlined">menu</span>
           </button>
-          <h1 className="text-2xl font-bold font-display">Shopping List</h1>
+          <h1 className="text-2xl font-bold font-display text-text-main dark:text-white">Shopping List</h1>
         </div>
 
         {/* Shopping List Controls */}
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border-light dark:border-border-dark">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border-thin dark:border-border-dark">
             <div className="flex flex-col gap-1">
                 <h2 className="text-3xl font-bold tracking-tight text-text-main dark:text-white font-display">Shopping List</h2>
                 <div className="flex gap-2 text-sm mt-1">
                     <button 
                          onClick={() => setViewMode('combined')}
-                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-primary text-inverse border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
+                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' : 'text-text-secondary border-border-thin dark:border-gray-700'}`}
                     >
                         Combined
                     </button>
                     <button 
                         onClick={() => setViewMode('by-recipe')}
-                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-primary text-inverse border-primary' : 'text-text-muted border-border-light dark:border-gray-700'}`}
+                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' : 'text-text-secondary border-border-thin dark:border-gray-700'}`}
                     >
                         By Recipe
                     </button>
@@ -233,7 +233,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
             <div className="flex flex-wrap gap-3">
               <button 
                 onClick={handleCopy}
-                className="px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center gap-2"
                 title="Copy Ingredients"
               >
                 <span className="material-symbols-outlined text-base">content_copy</span>
@@ -241,7 +241,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
               </button>
               <button 
                 onClick={clearPurchased}
-                className="px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-base">check_circle</span>
                 Clear Purchased
@@ -257,7 +257,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           </div>
 
           {items.length === 0 && (
-             <div className="text-center py-10 text-text-muted dark:text-text-muted-dark">
+             <div className="text-center py-10 text-text-secondary">
                 Your shopping list is empty. Add items from recipes!
              </div>
           )}
@@ -266,21 +266,21 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           {viewMode === 'by-recipe' && (
               <>
                 {(Object.entries(itemsByRecipe) as [string, ShoppingItem[]][]).map(([recipeName, recipeItems]) => (
-                    <div key={recipeName} className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
-                    <div className="p-4 bg-gray-50/50 dark:bg-white/5 border-b border-border-light dark:border-border-dark flex justify-between items-center group">
+                    <div key={recipeName} className="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-border-thin dark:border-border-dark overflow-hidden">
+                    <div className="p-4 bg-bg-subtle dark:bg-white/5 border-b border-border-thin dark:border-border-dark flex justify-between items-center group">
                         <div className="flex items-center gap-2">
                              <h3 className="text-lg font-bold text-text-main dark:text-white font-display">{recipeName}</h3>
                              {recipeItems[0]?.recipeId && (
                                  <button 
                                     onClick={() => onOpenRecipe(recipeItems[0].recipeId!)}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-primary hover:bg-primary/10 rounded"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-forest-green dark:text-accent-herb hover:bg-forest-green/10 dark:hover:bg-accent-herb/10 rounded"
                                     title="Go to Recipe"
                                  >
                                     <span className="material-symbols-outlined text-lg">open_in_new</span>
                                  </button>
                              )}
                         </div>
-                        <span className="text-xs font-medium px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        <span className="text-xs font-medium px-2 py-1 rounded bg-bg-subtle dark:bg-white/10 text-text-secondary dark:text-gray-300">
                         {recipeItems.length} Items
                         </span>
                     </div>
@@ -289,10 +289,10 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                         <div 
                             key={item.id} 
                             onClick={() => toggleItem(item)}
-                            className="flex items-center gap-3 p-2 hover:bg-background-light dark:hover:bg-background-dark rounded-lg cursor-pointer group transition-colors"
+                            className="flex items-center gap-3 p-2 hover:bg-bg-subtle dark:hover:bg-bg-dark rounded-lg cursor-pointer group transition-colors"
                         >
                             <CustomCheckbox checked={item.isChecked} onChange={() => toggleItem(item)} />
-                            <span className={`flex-1 text-text-main dark:text-gray-200 font-medium group-hover:text-primary transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
+                            <span className={`flex-1 text-text-main dark:text-gray-200 font-medium group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
                             {item.text}
                             </span>
                         </div>
@@ -310,18 +310,18 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                     <div 
                         key={item.id} 
                         onClick={() => toggleCombinedItem(item)}
-                        className="flex items-start gap-3 p-4 bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark cursor-pointer group transition-all"
+                        className="flex items-start gap-3 p-4 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-border-thin dark:border-border-dark cursor-pointer group transition-all"
                     >
                         <div className="mt-1">
                             <CustomCheckbox checked={item.isChecked} onChange={() => toggleCombinedItem(item)} />
                         </div>
                         <div className="flex-1 flex flex-col">
-                            <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-primary transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
+                            <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
                                 {/* Format quantity nicely */}
                                 {item.unit ? `${formatFraction(item.qty)} ${item.unit} ${item.text}` : `${item.text}${item.qty > 1 ? ` (x${formatFraction(item.qty)})` : ''}`}
                             </span>
                             {item.sourceRecipeNames.size > 0 && (
-                                <span className="text-xs text-text-muted dark:text-gray-500 mt-0.5">
+                                <span className="text-xs text-text-secondary dark:text-gray-500 mt-0.5">
                                     From: {Array.from(item.sourceRecipeNames).join(', ')}
                                 </span>
                             )}

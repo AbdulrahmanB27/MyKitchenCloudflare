@@ -5,7 +5,7 @@ type PagesFunction<T = any> = (context: { request: Request; env: T; [key: string
 interface Env {
   DB: D1Database;
   IMAGES: any; // R2Bucket binding
-  FAMILY_PASSWORD: string;
+  JWT_SECRET: string;
 }
 
 // Securely verify HMAC-SHA256 signature
@@ -38,8 +38,8 @@ const checkAuth = async (request: Request, secret: string) => {
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
-    const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
-    const payload = await checkAuth(context.request, envPassword);
+    const jwtSecret = (context.env.JWT_SECRET || '').trim();
+    const payload = await checkAuth(context.request, jwtSecret);
     
     if (!payload) return new Response("Unauthorized", { status: 401 });
 
@@ -67,9 +67,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  // Trim the env password to match the trimming done in auth.ts during token generation
-  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
-  const payload = await checkAuth(context.request, envPassword);
+  // Trim the jwt secret to match the trimming done in auth.ts during token generation
+  const jwtSecret = (context.env.JWT_SECRET || '').trim();
+  const payload = await checkAuth(context.request, jwtSecret);
   
   if (!payload) return new Response("Unauthorized", { status: 401 });
 
@@ -104,20 +104,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
-  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
-  const authorized = await checkAuth(context.request, envPassword);
+  const jwtSecret = (context.env.JWT_SECRET || '').trim();
+  const payload = await checkAuth(context.request, jwtSecret);
   
-  if (!authorized) return new Response("Unauthorized", { status: 401 });
+  if (!payload) return new Response("Unauthorized", { status: 401 });
 
   try {
+    const familyId = payload.familyId;
     const url = new URL(context.request.url);
     const id = url.searchParams.get("id");
     if (!id) return new Response("Missing ID", { status: 400 });
 
-    // 1. Fetch existing recipe to find Image URL
-    const existing = await context.env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
+    // 1. Fetch existing recipe to find Image URL and verify familyId
+    const existing = await context.env.DB.prepare("SELECT data, tenant_id FROM recipes WHERE id = ?").bind(id).first();
     
-    if (existing) {
+    if (!existing || existing.tenant_id !== familyId) {
+        return new Response("Forbidden", { status: 403 });
+    }
         try {
             const recipeData = JSON.parse(existing.data);
             // Check if image is hosted by us (contains /api/images?key=)
@@ -131,7 +134,6 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
             console.error("Failed to delete associated image", imgError);
             // Continue with recipe deletion even if image delete fails
         }
-    }
 
     const now = Date.now();
     const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });

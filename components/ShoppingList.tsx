@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingItem } from '../types';
 import * as db from '../services/db';
 import { formatFraction, normalizeIngredient } from '../utils/format';
+import Checkbox from './Checkbox';
 
 interface ShoppingListProps {
   onOpenMenu: () => void;
@@ -26,16 +27,7 @@ interface CombinedItem {
 
 // Custom Checkbox Component matching the "Show Archived" style
 const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
-  <div 
-    onClick={(e) => { e.stopPropagation(); onChange(); }}
-    className={`w-5 h-5 rounded-[6px] border-[2px] flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
-        checked 
-            ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' 
-            : 'border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb bg-transparent'
-    }`}
-  >
-    <span className={`material-symbols-outlined text-white dark:text-black text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
-  </div>
+  <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
 const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinnedTags, onOpenRecipe }) => {

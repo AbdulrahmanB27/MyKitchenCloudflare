@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus } from 'lucide-react';
 import * as db from '../services/db';
+import { sanitize, isNotEmpty } from '../utils/validation';
 
 interface AuthModalProps {
     onClose: () => void;
@@ -37,7 +38,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                 if (container) container.innerHTML = '';
                 
                 widgetId = (window as any).turnstile.render('#turnstile-container', {
-                    sitekey: '0x4AAAAAAAzyj7W1jX7W1jX7', // Demo key, replace with env/config if real
+                    sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAAzyj7W1jX7W1jX7', // Use env or fallback to demo
                     callback: (token: string) => setTurnstileToken(token),
                 });
             } catch(e) {
@@ -55,9 +56,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        const cleanFamilyName = sanitize(familyName);
+        if (!isNotEmpty(cleanFamilyName)) {
+            setError('Family name is required');
+            return;
+        }
+
         setLoading(true);
         setError('');
-        const res = await db.authenticate(familyName, password, turnstileToken); // db.authenticate handles token storage safely
+        const res = await db.authenticate(cleanFamilyName, password, turnstileToken); // db.authenticate handles token storage safely
         setLoading(false);
         if (res.success) {
             onSuccess();
@@ -69,9 +77,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const cleanFamilyName = sanitize(familyName);
+        if (!isNotEmpty(cleanFamilyName)) {
+            setError('Family name is required');
+            return;
+        }
+
         setLoading(true);
         setError('');
-        const res = await db.registerFamily(familyName, password, adminPassword, turnstileToken);
+        const res = await db.registerFamily(cleanFamilyName, password, adminPassword, turnstileToken);
         setLoading(false);
         if (res.success) {
             onSuccess();

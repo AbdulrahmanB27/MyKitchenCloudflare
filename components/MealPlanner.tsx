@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Recipe, MealPlan, Ingredient } from '../types';
+import { sanitize } from '../utils/validation';
 import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import { ChevronLeft, ChevronRight, Plus, Calendar, Search, Trash2, ShoppingCart } from 'lucide-react';
@@ -133,7 +134,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
 
   const filteredRecipes = useMemo(() => {
       if (!searchQuery) return allRecipes;
-      const q = searchQuery.toLowerCase();
+      const q = sanitize(searchQuery).toLowerCase();
       return allRecipes.filter(r => r.name.toLowerCase().includes(q) || r.tags.some(t => t.toLowerCase().includes(q)));
   }, [allRecipes, searchQuery]);
 

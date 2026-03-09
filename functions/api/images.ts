@@ -1,25 +1,25 @@
 
 type Env = {
   IMAGES: any; // R2Bucket
-  FAMILY_PASSWORD: string;
+  JWT_SECRET: string;
 }
 
 const checkAuth = async (request: Request, secret: string) => {
     const auth = request.headers.get('Authorization');
-    if (!auth || !auth.startsWith('Bearer ')) return false;
+    if (!auth || !auth.startsWith('Bearer ')) return null;
     const token = auth.split(' ')[1];
     const [payloadB64, signatureB64] = token.split('.');
-    if (!payloadB64 || !signatureB64) return false;
+    if (!payloadB64 || !signatureB64) return null;
     try {
         const encoder = new TextEncoder();
         const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
         const signature = Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0));
         const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(payloadB64));
-        if (!valid) return false;
+        if (!valid) return null;
         const payload = JSON.parse(atob(payloadB64));
-        if (payload.exp < Date.now()) return false;
-        return true;
-    } catch (e) { return false; }
+        if (payload.exp < Date.now()) return null;
+        return payload;
+    } catch (e) { return null; }
 };
 
 // GET: Serve images
@@ -49,9 +49,9 @@ export const onRequestGet = async (context: any) => {
 
 // POST: Upload images
 export const onRequestPost = async (context: any) => {
-  const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
-  const authorized = await checkAuth(context.request, envPassword);
-  if (!authorized) return new Response("Unauthorized", { status: 401 });
+  const jwtSecret = (context.env.JWT_SECRET || '').trim();
+  const payload = await checkAuth(context.request, jwtSecret);
+  if (!payload) return new Response("Unauthorized", { status: 401 });
 
   try {
     const formData = await context.request.formData();

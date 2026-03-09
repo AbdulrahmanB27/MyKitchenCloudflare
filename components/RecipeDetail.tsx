@@ -5,6 +5,7 @@ import * as db from '../services/db';
 import { v4 as uuidv4 } from 'uuid';
 import CookMode from './CookMode';
 import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users, Check, X, Link as LinkIcon, FileText, Heart } from 'lucide-react';
+import Checkbox from './Checkbox';
 import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
@@ -757,17 +758,20 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                          )}
                                          <div className="p-2">
                                              {group.items.map((ing, idx) => (
-                                                 <label key={`${group.title}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-all group/item">
+                                                <div key={`${group.title}-${idx}`} onClick={() => toggleIngredient(`${group.title}-${ing.id}`)} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-all group/item">
                                                      <div className="relative flex items-center pt-0.5">
-                                                        <input type="checkbox" checked={checkedIngredients.has(`${group.title}-${ing.id}`)} onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 dark:border-gray-600 checked:bg-forest-green dark:checked:bg-accent-herb checked:border-forest-green dark:checked:border-accent-herb transition-all" />
-                                                        <span className="material-symbols-outlined absolute pointer-events-none opacity-0 peer-checked:opacity-100 text-white text-[16px] left-[2px] top-[2px]">check</span>
+                                                        <Checkbox 
+                                                            checked={checkedIngredients.has(`${group.title}-${ing.id}`)} 
+                                                            onChange={() => toggleIngredient(`${group.title}-${ing.id}`)} 
+                                                            size="sm"
+                                                        />
                                                      </div>
                                                      <div className="flex-1">
                                                          <p className={`text-sm md:text-base font-medium transition-colors group-hover/item:text-forest-green dark:group-hover/item:text-accent-herb ${checkedIngredients.has(`${group.title}-${ing.id}`) ? 'line-through opacity-50' : ''}`}>
                                                              {renderIngredient(ing)}
                                                          </p>
                                                      </div>
-                                                 </label>
+                                                 </div>
                                              ))}
                                          </div>
                                      </div>

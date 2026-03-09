@@ -1,9 +1,11 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Recipe, AppSettings, RecipeCategory, SortOption, Review } from './types';
 import * as db from './services/db';
 import { ENABLE_RESTAURANTS } from './constants';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitize } from './utils/validation';
 import RecipeCard from './components/RecipeCard';
 import RecipeDetail from './components/RecipeDetail';
 import RecipeForm from './components/RecipeForm';
@@ -17,6 +19,7 @@ import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator } from 'lucide-react';
+import Checkbox from './components/Checkbox';
 
 const App: React.FC = () => {
   const NAV_BTN_BASE = "flex items-center gap-4 px-5 py-3 rounded-lg text-sm font-medium transition-all w-full";
@@ -362,7 +365,7 @@ const App: React.FC = () => {
     }
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = sanitize(searchQuery).toLowerCase();
       result = result.filter(r => 
         r.name.toLowerCase().includes(q) || 
         r.ingredients.some(i => i.item.toLowerCase().includes(q))
@@ -590,18 +593,38 @@ const App: React.FC = () => {
                  
                  {!isSidebarCollapsed ? (
                     <>
-                        <div onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-3 px-3 py-2 cursor-pointer text-sm text-text-secondary dark:text-text-secondary-dark hover:text-forest-green dark:hover:text-white transition-colors select-none rounded-lg hover:bg-white dark:hover:bg-white/5 group">
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors bg-bg-white dark:bg-card-dark ${showArchived ? 'border-forest-green dark:border-accent-herb' : 'border-gray-400 dark:border-border-sage group-hover:border-forest-green dark:group-hover:border-accent-herb'}`}>
-                                <div className={`w-3 h-3 bg-forest-green dark:bg-accent-herb rounded-sm transition-all ${showArchived ? 'opacity-100 scale-100' : 'opacity-0 scale-0 group-hover:opacity-40 group-hover:scale-75'}`}></div>
-                            </div>
-                            <span className="font-medium">Show Archived</span>
+                        <div className="px-3 py-2">
+                            <Checkbox 
+                                checked={showArchived} 
+                                onChange={setShowArchived} 
+                                label="Show Archived" 
+                                size="md"
+                                className="hover:bg-white dark:hover:bg-white/5 p-2 -m-2 rounded-lg transition-colors"
+                            />
                         </div>
                         
                         <div className="px-3 py-2">
-                                     <div className="flex bg-gray-200 dark:bg-black/40 rounded-lg p-1">
-                                         <button onClick={() => setFamilyFilter('all')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'all' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>All</button>
-                                         <button onClick={() => setFamilyFilter('mine')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'mine' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>Mine</button>
-                                         <button onClick={() => setFamilyFilter('family')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-all ${familyFilter === 'family' ? 'bg-forest-green dark:bg-accent-herb shadow-sm text-white dark:text-white' : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'}`}>Family</button>
+                                     <div className="flex bg-gray-200 dark:bg-black/40 rounded-lg p-1 relative">
+                                         {['all', 'mine', 'family'].map((filter) => (
+                                             <button 
+                                                key={filter}
+                                                onClick={() => setFamilyFilter(filter as any)} 
+                                                className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-colors relative z-10 ${
+                                                    familyFilter === filter 
+                                                        ? 'text-white dark:text-white' 
+                                                        : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-white'
+                                                }`}
+                                             >
+                                                 {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                                                 {familyFilter === filter && (
+                                                     <motion.div
+                                                         layoutId="activeFilter"
+                                                         className="absolute inset-0 bg-forest-green dark:bg-accent-herb rounded-md shadow-sm -z-10"
+                                                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                                     />
+                                                 )}
+                                             </button>
+                                         ))}
                                      </div>
                         </div>
                     </>

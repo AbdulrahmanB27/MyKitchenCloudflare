@@ -4,7 +4,7 @@ type PagesFunction<T = any> = (context: { request: Request; env: T; params: any;
 
 interface Env {
   DB: D1Database;
-  FAMILY_PASSWORD: string;
+  JWT_SECRET: string;
 }
 
 // Securely verify HMAC-SHA256 signature
@@ -50,9 +50,9 @@ const checkAuth = async (request: Request, secret: string) => {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
-    const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+    const jwtSecret = (context.env.JWT_SECRET || '').trim();
     // Auth is optional for sharing now
-    let authPayload = await checkAuth(context.request, envPassword);
+    let authPayload = await checkAuth(context.request, jwtSecret);
     
     // If not authenticated, use a default 'public' identity
     const familyId = authPayload ? (authPayload.familyId || 'default') : 'public';

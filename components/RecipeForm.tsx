@@ -4,6 +4,7 @@ import { Recipe, Instruction, Ingredient } from '../types';
 import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
+import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
@@ -487,9 +488,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             if (ing.item.trim()) {
                 flatIngredients.push({ 
                     ...ing, 
+                    item: sanitize(ing.item),
+                    unit: sanitize(ing.unit),
+                    notes: ing.notes ? sanitize(ing.notes) : undefined,
+                    substitution: ing.substitution ? sanitize(ing.substitution) : undefined,
                     amount: parseAmount(ing.amount), 
                     secondaryAmount: (ing.secondaryAmount !== undefined && ing.secondaryAmount !== '') ? parseAmount(ing.secondaryAmount) : undefined,
-                    section: block.name || undefined 
+                    secondaryUnit: ing.secondaryUnit ? sanitize(ing.secondaryUnit) : undefined,
+                    section: block.name ? sanitize(block.name) : undefined 
                 });
             }
         });
@@ -499,7 +505,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     instructionBlocks.forEach(block => {
         block.steps.forEach(step => {
             if (step.text.trim()) {
-                flatInstructions.push({ ...step, section: block.name || undefined });
+                flatInstructions.push({ 
+                    ...step, 
+                    text: sanitize(step.text),
+                    title: step.title ? sanitize(step.title) : undefined,
+                    tip: step.tip ? sanitize(step.tip) : undefined,
+                    section: block.name ? sanitize(block.name) : undefined 
+                });
             }
         });
     });
@@ -514,6 +526,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
     return {
       ...formData as Recipe,
+      name: sanitize(formData.name || ''),
+      description: sanitize(formData.description || ''),
+      yieldUnit: sanitize(formData.yieldUnit || ''),
+      storageNotes: sanitize(formData.storageNotes || ''),
+      addedBy: sanitize(formData.addedBy || ''),
+      source: {
+          name: sanitize(formData.source?.name || ''),
+          url: formData.source?.url ? sanitize(formData.source.url) : '',
+          author: sanitize(formData.source?.author || '')
+      },
+      video: {
+          url: formData.video?.url ? sanitize(formData.video.url) : '',
+          note: formData.video?.note ? sanitize(formData.video.note) : ''
+      },
       prepTime: prep.min,
       prepTimeMax: prep.max,
       cookTime: cook.min,
@@ -526,8 +552,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           fat: parseOptionalNum(formData.nutrition?.fat),
       },
       id: recipeId,
-      tags: rawTags.split(',').map(t => t.trim()).filter(Boolean),
-      cookware: rawCookware.split(',').map(t => t.trim()).filter(Boolean),
+      tags: rawTags.split(',').map(t => sanitize(t.trim())).filter(Boolean),
+      cookware: rawCookware.split(',').map(t => sanitize(t.trim())).filter(Boolean),
       ingredients: flatIngredients,
       instructions: flatInstructions,
       components: [], 
@@ -571,13 +597,26 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const recipe = getRecipeObject();
+
+    // Validation
+    if (!isNotEmpty(recipe.name)) {
+        showToast("Recipe name is required", 'error');
+        return;
+    }
+
+    if (recipe.source?.url && !isValidUrl(recipe.source.url)) {
+        showToast("Invalid source URL", 'error');
+        return;
+    }
+
     setIsSaving(true);
 
     if (formData.addedBy) {
         db.safeSetItem('mykitchen_last_author', formData.addedBy);
     }
 
-    const recipe = getRecipeObject();
     const oldFamilyId = initialData?.familyId;
     const oldShared = initialData?.shareToFamily;
     
@@ -902,7 +941,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
                   <div><label className={LABEL_CLASS}>Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className={INPUT_CLASS} placeholder="Recipe Title" /></div>
-                  <div><label className={LABEL_CLASS}>Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className={INPUT_CLASS}><option value="Entrees">Entrees</option><option value="Sides">Sides</option><option value="Desserts">Desserts</option></select></div>
+                  <div><label className="block text-sm font-bold text-forest-green dark:text-accent-herb mb-1">Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-forest-green dark:border-accent-herb bg-forest-green/10 dark:bg-accent-herb/10 text-text-main dark:text-text-main-dark outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50"><option value="Entrees">Entrees</option><option value="Sides">Sides</option><option value="Desserts">Desserts</option></select></div>
                 </div>
                 <div><label className={LABEL_CLASS}>Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className={`${INPUT_CLASS} resize-none`} placeholder="Short description..." /></div>
              </div>
@@ -946,7 +985,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
           </section>
 
-          <section className="space-y-4">
+             <section className="space-y-4">
              <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Ingredients</h3>
              {ingredientBlocks.map((block, bIdx) => (
                  <div key={block.id} className="relative bg-bg-subtle dark:bg-white/5 rounded-xl p-4 border border-border-thin dark:border-border-dark">
@@ -956,36 +995,38 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      </div>
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col gap-2 p-3 rounded-lg bg-white dark:bg-white/10 border border-transparent hover:border-border-thin dark:hover:border-border-dark transition-colors">
-                                 <div className="grid grid-cols-12 gap-2 items-center">
-                                      <div className="col-span-12 sm:col-span-6">
-                                          <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`input p-2 text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : ''}`} />
-                                      </div>
-                                      <div className="col-span-3 sm:col-span-2">
-                                          <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="input p-2 text-sm text-center" />
-                                      </div>
-                                      <div className="col-span-3 sm:col-span-2">
-                                          <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="input p-2 text-sm" />
-                                      </div>
-                                      <div className="col-span-6 sm:col-span-2 flex gap-0.5 items-center justify-end sm:justify-center">
-                                            <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
-                                            <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
-                                            <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-300 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
-                                            <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
-                                      </div>
+                             <div key={ing.id} className="flex flex-col sm:flex-row gap-2 p-3 rounded-lg bg-white dark:bg-white/10 border border-border-thin dark:border-border-dark transition-colors">
+                                 <div className="flex-1 min-w-0">
+                                     <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                  </div>
-                                 {ing.secondaryAmount !== undefined && (
-                                     <div className="flex gap-2 items-center mt-2 ml-1 w-full max-w-full overflow-hidden">
-                                          <div className="w-5 flex justify-center shrink-0"><Scale size={20} className="text-purple-400" /></div>
-                                          <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 w-24 text-center shrink-0" />
-                                          <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 flex-1 min-w-0" />
-                                     </div>
-                                 )}
-                                 {ing.substitution !== undefined && (
-                                     <div className="flex gap-2 items-center mt-2 ml-1 w-full max-w-full overflow-hidden">
-                                          <div className="w-5 flex justify-center shrink-0"><ArrowRightLeft size={20} className="text-orange-400" /></div>
-                                          <input type="text" placeholder="Substitution" value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="input text-xs py-1.5 px-2 bg-white dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-black/20 focus:border-primary/30 flex-1 min-w-0" />
-                                     </div>
+                                 <div className="flex gap-2 items-center">
+                                     <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                 </div>
+                                 <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
+                                       <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                       <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                       <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                       <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                 </div>
+                                 
+                                 {/* Secondary & Substitution Rows (Full Width if active) */}
+                                 {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
+                                    <div className="w-full flex flex-col gap-2 mt-1 pt-2 border-t border-dashed border-border-thin dark:border-border-dark sm:col-span-full">
+                                        {ing.secondaryAmount !== undefined && (
+                                            <div className="flex gap-2 items-center">
+                                                <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
+                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="w-20 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs text-center" />
+                                                <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs" />
+                                            </div>
+                                        )}
+                                        {ing.substitution !== undefined && (
+                                            <div className="flex gap-2 items-center">
+                                                <div className="w-5 flex justify-center shrink-0"><ArrowRightLeft size={14} className="text-orange-400" /></div>
+                                                <input type="text" placeholder="Substitution notes..." value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="flex-1 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs" />
+                                            </div>
+                                        )}
+                                    </div>
                                  )}
                              </div>
                          ))}
@@ -1006,34 +1047,34 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      </div>
                      <div className="space-y-3">
                          {block.steps.map((step, idx) => (
-                             <div key={step.id} className="flex gap-3">
-                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-2 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
-                                 <div className="flex-1 space-y-2">
+                             <div key={step.id} className="flex gap-3 p-3 rounded-lg bg-white dark:bg-white/10 border border-border-thin dark:border-border-dark">
+                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
+                                 <div className="flex-1 space-y-2 min-w-0">
                                      <div className="flex gap-2 items-center">
-                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="input text-sm py-1 font-bold flex-1 dark:text-text-main-dark" />
-                                        <div className="flex gap-1">
+                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
+                                        <div className="flex gap-1 shrink-0">
                                             <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
                                             <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
+                                            <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
                                         </div>
                                      </div>
-                                     <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="input text-sm" />
+                                     <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="w-full p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white resize-none" />
                                      <div className="flex flex-wrap gap-2">
                                          {step.timer !== undefined && (
                                              <div className="flex items-center gap-1 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-md px-2 py-1">
                                                  <Clock size={12} className="text-forest-green dark:text-accent-herb"/>
-                                                 <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0" placeholder="Min" />
+                                                 <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0 text-text-main dark:text-white" placeholder="Min" />
                                                  <span className="text-xs text-forest-green dark:text-accent-herb font-medium">min</span>
                                              </div>
                                          )}
                                          {step.tip !== undefined && (
                                              <div className="flex items-center gap-1 flex-1 min-w-[200px]">
-                                                 <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="input text-xs py-1 px-2 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 w-full" autoFocus />
+                                                 <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="w-full p-1.5 rounded border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 text-xs text-text-main dark:text-white" />
                                              </div>
                                          )}
                                      </div>
                                  </div>
-                                 <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 mt-2 hover:bg-red-50 dark:hover:bg-red-900/10 p-1 rounded transition-colors h-fit"><Trash2 size={16}/></button>
                              </div>
                          ))}
                          <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>

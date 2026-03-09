@@ -1,8 +1,10 @@
 
+type D1Database = any;
 type PagesFunction<T = any> = (context: { request: Request; env: T; [key: string]: any }) => Promise<Response>;
 
 interface Env {
-  FAMILY_PASSWORD: string;
+  DB: D1Database;
+  JWT_SECRET: string;
   TURNSTILE_SECRET: string;
 }
 
@@ -15,6 +17,14 @@ async function signToken(payload: any, secret: string) {
     const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
     const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
     return `${data}.${signatureB64}`;
+}
+
+async function hashPassword(password: string, salt: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -43,18 +53,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: 'Invalid JSON request body' }), { status: 400, headers: corsHeaders });
     }
 
-    // For registration, we check adminPassword against FAMILY_PASSWORD
-    // Or we just check password? AuthModal sends: familyName, password, adminPassword
-    // In single-tenant mode, we treat "password" as the family password.
-    // If the user provides the correct FAMILY_PASSWORD, we log them in.
-    
+    const familyName = (body.familyName || '').trim();
     const password = (body.password || '').trim();
     const adminPassword = (body.adminPassword || '').trim();
     const turnstileToken = body.turnstileToken;
-    const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+    const jwtSecret = (context.env.JWT_SECRET || '').trim();
 
-    if (!envPassword) {
-        return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500, headers: corsHeaders });
+    if (!jwtSecret) {
+        return new Response(JSON.stringify({ error: 'Server misconfigured: JWT_SECRET missing' }), { status: 500, headers: corsHeaders });
+    }
+
+    if (!familyName || !password || !adminPassword) {
+        return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: corsHeaders });
     }
     
     // 1. Validate Turnstile
@@ -84,23 +94,36 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
     }
 
-    // 2. Validate Password
-    // Check if the provided password matches the environment password
-    // We ignore adminPassword for now as we are in single-tenant mode
-    if (password === envPassword) {
-        const payload = { 
-            sub: 'family_member',
-            familyId: 'default',
-            // Set expiration to 100 years from now (effectively never)
-            exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
-        };
-        const token = await signToken(payload, envPassword);
-        return new Response(JSON.stringify({ token, success: true, familyId: 'default', name: 'My Family' }), { 
-            headers: { "Content-Type": "application/json", ...corsHeaders } 
-        });
-    } else {
-        return new Response(JSON.stringify({ error: 'Incorrect password' }), { status: 401, headers: corsHeaders });
+    // 2. Check if family exists
+    const existing = await context.env.DB.prepare("SELECT id FROM families WHERE name = ?").bind(familyName).first();
+    if (existing) {
+        return new Response(JSON.stringify({ error: 'Family name already taken' }), { status: 409, headers: corsHeaders });
     }
+
+    // 3. Create Family
+    const familyId = crypto.randomUUID();
+    const salt = crypto.randomUUID();
+    const passwordHash = await hashPassword(password, salt);
+    const adminPasswordHash = await hashPassword(adminPassword, salt);
+    const now = Date.now();
+
+    await context.env.DB.prepare(
+        "INSERT INTO families (id, name, password_hash, admin_password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+    ).bind(familyId, familyName, passwordHash, adminPasswordHash, salt, now).run();
+
+    // 4. Sign Token
+    const payload = { 
+        sub: 'family_member',
+        familyId: familyId,
+        familyName: familyName,
+        // Set expiration to 100 years from now (effectively never)
+        exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
+    };
+    const token = await signToken(payload, jwtSecret);
+    
+    return new Response(JSON.stringify({ token, success: true, familyId: familyId, name: familyName }), { 
+        headers: { "Content-Type": "application/json", ...corsHeaders } 
+    });
 
   } catch (e: any) {
     return new Response(JSON.stringify({ error: `Server Error: ${e.message}` }), { status: 500, headers: corsHeaders });

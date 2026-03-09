@@ -3,10 +3,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
 import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff, BarChart3, Trophy, Check } from 'lucide-react';
+import Checkbox from './Checkbox';
 import AuthModal from './AuthModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import SortMenu from './SortMenu';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
 
 interface RestaurantListProps {
     onOpenMenu: () => void;
@@ -154,8 +156,8 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                     {restaurant.image ? (
                         <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${restaurant.image}")` }} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary">
-                            <UtensilsCrossed size={64} />
+                        <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                            <UtensilsCrossed size={64} strokeWidth={1.5} />
                         </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
@@ -178,8 +180,8 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                         <div className="flex justify-between items-start gap-2">
                             <h2 className="text-2xl font-display font-extrabold text-text-main dark:text-white leading-tight line-clamp-2">{restaurant.name}</h2>
                             {restaurant.stars > 0 && (
-                                <div className="flex items-center bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-lg shrink-0">
-                                    <Star size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
+                                <div className="flex items-center shrink-0">
+                                    <Hand size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
                                     <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{restaurant.stars}</span>
                                 </div>
                             )}
@@ -255,7 +257,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const sortOptions = [
         { id: 'recent', label: 'Recently Added', icon: <Clock size={16} /> },
         { id: 'name', label: 'Name (A-Z)', icon: <ArrowRight size={16} /> },
-        { id: 'rating', label: 'Highest Rated', icon: <Star size={16} /> },
+        { id: 'rating', label: 'Highest Rated', icon: <Hand size={16} /> },
         { id: 'price', label: 'Price (Low-High)', icon: <span className="font-bold text-xs">$</span> },
     ];
 
@@ -450,14 +452,34 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!isNotEmpty(formData.name)) {
+            alert("Restaurant name is required");
+            return;
+        }
+
+        if (formData.image && !isValidUrl(formData.image)) {
+            // It might be a base64 or a local path, but usually it's a URL here.
+            // If it's not a valid URL, we might want to warn, but some images are base64.
+            // Let's just sanitize it.
+        }
+
         try {
             const r: Restaurant = {
                 ...formData as Restaurant,
+                name: sanitize(formData.name || ''),
+                location: sanitize(formData.location || ''),
+                notes: sanitize(formData.notes || ''),
+                goToOrder: sanitize(formData.goToOrder || ''),
+                image: formData.image ? sanitize(formData.image) : undefined,
+                openHours: formData.openHours ? sanitize(formData.openHours) : undefined,
                 id: editingId || uuidv4(),
                 familyId: 'global', 
                 createdAt: formData.createdAt || Date.now(),
                 updatedAt: Date.now(),
-                cuisineTags: typeof formData.cuisineTags === 'string' ? (formData.cuisineTags as string).split(',').map(t => t.trim()).filter(Boolean) : (formData.cuisineTags || [])
+                cuisineTags: typeof formData.cuisineTags === 'string' 
+                    ? (formData.cuisineTags as string).split(',').map(t => sanitize(t.trim())).filter(Boolean) 
+                    : (formData.cuisineTags || []).map(t => sanitize(t))
             };
 
             if (targetFamilyId === 'private') {
@@ -683,7 +705,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             if (!showArchived && localArchive.has(r.id)) return false;
             if (activeFilter !== 'All' && !r.cuisineTags.includes(activeFilter)) return false;
             if (searchQuery) {
-                const q = searchQuery.toLowerCase();
+                const q = sanitize(searchQuery).toLowerCase();
                 return r.name.toLowerCase().includes(q) || r.cuisineTags.some(t => t.toLowerCase().includes(q));
             }
             return true;
@@ -820,7 +842,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                 <div className="flex flex-wrap gap-2 flex-1">
                                     <button 
                                         onClick={() => setFilterTag(null)}
-                                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                     >
                                         All
                                     </button>
@@ -828,7 +850,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <button 
                                             key={tag}
                                             onClick={() => setFilterTag(tag === filterTag ? null : tag)}
-                                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                         >
                                             {tag}
                                         </button>
@@ -849,15 +871,17 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             {r.image ? (
                                                 <div className="w-full h-full bg-cover bg-center transform group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-bg-subtle dark:bg-white/5"><UtensilsCrossed className="text-gray-300 dark:text-gray-600" size={48}/></div>
+                                                <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                    <UtensilsCrossed size={48} strokeWidth={1.5} />
+                                                </div>
                                             )}
                                             <div className="absolute top-3 right-3 flex gap-2">
-                                                <div className="bg-white/90 dark:bg-black/60 backdrop-blur text-text-main dark:text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-black/5 dark:border-white/10">
+                                                <div className="text-text-main dark:text-white text-[10px] font-bold px-1 py-0.5">
                                                     {r.cuisineTags[0]}
                                                 </div>
                                                 {r.stars > 0 && (
-                                                    <div className="bg-white/90 dark:bg-black/60 backdrop-blur text-yellow-600 dark:text-yellow-400 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-black/5 dark:border-white/10 flex items-center gap-1">
-                                                        <Star size={10} fill="currentColor" /> {r.stars === 3 ? 'Super' : r.stars === 2 ? 'Great' : 'Good'}
+                                                    <div className="text-yellow-600 dark:text-yellow-400 text-[10px] font-bold px-1 py-0.5 flex items-center gap-1">
+                                                        <Hand size={12} fill="currentColor" /> {r.stars === 3 ? 'Super' : r.stars === 2 ? 'Great' : 'Good'}
                                                     </div>
                                                 )}
                                             </div>
@@ -1008,7 +1032,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                                 {r.image ? (
                                                                     <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                                                 ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center bg-bg-subtle dark:bg-white/5"><UtensilsCrossed className="text-gray-400"/></div>
+                                                                    <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                                        <UtensilsCrossed size={32} strokeWidth={1.5} />
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                             <div className="sm:col-span-2 p-5 flex flex-col justify-center">
@@ -1181,7 +1207,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 <div className="flex items-center gap-2">
                                                     {[1, 2, 3].map(s => (
                                                         <button key={s} type="button" onClick={() => setFormData({...formData, stars: s === formData.stars ? 0 : s})} className={`group p-2 rounded-xl border transition-all flex flex-col items-center gap-1 min-w-[70px] ${formData.stars && formData.stars >= s ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-900/50' : 'bg-transparent border-transparent hover:bg-bg-subtle dark:hover:bg-white/5'}`}>
-                                                            <Star size={24} className={`transition-all ${formData.stars && formData.stars >= s ? 'text-yellow-500 fill-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                        <Hand size={24} className={`transition-all ${formData.stars && formData.stars >= s ? 'text-yellow-500 fill-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'}`} />
                                                             <span className={`text-[10px] font-bold ${formData.stars && formData.stars >= s ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-400'}`}>
                                                                 {s === 1 ? 'Good' : s === 2 ? 'Great' : 'Super'}
                                                             </span>

@@ -4,6 +4,7 @@ import { Recipe, Instruction, Ingredient } from '../types';
 import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 import * as db from '../services/db';
+import Checkbox from './Checkbox';
 
 interface CookModeProps {
   recipe: Recipe;
@@ -12,16 +13,7 @@ interface CookModeProps {
 }
 
 const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
-  <div
-    onClick={(e) => { e.stopPropagation(); onChange(); }}
-    className={`w-5 h-5 rounded-[6px] border-[2px] flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
-        checked
-            ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb'
-            : 'border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb bg-transparent'
-    }`}
-  >
-    <span className={`material-symbols-outlined text-white dark:text-black text-[14px] font-bold transform transition-transform ${checked ? 'scale-100' : 'scale-0'}`}>check</span>
-  </div>
+  <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
 const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 }) => {

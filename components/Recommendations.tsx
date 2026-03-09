@@ -1,7 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Recipe, Ingredient, RecipeCategory } from '../types';
-import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X } from 'lucide-react';
+import { sanitize } from '../utils/validation';
+import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X, UtensilsCrossed } from 'lucide-react';
+import Checkbox from './Checkbox';
 import SortMenu from './SortMenu';
 
 interface RecommendationsProps {
@@ -63,13 +65,14 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
 
   // 2. Filter ingredients for the selection UI
   const visibleIngredients = useMemo(() => {
+      const cleanSearch = sanitize(ingredientSearch).toLowerCase();
       return allIngredientNames.filter(name => {
           // If ignoring seasonings, hide them from the selection list to reduce clutter
           // (Logic: User is assumed to have them, or they don't count towards matching)
           if (ignoreSeasonings && isSeasoning(name)) return false;
           
-          if (ingredientSearch) {
-              return name.includes(normalize(ingredientSearch));
+          if (cleanSearch) {
+              return name.includes(cleanSearch);
           }
           return true;
       });
@@ -232,21 +235,19 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                              ]}
                          />
 
-                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-thin dark:hover:border-border-dark select-none">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${ignoreSeasonings ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-border-thin dark:border-border-dark'}`}>
-                                {ignoreSeasonings && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={ignoreSeasonings} onChange={e => setIgnoreSeasonings(e.target.checked)} />
-                            <span className="text-xs font-bold text-text-main dark:text-gray-200">Ignore Staples</span>
-                        </label>
+                          <Checkbox 
+                            checked={ignoreSeasonings} 
+                            onChange={setIgnoreSeasonings} 
+                            label="Ignore Staples" 
+                            size="sm"
+                        />
 
-                        <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors border border-transparent hover:border-border-thin dark:hover:border-border-dark select-none">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${showMissingOne ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-border-thin dark:border-border-dark'}`}>
-                                {showMissingOne && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
-                            </div>
-                            <input type="checkbox" className="hidden" checked={showMissingOne} onChange={e => setShowMissingOne(e.target.checked)} />
-                            <span className="text-xs font-bold text-text-main dark:text-gray-200">Missing 1</span>
-                        </label>
+                        <Checkbox 
+                            checked={showMissingOne} 
+                            onChange={setShowMissingOne} 
+                            label="Missing 1" 
+                            size="sm"
+                        />
                      </div>
                 </div>
 
@@ -336,7 +337,11 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                                 className="bg-white dark:bg-card-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
                             >
                                 <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${recipe.image || ''}")` }}>
-                                    {!recipe.image && <div className="absolute inset-0 bg-bg-subtle dark:bg-white/10 flex items-center justify-center"><span className="text-2xl">🍳</span></div>}
+                                    {!recipe.image && (
+                                        <div className="absolute inset-0 bg-[#2d333f] text-[#4a5568] flex items-center justify-center">
+                                            <UtensilsCrossed size={32} strokeWidth={1.5} />
+                                        </div>
+                                    )}
                                     <div className="absolute top-2 right-2">
                                         {isPerfect ? (
                                             <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">

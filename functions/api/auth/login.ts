@@ -1,8 +1,10 @@
 
+type D1Database = any;
 type PagesFunction<T = any> = (context: { request: Request; env: T; [key: string]: any }) => Promise<Response>;
 
 interface Env {
-  FAMILY_PASSWORD: string;
+  DB: D1Database;
+  JWT_SECRET: string;
   TURNSTILE_SECRET: string;
 }
 
@@ -15,6 +17,14 @@ async function signToken(payload: any, secret: string) {
     const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
     const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
     return `${data}.${signatureB64}`;
+}
+
+async function hashPassword(password: string, salt: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -43,12 +53,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: 'Invalid JSON request body' }), { status: 400, headers: corsHeaders });
     }
 
+    const familyName = (body.familyName || '').trim();
     const password = (body.password || '').trim();
     const turnstileToken = body.turnstileToken;
-    const envPassword = (context.env.FAMILY_PASSWORD || '').trim();
+    const jwtSecret = (context.env.JWT_SECRET || '').trim();
 
-    if (!envPassword) {
-        return new Response(JSON.stringify({ error: 'Server misconfigured: FAMILY_PASSWORD missing' }), { status: 500, headers: corsHeaders });
+    if (!jwtSecret) {
+        return new Response(JSON.stringify({ error: 'Server misconfigured: JWT_SECRET missing' }), { status: 500, headers: corsHeaders });
     }
     
     // 1. Validate Turnstile
@@ -78,16 +89,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
     }
 
-    // 2. Validate Password
-    if (password === envPassword) {
+    // 2. Validate Family and Password
+    const family = await context.env.DB.prepare("SELECT * FROM families WHERE name = ?").bind(familyName).first();
+    
+    if (!family) {
+        return new Response(JSON.stringify({ error: 'Family not found' }), { status: 401, headers: corsHeaders });
+    }
+
+    const passwordHash = await hashPassword(password, family.salt);
+    
+    if (passwordHash === family.password_hash) {
         const payload = { 
             sub: 'family_member',
-            familyId: 'default',
+            familyId: family.id,
+            familyName: family.name,
             // Set expiration to 100 years from now (effectively never)
             exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
         };
-        const token = await signToken(payload, envPassword);
-        return new Response(JSON.stringify({ token, success: true, familyId: 'default', name: 'My Family' }), { 
+        const token = await signToken(payload, jwtSecret);
+        return new Response(JSON.stringify({ token, success: true, familyId: family.id, name: family.name }), { 
             headers: { "Content-Type": "application/json", ...corsHeaders } 
         });
     } else {

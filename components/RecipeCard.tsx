@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Recipe } from '../types';
-import { Clock, Heart, Flame } from 'lucide-react';
+import { Clock, Heart, Flame, Star, UtensilsCrossed } from 'lucide-react';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -44,8 +44,8 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-bg-subtle dark:bg-white/5 text-4xl">
-            🍳
+          <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+            <UtensilsCrossed size={48} strokeWidth={1.5} />
           </div>
         )}
         
@@ -67,9 +67,10 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
         <div className="flex justify-between items-start mb-2 gap-2">
             <h3 className="font-bold text-lg leading-tight text-text-main dark:text-white group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors line-clamp-1">{recipe.name}</h3>
             {avgRating > 0 && (
-                <div className="flex items-center gap-1 text-xs font-bold bg-forest-green/10 dark:bg-lime-900/30 text-forest-green dark:text-lime-200 px-2 py-1 rounded-md shrink-0">
-                    <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <div className="flex items-center gap-1 text-xs font-bold text-yellow-500 dark:text-yellow-400 shrink-0">
+                    <Star size={14} className="fill-current" />
                     <span>{visualRating.toFixed(1)}</span>
+                    <span className="font-medium opacity-80">({reviewCount})</span>
                 </div>
             )}
         </div>

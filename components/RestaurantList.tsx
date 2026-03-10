@@ -1266,18 +1266,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 <select 
                                                     value={parseTime(schedStart).time} 
                                                     onChange={e => setSchedStart(`${e.target.value} ${parseTime(schedStart).period}`)}
-                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
                                                 >
-                                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    {HOURS.map(h => <option key={h} value={h} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{h}</option>)}
                                                 </select>
                                                 <div className="w-px h-4 bg-border-thin dark:bg-white/10"></div>
                                                 <select 
                                                     value={parseTime(schedStart).period} 
                                                     onChange={e => setSchedStart(`${parseTime(schedStart).time} ${e.target.value}`)}
-                                                    className="bg-transparent border-none text-xs font-bold text-forest-green dark:text-accent-herb focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                    className="bg-transparent border-none text-xs font-bold text-forest-green dark:text-accent-herb font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
                                                 >
-                                                    <option value="AM">AM</option>
-                                                    <option value="PM">PM</option>
+                                                    <option value="AM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">AM</option>
+                                                    <option value="PM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">PM</option>
                                                 </select>
                                             </div>
                                             
@@ -1288,18 +1288,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 <select 
                                                     value={parseTime(schedEnd).time} 
                                                     onChange={e => setSchedEnd(`${e.target.value} ${parseTime(schedEnd).period}`)}
-                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
                                                 >
-                                                    {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    {HOURS.map(h => <option key={h} value={h} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{h}</option>)}
                                                 </select>
                                                 <div className="w-px h-4 bg-border-thin dark:bg-white/10"></div>
                                                 <select 
                                                     value={parseTime(schedEnd).period} 
                                                     onChange={e => setSchedEnd(`${parseTime(schedEnd).time} ${e.target.value}`)}
-                                                    className="bg-transparent border-none text-xs font-bold text-text-secondary focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
+                                                    className="bg-transparent border-none text-xs font-bold text-text-secondary font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
                                                 >
-                                                    <option value="AM">AM</option>
-                                                    <option value="PM">PM</option>
+                                                    <option value="AM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">AM</option>
+                                                    <option value="PM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">PM</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1366,11 +1366,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <select
                                         value={targetFamilyId}
                                         onChange={(e) => setTargetFamilyId(e.target.value)}
-                                        className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white focus:ring-0 cursor-pointer py-0 pl-0 pr-8"
+                                        className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-0 pl-0 pr-8"
                                     >
-                                        <option value="private">Private List</option>
+                                        <option value="private" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Private List</option>
                                         {availableSessions.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                            <option key={s.id} value={s.id} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{s.name}</option>
                                         ))}
                                     </select>
                                 </div>

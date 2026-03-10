@@ -243,10 +243,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
                             <div>
                                 <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Action</label>
-                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white cursor-pointer transition-all">
-                                    <option value="update">Update Passwords</option>
-                                    <option value="rename">Rename Family</option>
-                                    <option value="delete">Delete Family Data</option>
+                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white font-sans cursor-pointer transition-all">
+                                    <option value="update" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Update Passwords</option>
+                                    <option value="rename" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Rename Family</option>
+                                    <option value="delete" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Delete Family Data</option>
                                 </select>
                             </div>
 

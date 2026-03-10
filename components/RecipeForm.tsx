@@ -5,6 +5,7 @@ import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
+import Checkbox from './Checkbox';
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
@@ -32,7 +33,7 @@ interface InstructionBlock {
 }
 
 const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, onClose }) => {
-  const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
+  const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
   const LABEL_CLASS = "block text-sm font-bold text-text-secondary mb-1 dark:text-accent-herb/80";
 
   const [formData, setFormData] = useState<Partial<Recipe>>({
@@ -911,9 +912,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                              </button>
                                              
                                              {targetFamilyId !== 'private' && !isPrimary && (
-                                                 <div className="pr-4 pl-2 h-full flex items-center" onClick={e => e.stopPropagation()}>
-                                                     <div 
-                                                        onClick={() => {
+                                                 <div className="pr-4 pl-2 h-full flex items-center">
+                                                     <Checkbox 
+                                                        checked={isSynced} 
+                                                        onChange={() => {
                                                             setAdditionalSyncFamilyIds(prev => {
                                                                 const next = new Set(prev);
                                                                 if (isSynced) next.delete(s.id);
@@ -921,11 +923,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                                 return next;
                                                             });
                                                         }}
-                                                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer ${isSynced ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-gray-400 bg-transparent'}`}
-                                                        title={`Also sync to ${s.name}`}
-                                                     >
-                                                         {isSynced && <span className="material-symbols-outlined text-white dark:text-black text-[10px]">check</span>}
-                                                     </div>
+                                                        size="sm"
+                                                        className="cursor-pointer"
+                                                     />
                                                  </div>
                                              )}
                                          </div>
@@ -941,7 +941,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
                   <div><label className={LABEL_CLASS}>Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className={INPUT_CLASS} placeholder="Recipe Title" /></div>
-                  <div><label className="block text-sm font-bold text-forest-green dark:text-accent-herb mb-1">Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-forest-green dark:border-accent-herb bg-forest-green/10 dark:bg-accent-herb/10 text-text-main dark:text-text-main-dark outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50"><option value="Entrees">Entrees</option><option value="Sides">Sides</option><option value="Desserts">Desserts</option></select></div>
+                  <div><label className={LABEL_CLASS}>Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className={INPUT_CLASS}><option value="Entrees" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Entrees</option><option value="Sides" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Sides</option><option value="Desserts" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Desserts</option></select></div>
                 </div>
                 <div><label className={LABEL_CLASS}>Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className={`${INPUT_CLASS} resize-none`} placeholder="Short description..." /></div>
              </div>
@@ -988,20 +988,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <section className="space-y-4">
              <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Ingredients</h3>
              {ingredientBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative bg-bg-subtle dark:bg-white/5 rounded-xl p-4 border border-border-thin dark:border-border-dark">
+                 <div key={block.id} className="relative mb-6 last:mb-0">
                      <div className="flex items-center gap-2 mb-3">
                          <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col sm:flex-row gap-2 p-3 rounded-lg bg-white dark:bg-white/10 border border-border-thin dark:border-border-dark transition-colors">
+                             <div key={ing.id} className="flex flex-col sm:flex-row gap-2 py-2 transition-colors">
                                  <div className="flex-1 min-w-0">
-                                     <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
+                                     <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                  </div>
                                  <div className="flex gap-2 items-center">
-                                     <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
-                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                     <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
                                  </div>
                                  <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
                                        <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
@@ -1016,14 +1016,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                         {ing.secondaryAmount !== undefined && (
                                             <div className="flex gap-2 items-center">
                                                 <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
-                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="w-20 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs text-center" />
-                                                <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs" />
+                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
+                                                <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
                                             </div>
                                         )}
                                         {ing.substitution !== undefined && (
                                             <div className="flex gap-2 items-center">
                                                 <div className="w-5 flex justify-center shrink-0"><ArrowRightLeft size={14} className="text-orange-400" /></div>
-                                                <input type="text" placeholder="Substitution notes..." value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="flex-1 p-1.5 rounded border border-gray-200 dark:border-gray-700 bg-transparent text-xs" />
+                                                <input type="text" placeholder="Substitution notes..." value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
                                             </div>
                                         )}
                                     </div>
@@ -1040,18 +1040,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Instructions</h3>
              {instructionBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative bg-bg-subtle dark:bg-white/5 rounded-xl p-4 border border-border-thin dark:border-border-dark">
+                 <div key={block.id} className="relative mb-6 last:mb-0">
                      <div className="flex items-center gap-2 mb-3">
                          <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
                      <div className="space-y-3">
                          {block.steps.map((step, idx) => (
-                             <div key={step.id} className="flex gap-3 p-3 rounded-lg bg-white dark:bg-white/10 border border-border-thin dark:border-border-dark">
+                             <div key={step.id} className="flex gap-3 py-2">
                                  <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
                                  <div className="flex-1 space-y-2 min-w-0">
                                      <div className="flex gap-2 items-center">
-                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
+                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
                                         <div className="flex gap-1 shrink-0">
                                             <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
@@ -1059,7 +1059,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                             <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
                                         </div>
                                      </div>
-                                     <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="w-full p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white resize-none" />
+                                     <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white resize-none" />
                                      <div className="flex flex-wrap gap-2">
                                          {step.timer !== undefined && (
                                              <div className="flex items-center gap-1 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-md px-2 py-1">

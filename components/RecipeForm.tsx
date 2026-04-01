@@ -753,6 +753,55 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processImageFile(file); };
 
+  const processStepImageFile = (file: File, blockId: string, stepId: string) => {
+      if (isUploading) return;
+      setIsUploading(true); 
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const img = new Image();
+          img.onload = async () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const MAX_SIZE = 1200; 
+              if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+              canvas.width = width; canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) { 
+                  ctx.drawImage(img, 0, 0, width, height); 
+                  
+                  canvas.toBlob(async (blob) => {
+                      if (blob) {
+                          try {
+                              const url = await db.uploadImage(blob);
+                              updateStepInBlock(blockId, stepId, 'image', url);
+                          } catch (e) {
+                              console.error(e);
+                              showToast("Failed to upload step image. Ensure you are logged in.", 'error');
+                          } finally {
+                              setIsUploading(false);
+                          }
+                      } else {
+                          setIsUploading(false);
+                      }
+                  }, 'image/jpeg', 0.8);
+              } else {
+                  setIsUploading(false);
+              }
+          };
+          img.onerror = () => setIsUploading(false);
+          img.src = event.target?.result as string;
+      };
+      reader.onerror = () => setIsUploading(false);
+      reader.readAsDataURL(file);
+  };
+
+  const handleStepImageUpload = (e: React.ChangeEvent<HTMLInputElement>, blockId: string, stepId: string) => {
+      const file = e.target.files?.[0];
+      if (file) processStepImageFile(file, blockId, stepId);
+  };
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -814,6 +863,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const toggleStepTimer = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, timer: s.timer !== undefined ? undefined : 5 }) }));
   const toggleStepTip = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, tip: s.tip !== undefined ? undefined : '' }) }));
   const toggleStepOptional = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, optional: !s.optional }) }));
+  const toggleStepImage = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, image: s.image !== undefined ? undefined : '' }) }));
 
   // Selector Display Logic
   const getTargetFamilyName = () => {
@@ -1055,6 +1105,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                         <div className="flex gap-1 shrink-0">
                                             <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
+                                            <button type="button" onClick={() => toggleStepImage(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.image !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Image"><ImageIcon size={16}/></button>
                                             <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
                                             <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
                                         </div>
@@ -1073,6 +1124,29 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                  <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="w-full p-1.5 rounded border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 text-xs text-text-main dark:text-white" />
                                              </div>
                                          )}
+                                        {step.image !== undefined && (
+                                            <div className="flex flex-col gap-2 w-full">
+                                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                                                    <input type="text" value={step.image} onChange={e => updateStepInBlock(block.id, step.id, 'image', e.target.value)} placeholder="Image URL..." className="w-full p-1.5 rounded border border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:border-purple-900/30 focus:border-purple-400 text-xs text-text-main dark:text-white" disabled={isUploading} />
+                                                    <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`}>
+                                                        <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
+                                                        {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
+                                                    </label>
+                                                </div>
+                                                {step.image && (
+                                                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border-thin dark:border-border-dark mt-1">
+                                                        <img src={step.image} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => updateStepInBlock(block.id, step.id, 'image', '')}
+                                                            className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                      </div>
                                  </div>
                              </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingItem } from '../types';
 import * as db from '../services/db';
+import { v4 as uuidv4 } from 'uuid';
 import { formatFraction, normalizeIngredient } from '../utils/format';
 import Checkbox from './Checkbox';
 
@@ -34,10 +35,64 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('combined');
+  const [newItemAmount, setNewItemAmount] = useState('');
+  const [newItemUnit, setNewItemUnit] = useState('');
+  const [newItemItem, setNewItemItem] = useState('');
+
+  const parseAmount = (val: string | number): number => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const str = val.trim();
+    if (str.includes('/')) {
+        const parts = str.split(' ');
+        if (parts.length === 2) {
+            const whole = parseFloat(parts[0]);
+            const [num, den] = parts[1].split('/').map(Number);
+            return !isNaN(whole) && !isNaN(num) && !isNaN(den) && den !== 0 ? whole + (num / den) : 0;
+        } else {
+            const [num, den] = str.split('/').map(Number);
+            return !isNaN(num) && !isNaN(den) && den !== 0 ? num / den : 0;
+        }
+    }
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   useEffect(() => {
     loadItems();
   }, []);
+
+  const addItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItemItem.trim()) return;
+
+    const amount = parseAmount(newItemAmount);
+    const unit = newItemUnit.trim();
+    const item = newItemItem.trim();
+
+    // Construct display text: "2 cups Flour" or just "Flour"
+    let text = item;
+    if (amount > 0) {
+        text = unit ? `${newItemAmount} ${unit} ${item}` : `${newItemAmount} ${item}`;
+    }
+
+    const newItem: ShoppingItem = {
+      id: uuidv4(),
+      text: text,
+      isChecked: false,
+      structured: {
+        amount,
+        unit,
+        item
+      }
+    };
+
+    await db.upsertShoppingItem(newItem);
+    setItems(prev => [...prev, newItem]);
+    setNewItemAmount('');
+    setNewItemUnit('');
+    setNewItemItem('');
+  };
 
   const loadItems = async () => {
     const data = await db.getShoppingList();
@@ -49,6 +104,11 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
     const updated = { ...item, isChecked: !item.isChecked };
     await db.upsertShoppingItem(updated);
     setItems(prev => prev.map(i => i.id === item.id ? updated : i));
+  };
+
+  const deleteItem = async (id: string) => {
+    await db.deleteShoppingItem(id);
+    setItems(prev => prev.filter(i => i.id !== id));
   };
 
   const toggleCombinedItem = async (combined: CombinedItem) => {
@@ -95,7 +155,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
   // 1. By Recipe
   const itemsByRecipe = useMemo(() => {
     return items.reduce((acc, item) => {
-      const key = item.recipeName || 'Misc';
+      const key = item.recipeName || 'Manual';
       if (!acc[key]) acc[key] = [];
       acc[key].push(item);
       return acc;
@@ -248,6 +308,41 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
             </div>
           </div>
 
+          {/* Add Item Form */}
+          <form onSubmit={addItem} className="flex flex-col sm:flex-row gap-2">
+            <div className="flex gap-2 flex-1">
+              <input
+                type="text"
+                value={newItemAmount}
+                onChange={(e) => setNewItemAmount(e.target.value)}
+                placeholder="Amt"
+                className="w-20 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+              />
+              <input
+                type="text"
+                value={newItemUnit}
+                onChange={(e) => setNewItemUnit(e.target.value)}
+                placeholder="Unit"
+                className="w-24 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+              />
+              <input
+                type="text"
+                value={newItemItem}
+                onChange={(e) => setNewItemItem(e.target.value)}
+                placeholder="Item (e.g. Flour)"
+                className="flex-1 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!newItemItem.trim()}
+              className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Add
+            </button>
+          </form>
+
           {items.length === 0 && (
              <div className="text-center py-10 text-text-secondary">
                 Your shopping list is empty. Add items from recipes!
@@ -280,13 +375,21 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                         {recipeItems.map(item => (
                         <div 
                             key={item.id} 
-                            onClick={() => toggleItem(item)}
-                            className="flex items-center gap-3 p-2 hover:bg-bg-subtle dark:hover:bg-bg-dark rounded-lg cursor-pointer group transition-colors"
+                            className="flex items-center gap-3 p-2 hover:bg-bg-subtle dark:hover:bg-bg-dark rounded-lg group transition-colors"
                         >
-                            <CustomCheckbox checked={item.isChecked} onChange={() => toggleItem(item)} />
-                            <span className={`flex-1 text-text-main dark:text-gray-200 font-medium group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
-                            {item.text}
-                            </span>
+                            <div className="flex-1 flex items-center gap-3 cursor-pointer" onClick={() => toggleItem(item)}>
+                                <CustomCheckbox checked={item.isChecked} onChange={() => toggleItem(item)} />
+                                <span className={`flex-1 text-text-main dark:text-gray-200 font-medium group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
+                                {item.text}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
+                                title="Remove Item"
+                            >
+                                <span className="material-symbols-outlined text-lg">delete</span>
+                            </button>
                         </div>
                         ))}
                     </div>
@@ -301,13 +404,12 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 {sortedCombinedItems.map(item => (
                     <div 
                         key={item.id} 
-                        onClick={() => toggleCombinedItem(item)}
-                        className="flex items-start gap-3 p-4 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-border-thin dark:border-border-dark cursor-pointer group transition-all"
+                        className="flex items-start gap-3 p-4 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-border-thin dark:border-border-dark group transition-all"
                     >
-                        <div className="mt-1">
+                        <div className="mt-1 cursor-pointer" onClick={() => toggleCombinedItem(item)}>
                             <CustomCheckbox checked={item.isChecked} onChange={() => toggleCombinedItem(item)} />
                         </div>
-                        <div className="flex-1 flex flex-col">
+                        <div className="flex-1 flex flex-col cursor-pointer" onClick={() => toggleCombinedItem(item)}>
                             <span className={`text-text-main dark:text-gray-200 font-bold group-hover:text-forest-green dark:group-hover:text-accent-herb transition-colors ${item.isChecked ? 'line-through opacity-60' : ''}`}>
                                 {/* Format quantity nicely */}
                                 {item.unit ? `${formatFraction(item.qty)} ${item.unit} ${item.text}` : `${item.text}${item.qty > 1 ? ` (x${formatFraction(item.qty)})` : ''}`}
@@ -318,6 +420,18 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                                 </span>
                             )}
                         </div>
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (window.confirm(`Remove all ${item.text} from list?`)) {
+                                    item.itemIds.forEach(id => deleteItem(id));
+                                }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                            title="Remove All"
+                        >
+                            <span className="material-symbols-outlined">delete</span>
+                        </button>
                     </div>
                 ))}
              </div>

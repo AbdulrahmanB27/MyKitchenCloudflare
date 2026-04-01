@@ -44,7 +44,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+          <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
             <UtensilsCrossed size={48} strokeWidth={1.5} />
           </div>
         )}

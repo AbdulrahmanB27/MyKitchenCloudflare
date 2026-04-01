@@ -542,6 +542,10 @@ export const upsertShoppingItem = async (item: ShoppingItem) => {
     // Local only - no sync
 };
 
+export const deleteShoppingItem = async (id: string) => {
+    await idb.remove(STORE_SHOPPING, id);
+};
+
 export const clearShoppingList = async (purchasedOnly: boolean) => {
     if (purchasedOnly) {
         const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);

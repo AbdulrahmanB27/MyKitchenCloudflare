@@ -78,7 +78,9 @@ async function getSession(request: Request, env: Env): Promise<{ familyId: strin
 }
 
 // --- Schema Initialization & Migration ---
+let schemaInitialized = false;
 async function ensureSchema(env: Env) {
+    if (schemaInitialized) return;
     try {
         // 1. Create tables if they don't exist
         await env.DB.batch([
@@ -111,7 +113,7 @@ async function ensureSchema(env: Env) {
                 }
             }
         }
-
+        schemaInitialized = true;
     } catch (e) {
         console.error("Schema init failed", e);
     }

@@ -156,7 +156,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                     {restaurant.image ? (
                         <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${restaurant.image}")` }} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                             <UtensilsCrossed size={64} strokeWidth={1.5} />
                         </div>
                     )}
@@ -773,16 +773,19 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         </div>
                         
                         {view === 'list' && (
-                            <div className="flex-1 relative group">
-                                <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search..." 
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark text-sm font-medium text-text-main dark:text-white placeholder-text-secondary focus:border-forest-green dark:focus:border-accent-herb transition-all outline-none"
-                                />
-                            </div>
+                            <>
+                                <div className="flex-1 relative group">
+                                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark text-sm font-medium text-text-main dark:text-white placeholder-text-secondary focus:border-forest-green dark:focus:border-accent-herb transition-all outline-none"
+                                    />
+                                </div>
+                                <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
+                            </>
                         )}
 
                         <div className="flex items-center gap-2 shrink-0">
@@ -791,7 +794,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <button onClick={() => setJoinView(true)} className="p-2 rounded-full hover:bg-bg-subtle dark:hover:bg-white/10 text-text-secondary" title="Join Code">
                                         <Users size={20} />
                                     </button>
-                                    <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                                 </>
                             )}
                             {view === 'decide' && activeSession && (
@@ -819,15 +821,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         <>
                             {/* Desktop Top Bar */}
                             <div className="hidden md:flex flex-row gap-4 justify-between items-center mb-8">
-                                <div className="relative flex-1 max-w-xl group">
-                                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={20} />
-                                    <input 
-                                        type="text" 
-                                        value={searchQuery} 
-                                        onChange={e => setSearchQuery(e.target.value)} 
-                                        placeholder="Search places..." 
-                                        className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" 
-                                    />
+                                <div className="relative flex-1 max-w-xl group flex items-center gap-4">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={20} />
+                                        <input 
+                                            type="text" 
+                                            value={searchQuery} 
+                                            onChange={e => setSearchQuery(e.target.value)} 
+                                            placeholder="Search places..." 
+                                            className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" 
+                                        />
+                                    </div>
+                                    <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                                 </div>
                                 <div className="flex gap-3 items-center">
                                     <button onClick={() => setJoinView(true)} className="bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-bg-subtle dark:hover:bg-white/5 transition-all text-text-secondary hover:text-text-main dark:hover:text-white flex items-center gap-2">
@@ -856,7 +861,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         </button>
                                     ))}
                                 </div>
-                                <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                             </div>
 
                             {/* Restaurant Grid */}
@@ -871,7 +875,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             {r.image ? (
                                                 <div className="w-full h-full bg-cover bg-center transform group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                                                     <UtensilsCrossed size={48} strokeWidth={1.5} />
                                                 </div>
                                             )}
@@ -1032,7 +1036,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                                 {r.image ? (
                                                                     <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                                                 ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                                                                         <UtensilsCrossed size={32} strokeWidth={1.5} />
                                                                     </div>
                                                                 )}

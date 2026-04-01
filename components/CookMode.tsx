@@ -49,6 +49,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
   const getStepTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
   const getStepOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
   const getStepId = (inst: string | Instruction, index: number) => typeof inst === 'string' ? `step-${index}` : inst.id;
+  const getStepImage = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.image;
 
   // Combine main and component ingredients for flat list with headers
   const allIngredients = React.useMemo(() => {
@@ -83,6 +84,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
           timer?: number | null, 
           tip?: string | null, 
           optional?: boolean, 
+          image?: string | null,
           group: string 
       }[] = [];
 
@@ -95,6 +97,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
               timer: getStepTimer(inst),
               tip: getStepTip(inst),
               optional: getStepOptional(inst),
+              image: getStepImage(inst),
               group: (typeof inst !== 'string' && inst.section) ? inst.section : 'Main' 
           });
       });
@@ -110,6 +113,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
                   timer: getStepTimer(inst),
                   tip: getStepTip(inst),
                   optional: getStepOptional(inst),
+                  image: getStepImage(inst),
                   group: comp.label 
               });
           });
@@ -539,6 +543,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
                                 <p className="text-2xl md:text-4xl font-medium leading-relaxed md:leading-snug">
                                     {currentStepData?.txt}
                                 </p>
+                                {currentStepData?.image && (
+                                    <div className="mt-6 rounded-2xl overflow-hidden border-2 border-border-thin dark:border-border-dark shadow-lg max-w-2xl mx-auto">
+                                        <img src={currentStepData.image} alt="Step image" className="w-full h-auto object-cover max-h-[400px]" referrerPolicy="no-referrer" />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Timer Section */}

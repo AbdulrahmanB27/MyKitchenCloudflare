@@ -412,6 +412,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                 const title = typeof step === 'string' ? null : step.title;
                                                 const tip = typeof step === 'string' ? null : step.tip;
                                                 const optional = typeof step === 'string' ? false : step.optional;
+                                                const stepImage = typeof step === 'string' ? null : step.image;
                                                 
                                                 if (!optional) globalStepCounter++;
 
@@ -434,6 +435,11 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                                 <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
                                                                     <Lightbulb size={16} className="shrink-0 mt-0.5" />
                                                                     <span>{tip}</span>
+                                                                </div>
+                                                            )}
+                                                            {stepImage && (
+                                                                <div className="mt-2 rounded-xl overflow-hidden border border-border-thin dark:border-border-dark shadow-sm">
+                                                                    <img src={stepImage} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
                                                                 </div>
                                                             )}
                                                         </div>

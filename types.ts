@@ -197,4 +197,5 @@ export interface SyncQueueItem {
     data?: any;
     store?: string;
     timestamp: number;
+    targetFamilyId?: string;
 }

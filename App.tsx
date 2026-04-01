@@ -187,6 +187,46 @@ const App: React.FC = () => {
 
   // --- Effects ---
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Close modals in order of priority (most specific/nested first)
+        if (showDeleteModal) {
+          setShowDeleteModal(false);
+          return;
+        }
+        if (showAuthModal) {
+          setShowAuthModal(false);
+          return;
+        }
+        if (showExportModal) {
+          setShowExportModal(false);
+          return;
+        }
+        if (isFormOpen) {
+          setIsFormOpen(false);
+          setEditingRecipe(null);
+          return;
+        }
+        if (activeRecipeId) {
+          setActiveRecipeId(null);
+          return;
+        }
+        if (isMobileMenuOpen) {
+          setIsMobileMenuOpen(false);
+          return;
+        }
+        if (currentView !== 'recipes') {
+          setCurrentView('recipes');
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showDeleteModal, showAuthModal, showExportModal, isFormOpen, activeRecipeId, isMobileMenuOpen, currentView]);
+
   const loadData = async () => {
     try {
       const [loadedRecipes, queue] = await Promise.all([
@@ -788,16 +828,16 @@ const App: React.FC = () => {
 
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center gap-4">
-                                        <div className="flex gap-2">
+                                        <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:w-auto sm:gap-2">
                                             {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
                                                     {cat}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
+                                    <div className="flex gap-1 overflow-x-auto pb-2 no-scrollbar items-center w-full">
                                         {availableTags.map(tag => {
                                             const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                             

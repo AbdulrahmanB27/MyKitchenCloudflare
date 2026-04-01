@@ -99,6 +99,59 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Toast State
   const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
 
+  // Draft Management
+  const saveDraft = () => {
+    const draft = {
+      formData,
+      ingredientBlocks,
+      instructionBlocks,
+      rawTags,
+      rawCookware,
+      prepTimeStr,
+      cookTimeStr,
+      targetFamilyId,
+      additionalSyncFamilyIds: Array.from(additionalSyncFamilyIds)
+    };
+    db.safeSetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new', JSON.stringify(draft));
+  };
+
+  const clearDraft = () => {
+    db.safeRemoveItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+  };
+
+  const restoreDraft = () => {
+    const draftStr = db.safeGetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+    if (draftStr) {
+      try {
+        const draft = JSON.parse(draftStr);
+        setFormData(draft.formData);
+        setIngredientBlocks(draft.ingredientBlocks);
+        setInstructionBlocks(draft.instructionBlocks);
+        setRawTags(draft.rawTags);
+        setRawCookware(draft.rawCookware);
+        setPrepTimeStr(draft.prepTimeStr);
+        setCookTimeStr(draft.cookTimeStr);
+        setTargetFamilyId(draft.targetFamilyId);
+        setAdditionalSyncFamilyIds(new Set(draft.additionalSyncFamilyIds));
+        showToast("Draft restored!", 'success');
+      } catch (e) {
+        console.error("Failed to restore draft", e);
+      }
+    }
+  };
+
+  const hasDraft = () => {
+    return !!db.safeGetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+  };
+
+  useEffect(() => {
+    // Don't save draft on initial load before state is set
+    const timeout = setTimeout(() => {
+      saveDraft();
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [formData, ingredientBlocks, instructionBlocks, rawTags, rawCookware, prepTimeStr, cookTimeStr, targetFamilyId, additionalSyncFamilyIds]);
+
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, visible: true, type });
       setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
@@ -280,8 +333,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (lastAuthor) {
             setFormData(prev => ({ ...prev, addedBy: lastAuthor }));
         }
+
+        if (hasDraft()) {
+            restoreDraft();
+        }
     } else {
         loadRecipeData(initialData);
+        if (hasDraft()) {
+            restoreDraft();
+        }
     }
   }, [initialData, currentFamilyId, pinnedFamilyId]);
 
@@ -697,6 +757,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             const extraSyncCount = additionalSyncFamilyIds.size;
             showToast(`Recipe transferred to ${targetName}${extraSyncCount > 0 ? ` and synced to ${extraSyncCount} other families` : ''}.`, 'success');
         }
+        clearDraft();
         onSave(recipe); 
     } catch (err: any) {
         console.error(err);
@@ -1080,26 +1141,28 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      </div>
                      <div className="space-y-2">
                          {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col sm:flex-row gap-2 py-2 transition-colors">
-                                 <div className="flex-1 min-w-0">
-                                     <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
-                                 </div>
-                                 <div className="flex items-center justify-between sm:justify-start gap-2">
-                                     <div className="flex gap-2 items-center">
-                                         <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
-                                         <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                             <div key={ing.id} className="flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0">
+                                 <div className="flex flex-col sm:flex-row gap-2">
+                                     <div className="flex-1 min-w-0">
+                                         <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                      </div>
-                                     <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
-                                           <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
-                                           <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
-                                           <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
-                                           <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                     <div className="flex items-center justify-between sm:justify-start gap-2">
+                                         <div className="flex gap-2 items-center">
+                                             <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                             <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                         </div>
+                                         <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
+                                               <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                               <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                               <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                               <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                         </div>
                                      </div>
                                  </div>
                                  
-                                 {/* Secondary & Substitution Rows (Full Width if active) */}
+                                 {/* Secondary & Substitution Rows */}
                                  {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
-                                    <div className="w-full flex flex-col gap-2 mt-1 pt-2 border-t border-dashed border-border-thin dark:border-border-dark sm:col-span-full">
+                                    <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark">
                                         {ing.secondaryAmount !== undefined && (
                                             <div className="flex gap-2 items-center">
                                                 <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>

@@ -759,9 +759,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     }
 
     return (
-        <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-bg-white dark:bg-bg-dark">
+        <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-bg-subtle dark:bg-bg-dark">
             
-            <header className="md:hidden sticky top-0 z-40 w-full bg-bg-white/95 dark:bg-bg-dark/95 backdrop-blur-md border-b border-border-thin dark:border-border-dark transition-colors duration-300">
+            <header className="md:hidden sticky top-0 z-40 w-full bg-bg-white dark:bg-sidebar-dark border-b border-border-thin dark:border-border-dark transition-colors duration-300">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16 gap-3">
                         <div className="flex items-center gap-3 shrink-0">
@@ -843,11 +843,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             </div>
 
                             {/* Filters */}
-                            <div className="flex items-center justify-between gap-4 mb-8">
-                                <div className="flex flex-wrap gap-2 flex-1">
+                            <div className="space-y-4 mb-8">
+                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
                                     <button 
                                         onClick={() => setFilterTag(null)}
-                                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                     >
                                         All
                                     </button>
@@ -855,7 +855,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <button 
                                             key={tag}
                                             onClick={() => setFilterTag(tag === filterTag ? null : tag)}
-                                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                            className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                         >
                                             {tag}
                                         </button>
@@ -864,8 +864,19 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             </div>
 
                             {/* Restaurant Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredRestaurants.map(r => (
+                            {filteredRestaurants.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="w-24 h-24 bg-bg-subtle dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+                                        <UtensilsCrossed size={48} className="text-text-secondary opacity-50" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-text-main dark:text-white mb-2">No restaurants found</h3>
+                                    <p className="text-text-secondary max-w-md mx-auto mb-8">
+                                        {searchQuery || filterTag ? "Try adjusting your search or filters to find what you're looking for." : "You haven't added any restaurants yet. Start building your list to make dining out decisions easier!"}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredRestaurants.map(r => (
                                     <div 
                                         key={r.id} 
                                         onClick={() => openForm(r)}
@@ -907,6 +918,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </div>
                                 ))}
                             </div>
+                            )}
                         </>
                     ) : (
                         <div className="h-full flex flex-col">

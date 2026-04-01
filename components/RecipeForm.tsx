@@ -69,6 +69,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Custom Dropdown State
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [isCourseSelectorOpen, setIsCourseSelectorOpen] = useState(false);
+  const courseDropdownRef = useRef<HTMLDivElement>(null);
 
   // Intermediate state for range inputs (string based)
   const [prepTimeStr, setPrepTimeStr] = useState('');
@@ -106,6 +109,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       const handleClickOutside = (event: MouseEvent) => {
           if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
               setIsFamilySelectorOpen(false);
+          }
+          if (courseDropdownRef.current && !courseDropdownRef.current.contains(event.target as Node)) {
+              setIsCourseSelectorOpen(false);
           }
       };
       document.addEventListener('mousedown', handleClickOutside);
@@ -991,7 +997,36 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
                   <div><label className={LABEL_CLASS}>Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className={INPUT_CLASS} placeholder="Recipe Title" /></div>
-                  <div><label className={LABEL_CLASS}>Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className={INPUT_CLASS}><option value="Entrees" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Entrees</option><option value="Sides" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Sides</option><option value="Desserts" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Desserts</option></select></div>
+                  <div>
+                      <label className={LABEL_CLASS}>Course</label>
+                      <div className="relative" ref={courseDropdownRef}>
+                          <button 
+                              type="button"
+                              onClick={() => setIsCourseSelectorOpen(!isCourseSelectorOpen)}
+                              className={`${INPUT_CLASS} flex items-center justify-between text-left`}
+                          >
+                              <span>{formData.category || 'Entrees'}</span>
+                              <ChevronDown size={16} className={`text-text-secondary transition-transform ${isCourseSelectorOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          
+                          {isCourseSelectorOpen && (
+                              <div className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                  <div className="py-1">
+                                      {['Entrees', 'Sides', 'Desserts'].map(course => (
+                                          <button
+                                              key={course}
+                                              type="button"
+                                              onClick={() => { handleChange('category', course); setIsCourseSelectorOpen(false); }}
+                                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${formData.category === course || (!formData.category && course === 'Entrees') ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb font-bold' : 'text-text-main dark:text-text-main-dark'}`}
+                                          >
+                                              {course}
+                                          </button>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  </div>
                 </div>
                 <div><label className={LABEL_CLASS}>Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className={`${INPUT_CLASS} resize-none`} placeholder="Short description..." /></div>
              </div>
@@ -1049,15 +1084,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  <div className="flex-1 min-w-0">
                                      <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                  </div>
-                                 <div className="flex gap-2 items-center">
-                                     <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
-                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
-                                 </div>
-                                 <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
-                                       <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
-                                       <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
-                                       <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
-                                       <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                 <div className="flex items-center justify-between sm:justify-start gap-2">
+                                     <div className="flex gap-2 items-center">
+                                         <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                         <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                     </div>
+                                     <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
+                                           <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                           <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                           <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                           <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                     </div>
                                  </div>
                                  
                                  {/* Secondary & Substitution Rows (Full Width if active) */}

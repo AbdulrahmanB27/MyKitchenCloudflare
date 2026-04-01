@@ -406,7 +406,7 @@ const App: React.FC = () => {
             default: return a.name.localeCompare(b.name);
         }
     });
-  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter, currentFamilyId]);
+  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter, currentFamilyId, selectedFamilyId]);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();

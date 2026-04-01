@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "dompurify": "^3.3.2",
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.563.0",

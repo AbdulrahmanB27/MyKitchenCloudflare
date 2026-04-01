@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check, GripVertical } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
 import Checkbox from './Checkbox';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
@@ -932,6 +933,58 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const toggleStepOptional = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, optional: !s.optional }) }));
   const toggleStepImage = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, image: s.image !== undefined ? undefined : '' }) }));
 
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, type } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    if (type === 'INGREDIENT') {
+        setIngredientBlocks(prev => {
+            const newBlocks = [...prev];
+            const sourceBlockIndex = newBlocks.findIndex(b => b.id === source.droppableId);
+            const destBlockIndex = newBlocks.findIndex(b => b.id === destination.droppableId);
+            
+            if (sourceBlockIndex === -1 || destBlockIndex === -1) return prev;
+
+            const sourceBlock = { ...newBlocks[sourceBlockIndex], ingredients: [...newBlocks[sourceBlockIndex].ingredients] };
+            const [removed] = sourceBlock.ingredients.splice(source.index, 1);
+
+            if (source.droppableId === destination.droppableId) {
+                sourceBlock.ingredients.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+            } else {
+                const destBlock = { ...newBlocks[destBlockIndex], ingredients: [...newBlocks[destBlockIndex].ingredients] };
+                destBlock.ingredients.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+                newBlocks[destBlockIndex] = destBlock;
+            }
+            return newBlocks;
+        });
+    } else if (type === 'INSTRUCTION') {
+        setInstructionBlocks(prev => {
+            const newBlocks = [...prev];
+            const sourceBlockIndex = newBlocks.findIndex(b => b.id === source.droppableId);
+            const destBlockIndex = newBlocks.findIndex(b => b.id === destination.droppableId);
+            
+            if (sourceBlockIndex === -1 || destBlockIndex === -1) return prev;
+
+            const sourceBlock = { ...newBlocks[sourceBlockIndex], steps: [...newBlocks[sourceBlockIndex].steps] };
+            const [removed] = sourceBlock.steps.splice(source.index, 1);
+
+            if (source.droppableId === destination.droppableId) {
+                sourceBlock.steps.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+            } else {
+                const destBlock = { ...newBlocks[destBlockIndex], steps: [...newBlocks[destBlockIndex].steps] };
+                destBlock.steps.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+                newBlocks[destBlockIndex] = destBlock;
+            }
+            return newBlocks;
+        });
+    }
+  };
+
   // Selector Display Logic
   const getTargetFamilyName = () => {
       if (targetFamilyId === 'private') return 'Private (This Device)';
@@ -966,6 +1019,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
+          <DragDropContext onDragEnd={onDragEnd}>
           {/* Basics */}
           <section className="space-y-4">
              <div className="flex items-center justify-between border-b border-border-thin dark:border-border-dark pb-2">
@@ -1139,16 +1193,32 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
-                     <div className="space-y-2">
-                         {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0">
-                                 <div className="flex flex-col sm:flex-row gap-2">
-                                     <div className="flex-1 min-w-0">
+                     <Droppable droppableId={block.id} type="INGREDIENT">
+                        {(provided) => (
+                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                         {block.ingredients.map((ing, index) => (
+                                  <Draggable key={ing.id} draggableId={ing.id} index={index}>
+                                    {(provided, snapshot) => (
+                                      <div 
+                                        ref={provided.innerRef} 
+                                        {...provided.draggableProps} 
+                                        className={`flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                      >
+                                          <div className="flex flex-col sm:flex-row gap-2">
+                                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                  <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0">
+                                                      <GripVertical size={18} />
+                                                  </div>
                                          <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                      </div>
-                                     <div className="flex items-center justify-between sm:justify-start gap-2">
+                                     <div className="flex items-center justify-between sm:justify-start gap-2 pl-7 sm:pl-0">
                                          <div className="flex gap-2 items-center">
-                                             <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                             <input type="text" placeholder="Amt" value={ing.amount} onChange={e => {
+                                                 const value = e.target.value;
+                                                 if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                     updateIngredientInBlock(block.id, ing.id, 'amount', value);
+                                                 }
+                                             }} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
                                              <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
                                          </div>
                                          <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
@@ -1162,11 +1232,16 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                  
                                  {/* Secondary & Substitution Rows */}
                                  {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
-                                    <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark">
+                                    <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark pl-7">
                                         {ing.secondaryAmount !== undefined && (
                                             <div className="flex gap-2 items-center">
                                                 <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
-                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
+                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => {
+                                                     const value = e.target.value;
+                                                     if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                         updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', value);
+                                                     }
+                                                 }} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
                                                 <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
                                             </div>
                                         )}
@@ -1179,9 +1254,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                     </div>
                                  )}
                              </div>
-                         ))}
+                                   )}
+                                 </Draggable>
+                             ))}
+                             {provided.placeholder}
                          <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
                      </div>
+                   )}
+                 </Droppable>
                  </div>
              ))}
              <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Ingredient Group</button>
@@ -1195,11 +1275,22 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
-                     <div className="space-y-3">
-                         {block.steps.map((step, idx) => (
-                             <div key={step.id} className="flex gap-3 py-2">
-                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
-                                 <div className="flex-1 space-y-2 min-w-0">
+                     <Droppable droppableId={block.id} type="INSTRUCTION">
+                       {(provided) => (
+                         <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                             {block.steps.map((step, idx) => (
+                                 <Draggable key={step.id} draggableId={step.id} index={idx}>
+                                   {(provided, snapshot) => (
+                                     <div 
+                                       ref={provided.innerRef} 
+                                       {...provided.draggableProps} 
+                                       className={`flex gap-3 py-2 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                     >
+                                         <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0 mt-2">
+                                             <GripVertical size={18} />
+                                         </div>
+                                         <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
+                                         <div className="flex-1 space-y-2 min-w-0">
                                      <div className="flex gap-2 items-center">
                                         <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
                                         <div className="flex gap-1 shrink-0">
@@ -1250,9 +1341,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                      </div>
                                  </div>
                              </div>
-                         ))}
+                                   )}
+                                 </Draggable>
+                             ))}
+                             {provided.placeholder}
                          <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
                      </div>
+                   )}
+                 </Droppable>
                  </div>
              ))}
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Instruction Section</button>
@@ -1294,6 +1390,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
           </section>
 
+          </DragDropContext>
         </div>
         <div className="p-4 border-t border-border-thin dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-card-dark rounded-b-2xl">
           {/* Desktop-only icons in footer (bottom left) */}

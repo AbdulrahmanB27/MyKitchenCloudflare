@@ -78,7 +78,9 @@ async function getSession(request: Request, env: Env): Promise<{ familyId: strin
 }
 
 // --- Schema Initialization & Migration ---
+let schemaInitialized = false;
 async function ensureSchema(env: Env) {
+    if (schemaInitialized) return;
     try {
         // 1. Create tables if they don't exist
         await env.DB.batch([
@@ -111,7 +113,7 @@ async function ensureSchema(env: Env) {
                 }
             }
         }
-
+        schemaInitialized = true;
     } catch (e) {
         console.error("Schema init failed", e);
     }
@@ -294,7 +296,7 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
             delete recipe.deleted;
             
             await env.DB.prepare(
-                "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
+                "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET family_id=excluded.family_id, name=excluded.name, category=excluded.category, is_favorite=excluded.is_favorite, is_archived=excluded.is_archived, share_to_family=excluded.share_to_family, data=excluded.data, updated_at=excluded.updated_at"
             ).bind(recipe.id, session.familyId, recipe.name, recipe.category, recipe.favorite?1:0, recipe.archived?1:0, 1, JSON.stringify(recipe), now).run();
             return jsonResponse({ success: true, timestamp: now });
         } catch(e: any) { return errorResponse(e.message); }

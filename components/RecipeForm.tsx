@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check, GripVertical } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
 import Checkbox from './Checkbox';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
@@ -69,6 +70,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Custom Dropdown State
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [isCourseSelectorOpen, setIsCourseSelectorOpen] = useState(false);
+  const courseDropdownRef = useRef<HTMLDivElement>(null);
 
   // Intermediate state for range inputs (string based)
   const [prepTimeStr, setPrepTimeStr] = useState('');
@@ -96,6 +100,59 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   // Toast State
   const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
 
+  // Draft Management
+  const saveDraft = () => {
+    const draft = {
+      formData,
+      ingredientBlocks,
+      instructionBlocks,
+      rawTags,
+      rawCookware,
+      prepTimeStr,
+      cookTimeStr,
+      targetFamilyId,
+      additionalSyncFamilyIds: Array.from(additionalSyncFamilyIds)
+    };
+    db.safeSetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new', JSON.stringify(draft));
+  };
+
+  const clearDraft = () => {
+    db.safeRemoveItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+  };
+
+  const restoreDraft = () => {
+    const draftStr = db.safeGetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+    if (draftStr) {
+      try {
+        const draft = JSON.parse(draftStr);
+        setFormData(draft.formData);
+        setIngredientBlocks(draft.ingredientBlocks);
+        setInstructionBlocks(draft.instructionBlocks);
+        setRawTags(draft.rawTags);
+        setRawCookware(draft.rawCookware);
+        setPrepTimeStr(draft.prepTimeStr);
+        setCookTimeStr(draft.cookTimeStr);
+        setTargetFamilyId(draft.targetFamilyId);
+        setAdditionalSyncFamilyIds(new Set(draft.additionalSyncFamilyIds));
+        showToast("Draft restored!", 'success');
+      } catch (e) {
+        console.error("Failed to restore draft", e);
+      }
+    }
+  };
+
+  const hasDraft = () => {
+    return !!db.safeGetItem(initialData ? `mykitchen_recipe_draft_${initialData.id}` : 'mykitchen_recipe_draft_new');
+  };
+
+  useEffect(() => {
+    // Don't save draft on initial load before state is set
+    const timeout = setTimeout(() => {
+      saveDraft();
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [formData, ingredientBlocks, instructionBlocks, rawTags, rawCookware, prepTimeStr, cookTimeStr, targetFamilyId, additionalSyncFamilyIds]);
+
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, visible: true, type });
       setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
@@ -106,6 +163,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       const handleClickOutside = (event: MouseEvent) => {
           if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
               setIsFamilySelectorOpen(false);
+          }
+          if (courseDropdownRef.current && !courseDropdownRef.current.contains(event.target as Node)) {
+              setIsCourseSelectorOpen(false);
           }
       };
       document.addEventListener('mousedown', handleClickOutside);
@@ -274,8 +334,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (lastAuthor) {
             setFormData(prev => ({ ...prev, addedBy: lastAuthor }));
         }
+
+        if (hasDraft()) {
+            restoreDraft();
+        }
     } else {
         loadRecipeData(initialData);
+        if (hasDraft()) {
+            restoreDraft();
+        }
     }
   }, [initialData, currentFamilyId, pinnedFamilyId]);
 
@@ -645,7 +712,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         const promises: Promise<any>[] = [];
 
         // 1. Sync to Additional Families
-        if (additionalSyncFamilyIds.size > 0) {
+        if (targetFamilyId !== 'private' && additionalSyncFamilyIds.size > 0) {
              additionalSyncFamilyIds.forEach(fid => {
                  // Ensure we don't double-post if targetFamilyId is somehow in the set
                  if (fid !== targetFamilyId) {
@@ -657,8 +724,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         // 2. Handle Removals (Stop Syncing)
         if (initialData && initialData.tenantIds) {
             initialData.tenantIds.forEach(oldTid => {
-                // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs
-                if (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid)) {
+                // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs (or if moving to private)
+                if (targetFamilyId === 'private' || (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid))) {
                     // Check if we have access to delete it
                     const session = availableSessions.find(s => s.id === oldTid);
                     if (session) {
@@ -672,6 +739,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         if (targetFamilyId === 'private') {
             recipe.shareToFamily = false;
             recipe.familyId = undefined;
+            recipe.tenantIds = [];
         } else if (targetFamilyId === currentFamilyId) {
             recipe.shareToFamily = true;
             recipe.familyId = currentFamilyId;
@@ -680,6 +748,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             recipe.shareToFamily = true;
             recipe.familyId = targetFamilyId;
             promises.push(db.crossPostRecipe(recipe, targetFamilyId));
+        }
+
+        // Update local tenantIds to reflect the new state
+        if (targetFamilyId !== 'private') {
+            const newTenantIds = new Set(additionalSyncFamilyIds);
+            newTenantIds.add(targetFamilyId);
+            recipe.tenantIds = Array.from(newTenantIds);
         }
 
         // Wait for cross-posts
@@ -691,6 +766,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             const extraSyncCount = additionalSyncFamilyIds.size;
             showToast(`Recipe transferred to ${targetName}${extraSyncCount > 0 ? ` and synced to ${extraSyncCount} other families` : ''}.`, 'success');
         }
+        clearDraft();
         onSave(recipe); 
     } catch (err: any) {
         console.error(err);
@@ -753,6 +829,55 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processImageFile(file); };
 
+  const processStepImageFile = (file: File, blockId: string, stepId: string) => {
+      if (isUploading) return;
+      setIsUploading(true); 
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const img = new Image();
+          img.onload = async () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const MAX_SIZE = 1200; 
+              if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+              canvas.width = width; canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) { 
+                  ctx.drawImage(img, 0, 0, width, height); 
+                  
+                  canvas.toBlob(async (blob) => {
+                      if (blob) {
+                          try {
+                              const url = await db.uploadImage(blob);
+                              updateStepInBlock(blockId, stepId, 'image', url);
+                          } catch (e) {
+                              console.error(e);
+                              showToast("Failed to upload step image. Ensure you are logged in.", 'error');
+                          } finally {
+                              setIsUploading(false);
+                          }
+                      } else {
+                          setIsUploading(false);
+                      }
+                  }, 'image/jpeg', 0.8);
+              } else {
+                  setIsUploading(false);
+              }
+          };
+          img.onerror = () => setIsUploading(false);
+          img.src = event.target?.result as string;
+      };
+      reader.onerror = () => setIsUploading(false);
+      reader.readAsDataURL(file);
+  };
+
+  const handleStepImageUpload = (e: React.ChangeEvent<HTMLInputElement>, blockId: string, stepId: string) => {
+      const file = e.target.files?.[0];
+      if (file) processStepImageFile(file, blockId, stepId);
+  };
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -814,6 +939,59 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const toggleStepTimer = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, timer: s.timer !== undefined ? undefined : 5 }) }));
   const toggleStepTip = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, tip: s.tip !== undefined ? undefined : '' }) }));
   const toggleStepOptional = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, optional: !s.optional }) }));
+  const toggleStepImage = (blockId: string, stepId: string) => setInstructionBlocks(prev => prev.map(b => b.id !== blockId ? b : { ...b, steps: b.steps.map(s => s.id !== stepId ? s : { ...s, image: s.image !== undefined ? undefined : '' }) }));
+
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, type } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    if (type === 'INGREDIENT') {
+        setIngredientBlocks(prev => {
+            const newBlocks = [...prev];
+            const sourceBlockIndex = newBlocks.findIndex(b => b.id === source.droppableId);
+            const destBlockIndex = newBlocks.findIndex(b => b.id === destination.droppableId);
+            
+            if (sourceBlockIndex === -1 || destBlockIndex === -1) return prev;
+
+            const sourceBlock = { ...newBlocks[sourceBlockIndex], ingredients: [...newBlocks[sourceBlockIndex].ingredients] };
+            const [removed] = sourceBlock.ingredients.splice(source.index, 1);
+
+            if (source.droppableId === destination.droppableId) {
+                sourceBlock.ingredients.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+            } else {
+                const destBlock = { ...newBlocks[destBlockIndex], ingredients: [...newBlocks[destBlockIndex].ingredients] };
+                destBlock.ingredients.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+                newBlocks[destBlockIndex] = destBlock;
+            }
+            return newBlocks;
+        });
+    } else if (type === 'INSTRUCTION') {
+        setInstructionBlocks(prev => {
+            const newBlocks = [...prev];
+            const sourceBlockIndex = newBlocks.findIndex(b => b.id === source.droppableId);
+            const destBlockIndex = newBlocks.findIndex(b => b.id === destination.droppableId);
+            
+            if (sourceBlockIndex === -1 || destBlockIndex === -1) return prev;
+
+            const sourceBlock = { ...newBlocks[sourceBlockIndex], steps: [...newBlocks[sourceBlockIndex].steps] };
+            const [removed] = sourceBlock.steps.splice(source.index, 1);
+
+            if (source.droppableId === destination.droppableId) {
+                sourceBlock.steps.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+            } else {
+                const destBlock = { ...newBlocks[destBlockIndex], steps: [...newBlocks[destBlockIndex].steps] };
+                destBlock.steps.splice(destination.index, 0, removed);
+                newBlocks[sourceBlockIndex] = sourceBlock;
+                newBlocks[destBlockIndex] = destBlock;
+            }
+            return newBlocks;
+        });
+    }
+  };
 
   // Selector Display Logic
   const getTargetFamilyName = () => {
@@ -849,6 +1027,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
+          <DragDropContext onDragEnd={onDragEnd}>
           {/* Basics */}
           <section className="space-y-4">
              <div className="flex items-center justify-between border-b border-border-thin dark:border-border-dark pb-2">
@@ -871,7 +1050,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                              <div className="py-1">
                                  <button
                                     type="button"
-                                    onClick={() => { setTargetFamilyId('private'); setIsFamilySelectorOpen(false); }}
+                                    onClick={() => { 
+                                        setTargetFamilyId('private'); 
+                                        setAdditionalSyncFamilyIds(new Set());
+                                        setIsFamilySelectorOpen(false); 
+                                    }}
                                     className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
                                  >
                                      <Lock size={16} />
@@ -941,7 +1124,36 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              <div className="grid md:grid-cols-2 gap-4">
                  <div className="space-y-4">
                   <div><label className={LABEL_CLASS}>Name *</label><input required type="text" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className={INPUT_CLASS} placeholder="Recipe Title" /></div>
-                  <div><label className={LABEL_CLASS}>Course</label><select value={formData.category || 'Entrees'} onChange={e => handleChange('category', e.target.value)} className={INPUT_CLASS}><option value="Entrees" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Entrees</option><option value="Sides" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Sides</option><option value="Desserts" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Desserts</option></select></div>
+                  <div>
+                      <label className={LABEL_CLASS}>Course</label>
+                      <div className="relative" ref={courseDropdownRef}>
+                          <button 
+                              type="button"
+                              onClick={() => setIsCourseSelectorOpen(!isCourseSelectorOpen)}
+                              className={`${INPUT_CLASS} flex items-center justify-between text-left`}
+                          >
+                              <span>{formData.category || 'Entrees'}</span>
+                              <ChevronDown size={16} className={`text-text-secondary transition-transform ${isCourseSelectorOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          
+                          {isCourseSelectorOpen && (
+                              <div className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                  <div className="py-1">
+                                      {['Entrees', 'Sides', 'Desserts'].map(course => (
+                                          <button
+                                              key={course}
+                                              type="button"
+                                              onClick={() => { handleChange('category', course); setIsCourseSelectorOpen(false); }}
+                                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${formData.category === course || (!formData.category && course === 'Entrees') ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb font-bold' : 'text-text-main dark:text-text-main-dark'}`}
+                                          >
+                                              {course}
+                                          </button>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  </div>
                 </div>
                 <div><label className={LABEL_CLASS}>Description</label><textarea value={formData.description || ''} onChange={e => handleChange('description', e.target.value)} rows={4} className={`${INPUT_CLASS} resize-none`} placeholder="Short description..." /></div>
              </div>
@@ -993,30 +1205,55 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
-                     <div className="space-y-2">
-                         {block.ingredients.map((ing) => (
-                             <div key={ing.id} className="flex flex-col sm:flex-row gap-2 py-2 transition-colors">
-                                 <div className="flex-1 min-w-0">
-                                     <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
-                                 </div>
-                                 <div className="flex gap-2 items-center">
-                                     <input type="text" placeholder="Amt" value={ing.amount} onChange={e => updateIngredientInBlock(block.id, ing.id, 'amount', e.target.value)} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
-                                     <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
-                                 </div>
-                                 <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
-                                       <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
-                                       <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
-                                       <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
-                                       <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                     <Droppable droppableId={block.id} type="INGREDIENT">
+                        {(provided) => (
+                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                         {block.ingredients.map((ing, index) => (
+                                  <Draggable key={ing.id} draggableId={ing.id} index={index}>
+                                    {(provided, snapshot) => (
+                                      <div 
+                                        ref={provided.innerRef} 
+                                        {...provided.draggableProps} 
+                                        className={`flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                      >
+                                          <div className="flex flex-col sm:flex-row gap-2">
+                                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                  <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0">
+                                                      <GripVertical size={18} />
+                                                  </div>
+                                         <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
+                                     </div>
+                                     <div className="flex items-center justify-between sm:justify-start gap-2 pl-7 sm:pl-0">
+                                         <div className="flex gap-2 items-center">
+                                             <input type="text" placeholder="Amt" value={ing.amount} onChange={e => {
+                                                 const value = e.target.value;
+                                                 if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                     updateIngredientInBlock(block.id, ing.id, 'amount', value);
+                                                 }
+                                             }} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                             <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                         </div>
+                                         <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
+                                               <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                               <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                               <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                               <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                         </div>
+                                     </div>
                                  </div>
                                  
-                                 {/* Secondary & Substitution Rows (Full Width if active) */}
+                                 {/* Secondary & Substitution Rows */}
                                  {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
-                                    <div className="w-full flex flex-col gap-2 mt-1 pt-2 border-t border-dashed border-border-thin dark:border-border-dark sm:col-span-full">
+                                    <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark pl-7">
                                         {ing.secondaryAmount !== undefined && (
                                             <div className="flex gap-2 items-center">
                                                 <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
-                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', e.target.value)} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
+                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => {
+                                                     const value = e.target.value;
+                                                     if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                         updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', value);
+                                                     }
+                                                 }} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
                                                 <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
                                             </div>
                                         )}
@@ -1029,9 +1266,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                     </div>
                                  )}
                              </div>
-                         ))}
+                                   )}
+                                 </Draggable>
+                             ))}
+                             {provided.placeholder}
                          <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
                      </div>
+                   )}
+                 </Droppable>
                  </div>
              ))}
              <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Ingredient Group</button>
@@ -1045,16 +1287,28 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                          <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
                          {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
                      </div>
-                     <div className="space-y-3">
-                         {block.steps.map((step, idx) => (
-                             <div key={step.id} className="flex gap-3 py-2">
-                                 <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
-                                 <div className="flex-1 space-y-2 min-w-0">
+                     <Droppable droppableId={block.id} type="INSTRUCTION">
+                       {(provided) => (
+                         <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                             {block.steps.map((step, idx) => (
+                                 <Draggable key={step.id} draggableId={step.id} index={idx}>
+                                   {(provided, snapshot) => (
+                                     <div 
+                                       ref={provided.innerRef} 
+                                       {...provided.draggableProps} 
+                                       className={`flex gap-3 py-2 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                     >
+                                         <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0 mt-2">
+                                             <GripVertical size={18} />
+                                         </div>
+                                         <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
+                                         <div className="flex-1 space-y-2 min-w-0">
                                      <div className="flex gap-2 items-center">
                                         <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
                                         <div className="flex gap-1 shrink-0">
                                             <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
                                             <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
+                                            <button type="button" onClick={() => toggleStepImage(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.image !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Image"><ImageIcon size={16}/></button>
                                             <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
                                             <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
                                         </div>
@@ -1073,12 +1327,40 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                  <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="w-full p-1.5 rounded border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 text-xs text-text-main dark:text-white" />
                                              </div>
                                          )}
+                                        {step.image !== undefined && (
+                                            <div className="flex flex-col gap-2 w-full">
+                                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                                                    <input type="text" value={step.image} onChange={e => updateStepInBlock(block.id, step.id, 'image', e.target.value)} placeholder="Image URL..." className="w-full p-1.5 rounded border border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:border-purple-900/30 focus:border-purple-400 text-xs text-text-main dark:text-white" disabled={isUploading} />
+                                                    <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`}>
+                                                        <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
+                                                        {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
+                                                    </label>
+                                                </div>
+                                                {step.image && (
+                                                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border-thin dark:border-border-dark mt-1">
+                                                        <img src={step.image} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => updateStepInBlock(block.id, step.id, 'image', '')}
+                                                            className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                      </div>
                                  </div>
                              </div>
-                         ))}
+                                   )}
+                                 </Draggable>
+                             ))}
+                             {provided.placeholder}
                          <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
                      </div>
+                   )}
+                 </Droppable>
                  </div>
              ))}
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Instruction Section</button>
@@ -1120,6 +1402,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
           </section>
 
+          </DragDropContext>
         </div>
         <div className="p-4 border-t border-border-thin dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-card-dark rounded-b-2xl">
           {/* Desktop-only icons in footer (bottom left) */}

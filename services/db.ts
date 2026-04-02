@@ -185,12 +185,46 @@ export const retrySync = async () => {
             // Sync actions should generally be silent if they fail auth, 
             // as they run in background.
             const opts = { skipAuthRedirect: true };
+            
+            // If the item specifies a targetFamilyId, we need to use that family's token
+            let customHeaders: Record<string, string> | undefined;
+            if (item.targetFamilyId) {
+                const sessions = getSavedSessions();
+                const targetSession = sessions.find(s => s.id === item.targetFamilyId);
+                if (targetSession) {
+                    customHeaders = { 'Authorization': `Bearer ${targetSession.token}` };
+                } else {
+                    // If we don't have the session anymore, we can't sync it. Remove it.
+                    console.warn(`Removing sync item ${item.id} because target session ${item.targetFamilyId} is missing`);
+                    await removeFromSyncQueue(item.id);
+                    continue;
+                }
+            }
+
+            // Helper to make the call with custom headers if needed
+            const doApiCall = async (endpoint: string, method: string, data?: any) => {
+                if (customHeaders) {
+                    const res = await fetch(`${API_BASE}${endpoint}`, {
+                        method,
+                        headers: { 'Content-Type': 'application/json', ...customHeaders },
+                        body: data ? JSON.stringify(data) : undefined
+                    });
+                    if (!res.ok) {
+                        const err: any = new Error("Sync failed");
+                        err.status = res.status;
+                        throw err;
+                    }
+                } else {
+                    await apiCall(endpoint, method, data, opts);
+                }
+            };
+
             if (item.store === STORE_RECIPES) {
-                if (item.action === 'upsert') await apiCall('/recipes', 'POST', item.data, opts);
-                if (item.action === 'delete') await apiCall(`/recipes?id=${item.id}`, 'DELETE', undefined, opts);
+                if (item.action === 'upsert') await doApiCall('/recipes', 'POST', item.data);
+                if (item.action === 'delete') await doApiCall(`/recipes?id=${item.id}`, 'DELETE');
             } else if (item.store === STORE_RESTAURANTS) {
-                if (item.action === 'upsert') await apiCall('/restaurants', 'POST', item.data, opts);
-                if (item.action === 'delete') await apiCall(`/restaurants?id=${item.id}`, 'DELETE', undefined, opts);
+                if (item.action === 'upsert') await doApiCall('/restaurants', 'POST', item.data);
+                if (item.action === 'delete') await doApiCall(`/restaurants?id=${item.id}`, 'DELETE');
             } 
             // NOTE: Shopping sync removed
             // ... handle other stores
@@ -247,8 +281,17 @@ export const syncDown = async () => {
                 grouped.get(r.id)!.push(r);
             }
 
+            // Fetch local recipes to include in merge resolution
+            const localRecipes = await idb.getAll<Recipe>(STORE_RECIPES);
+            const localMap = new Map(localRecipes.map(r => [r.id, r]));
+
             // Process merges
             for (const [id, versions] of grouped) {
+                const local = localMap.get(id);
+                if (local) {
+                    versions.push(local);
+                }
+
                 // Sort by updatedAt desc to use latest data as base
                 versions.sort((a, b) => b.updatedAt - a.updatedAt);
                 const latest = versions[0];
@@ -468,6 +511,9 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
         recipe.familyId = currentFamilyId;
     }
 
+    // Always ensure the local recipe has the latest timestamp when saving
+    recipe.updatedAt = Date.now();
+
     await idb.put(STORE_RECIPES, recipe);
     
     if (options?.localOnly) return; 
@@ -505,15 +551,20 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     // Ensure the recipe is set to be shared
     const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
 
-    // Manual fetch with different token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-    const res = await fetch(`${API_BASE}/recipes`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(sharedRecipe)
-    });
-    
-    if (!res.ok) throw new Error("Failed to cross-post");
+    try {
+        // Manual fetch with different token
+        const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+        const res = await fetch(`${API_BASE}/recipes`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(sharedRecipe)
+        });
+        
+        if (!res.ok) throw new Error("Failed to cross-post");
+    } catch (e) {
+        // Queue for sync using the target family's token
+        await addToSyncQueue({ id: recipe.id, action: 'upsert', data: sharedRecipe, store: STORE_RECIPES, timestamp: Date.now(), targetFamilyId });
+    }
 };
 
 export const crossDeleteRecipe = async (recipeId: string, targetFamilyId: string) => {
@@ -522,13 +573,17 @@ export const crossDeleteRecipe = async (recipeId: string, targetFamilyId: string
     
     if (!targetSession) throw new Error("Not authenticated with target family");
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-    const res = await fetch(`${API_BASE}/recipes?id=${recipeId}`, {
-        method: 'DELETE',
-        headers
-    });
-    
-    if (!res.ok) throw new Error("Failed to cross-delete");
+    try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+        const res = await fetch(`${API_BASE}/recipes?id=${recipeId}`, {
+            method: 'DELETE',
+            headers
+        });
+        
+        if (!res.ok) throw new Error("Failed to cross-delete");
+    } catch (e) {
+        await addToSyncQueue({ id: recipeId, action: 'delete', store: STORE_RECIPES, timestamp: Date.now(), targetFamilyId });
+    }
 };
 
 // --- Shopping ---
@@ -540,6 +595,10 @@ export const getShoppingList = async (): Promise<ShoppingItem[]> => {
 export const upsertShoppingItem = async (item: ShoppingItem) => {
     await idb.put(STORE_SHOPPING, item);
     // Local only - no sync
+};
+
+export const deleteShoppingItem = async (id: string) => {
+    await idb.remove(STORE_SHOPPING, id);
 };
 
 export const clearShoppingList = async (purchasedOnly: boolean) => {
@@ -710,13 +769,25 @@ export const adminAction = async (action: 'update_passwords' | 'delete_family' |
 // --- Restaurants & Voting ---
 
 export const getRestaurants = async (): Promise<Restaurant[]> => {
-    return idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    const allRestaurants = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    const sessions = getSavedSessions();
+    const allowedTenants = sessions.map(s => s.id);
+
+    return allRestaurants.filter(r => {
+        // Keep private restaurants (not shared)
+        if (!r.familyId || r.familyId === 'private') return true;
+        
+        // Keep restaurants that belong to ANY logged-in family
+        if (allowedTenants.includes(r.familyId)) return true;
+        
+        return false;
+    });
 };
 
 export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: boolean }) => {
     // If sharing to family, tag with current family ID locally immediately
     const currentFamilyId = getCurrentFamilyId();
-    if (currentFamilyId && !options?.localOnly) {
+    if (r.familyId === 'current' && currentFamilyId) {
         r.familyId = currentFamilyId;
     }
 
@@ -724,7 +795,14 @@ export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: bo
     
     if (options?.localOnly) return;
 
-    if (hasAuthToken()) apiCall('/restaurants', 'POST', r).catch(console.error);
+    if (hasAuthToken() && r.familyId && r.familyId !== 'private') {
+        try {
+            await apiCall('/restaurants', 'POST', r);
+        } catch (e) {
+            // Queue for sync
+            await addToSyncQueue({ id: r.id, action: 'upsert', data: r, store: STORE_RESTAURANTS, timestamp: Date.now() });
+        }
+    }
 };
 
 export const deleteRestaurant = async (id: string) => {
@@ -747,15 +825,20 @@ export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId
     
     const sharedRestaurant = { ...restaurant, familyId: targetFamilyId };
 
-    // Manual fetch with different token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-    const res = await fetch(`${API_BASE}/restaurants`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(sharedRestaurant)
-    });
-    
-    if (!res.ok) throw new Error("Failed to cross-post");
+    try {
+        // Manual fetch with different token
+        const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
+        const res = await fetch(`${API_BASE}/restaurants`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(sharedRestaurant)
+        });
+        
+        if (!res.ok) throw new Error("Failed to cross-post");
+    } catch (e) {
+        // Queue for sync using the target family's token
+        await addToSyncQueue({ id: restaurant.id, action: 'upsert', data: sharedRestaurant, store: STORE_RESTAURANTS, timestamp: Date.now(), targetFamilyId });
+    }
 };
 
 export const crossDeleteRestaurant = async (restaurantId: string, targetFamilyId: string) => {

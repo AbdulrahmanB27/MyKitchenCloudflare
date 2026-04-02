@@ -338,7 +338,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             >
                                 <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${recipe.image || ''}")` }}>
                                     {!recipe.image && (
-                                        <div className="absolute inset-0 bg-[#2d333f] text-[#4a5568] flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568] flex items-center justify-center">
                                             <UtensilsCrossed size={32} strokeWidth={1.5} />
                                         </div>
                                     )}

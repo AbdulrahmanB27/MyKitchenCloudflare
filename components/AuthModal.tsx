@@ -27,6 +27,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     
     // Turnstile
     const [turnstileToken, setTurnstileToken] = useState('');
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useEffect(() => {
         // Initialize Turnstile if available
@@ -172,14 +173,30 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         <div className="space-y-3">
                             <p className="text-sm text-text-secondary mb-2">Select a saved family session:</p>
                             {sessions.map(s => (
-                                <button 
+                                <div 
                                     key={s.id} 
-                                    onClick={() => db.switchFamily(s.id)}
-                                    className={`w-full p-4 rounded-xl border flex items-center justify-between group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
+                                    className={`w-full rounded-xl border flex items-stretch group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                 >
-                                    <span className="font-bold text-text-main dark:text-white">{s.name}</span>
-                                    {s.id === db.getCurrentFamilyId() && <CheckCircle size={16} className="text-forest-green dark:text-accent-herb"/>}
-                                </button>
+                                    <button 
+                                        onClick={() => db.switchFamily(s.id)}
+                                        className="flex-1 p-4 flex items-center justify-between text-left"
+                                    >
+                                        <span className="font-bold text-text-main dark:text-white">{s.name}</span>
+                                        {s.id === db.getCurrentFamilyId() && <CheckCircle size={16} className="text-forest-green dark:text-accent-herb"/>}
+                                    </button>
+                                    <div className="w-px bg-border-thin dark:bg-border-dark my-3"></div>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            db.logout(s.id);
+                                            setRefreshTrigger(prev => prev + 1);
+                                        }}
+                                        className="px-4 flex items-center justify-center text-text-secondary hover:text-red-500 transition-colors rounded-r-xl"
+                                        title="Log out of this family"
+                                    >
+                                        <LogOut size={18} />
+                                    </button>
+                                </div>
                             ))}
                             
                             <div className="pt-4 border-t border-border-thin dark:border-border-dark flex flex-col gap-2">

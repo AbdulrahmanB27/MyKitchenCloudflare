@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.dev.vars
+.wrangler
+firebase-applet-config.json
 
 # Editor directories and files
 .vscode/*

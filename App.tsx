@@ -49,6 +49,7 @@ const App: React.FC = () => {
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [familyFilter, setFamilyFilter] = useState<'all' | 'mine' | 'family'>('all');
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('name');
   
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
@@ -185,6 +186,46 @@ const App: React.FC = () => {
   };
 
   // --- Effects ---
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Close modals in order of priority (most specific/nested first)
+        if (showDeleteModal) {
+          setShowDeleteModal(false);
+          return;
+        }
+        if (showAuthModal) {
+          setShowAuthModal(false);
+          return;
+        }
+        if (showExportModal) {
+          setShowExportModal(false);
+          return;
+        }
+        if (isFormOpen) {
+          setIsFormOpen(false);
+          setEditingRecipe(null);
+          return;
+        }
+        if (activeRecipeId) {
+          setActiveRecipeId(null);
+          return;
+        }
+        if (isMobileMenuOpen) {
+          setIsMobileMenuOpen(false);
+          return;
+        }
+        if (currentView !== 'recipes') {
+          setCurrentView('recipes');
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showDeleteModal, showAuthModal, showExportModal, isFormOpen, activeRecipeId, isMobileMenuOpen, currentView]);
 
   const loadData = async () => {
     try {
@@ -336,6 +377,14 @@ const App: React.FC = () => {
 
   const currentFamilyId = db.getCurrentFamilyId();
 
+  const joinedFamilies = useMemo(() => {
+    const sessions = db.getSavedSessions();
+    return sessions.map(s => ({
+      ...s,
+      recipeCount: recipes.filter(r => r.shareToFamily && (r.familyId === s.id || (r.tenantIds && r.tenantIds?.includes(s.id)))).length
+    })).sort((a, b) => b.recipeCount - a.recipeCount);
+  }, [recipes]);
+
   const filteredRecipes = useMemo(() => {
     let result = recipes;
 
@@ -344,10 +393,20 @@ const App: React.FC = () => {
         // Show local only (not shared)
         result = result.filter(r => !r.shareToFamily);
     } else if (familyFilter === 'family') {
-        // Show recipes specifically for the CURRENT family session
-        result = result.filter(r => r.shareToFamily && r.familyId === currentFamilyId);
-    } 
-    // 'all' shows everything in the local DB (which includes joined families that have been synced)
+        // Show recipes for a specific family if selected, otherwise all shared
+        if (selectedFamilyId) {
+            result = result.filter(r => r.shareToFamily && (r.familyId === selectedFamilyId || (r.tenantIds && r.tenantIds.includes(selectedFamilyId))));
+        } else {
+            result = result.filter(r => r.shareToFamily);
+        }
+    } else if (familyFilter === 'all') {
+        // "All" shows all recipes from all joined families (shared recipes)
+        // We also include private recipes here to match "All" expectation, 
+        // but the user specifically asked for "all recipes from all joined families".
+        // I'll include both for a true "All" view, or just shared if that's the intent.
+        // Given the request, I'll filter to shared recipes only for "All".
+        result = result.filter(r => r.shareToFamily);
+    }
 
     if (!showArchived) result = result.filter(r => !r.archived);
     if (selectedCategory !== 'All') result = result.filter(r => r.category === selectedCategory);
@@ -387,7 +446,7 @@ const App: React.FC = () => {
             default: return a.name.localeCompare(b.name);
         }
     });
-  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter, currentFamilyId]);
+  }, [recipes, selectedCategory, searchQuery, showArchived, sortBy, selectedTags, filterFavorites, familyFilter, currentFamilyId, selectedFamilyId]);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -627,6 +686,56 @@ const App: React.FC = () => {
                                          ))}
                                      </div>
                         </div>
+
+                        {familyFilter === 'family' && joinedFamilies.length > 1 && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="px-3 space-y-2 mt-2"
+                            >
+                                <h5 className="text-[10px] font-bold uppercase text-text-secondary px-1 mb-1 tracking-widest">Shared Libraries</h5>
+                                {joinedFamilies.map((family, idx) => {
+                                    const colors = [
+                                        'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50',
+                                        'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800/50',
+                                        'bg-rose-50/50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-800/50',
+                                        'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50',
+                                    ];
+                                    const colorClass = colors[idx % colors.length];
+                                    const isActive = selectedFamilyId === family.id;
+
+                                    return (
+                                        <button
+                                            key={family.id}
+                                            onClick={() => setSelectedFamilyId(isActive ? null : family.id)}
+                                            className={`w-full text-left p-3 rounded-xl transition-all border group relative overflow-hidden ${
+                                                isActive 
+                                                    ? 'ring-2 ring-forest-green dark:ring-accent-herb border-transparent shadow-md scale-[1.02]' 
+                                                    : `${colorClass} hover:scale-[1.01] hover:shadow-sm`
+                                            }`}
+                                        >
+                                            <div className={`font-bold text-sm transition-colors ${isActive ? 'text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}>
+                                                {family.name}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                    isActive 
+                                                        ? 'bg-forest-green text-white dark:bg-accent-herb dark:text-black' 
+                                                        : 'bg-black/5 dark:bg-white/10 text-text-secondary dark:text-gray-400'
+                                                }`}>
+                                                    {family.recipeCount} recipes
+                                                </span>
+                                            </div>
+                                            {isActive && (
+                                                <div className="absolute top-2 right-2">
+                                                    <Check size={14} className="text-forest-green dark:text-accent-herb" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </motion.div>
+                        )}
                     </>
                  ) : (
                     <>
@@ -684,6 +793,16 @@ const App: React.FC = () => {
                                 <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" />
                             </div>
+                            <SortMenu 
+                                currentSort={sortBy} 
+                                onSortChange={(val) => setSortBy(val as SortOption)} 
+                                options={[
+                                    { label: 'Name (A-Z)', value: 'name' },
+                                    { label: 'Fastest', value: 'time' },
+                                    { label: 'Top Rated', value: 'rating' },
+                                    { label: 'Lowest Calories', value: 'calories' }
+                                ]}
+                            />
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -694,19 +813,6 @@ const App: React.FC = () => {
                                         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" />
                                     </div>
                                     <div className="hidden md:flex gap-2 items-center">
-                                        {/* SortMenu moved from here */}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center gap-4">
-                                        <div className="flex gap-2">
-                                            {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
-                                                    {cat}
-                                                </button>
-                                            ))}
-                                        </div>
                                         <SortMenu 
                                             currentSort={sortBy} 
                                             onSortChange={(val) => setSortBy(val as SortOption)} 
@@ -718,8 +824,20 @@ const App: React.FC = () => {
                                             ]}
                                         />
                                     </div>
+                                </div>
 
-                                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center gap-4">
+                                        <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:w-auto sm:gap-2">
+                                            {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-1 overflow-x-auto pb-2 no-scrollbar items-center w-full">
                                         {availableTags.map(tag => {
                                             const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                             

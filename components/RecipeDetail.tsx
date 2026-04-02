@@ -400,6 +400,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
   const getInstructionTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
   const getInstructionOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
   const getInstructionId = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.id;
+  const getInstructionImage = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.image;
 
 
   const handleRate = async (score: number) => {
@@ -594,11 +595,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                 {/* Hero Image */}
                 <div className="w-full">
                     <div 
-                        className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative group bg-gray-900" 
+                        className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative group bg-gray-100 dark:bg-gray-900" 
                         style={{ backgroundImage: `linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 50%), url("${recipe.image || ''}")` }}
                     >
                         {!recipe.image && (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-900">
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-900">
                                 <span className="material-symbols-outlined text-[64px]">restaurant_menu</span>
                             </div>
                         )}
@@ -823,6 +824,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                 const timerDuration = getInstructionTimer(step);
                                                 const tip = getInstructionTip(step);
                                                 const optional = getInstructionOptional(step);
+                                                const stepImage = getInstructionImage(step);
                                                 const stepId = getInstructionId(step) || `${gIdx}-${idx}`; // Fallback ID if string
                                                 
                                                 if (!optional) {
@@ -866,6 +868,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                                                 <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
                                                                     <Lightbulb size={16} className="shrink-0 mt-0.5" />
                                                                     <span>{tip}</span>
+                                                                </div>
+                                                            )}
+                                                            {stepImage && (
+                                                                <div className="mt-2 rounded-xl overflow-hidden border border-border-thin dark:border-border-dark shadow-sm">
+                                                                    <img src={stepImage} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
                                                                 </div>
                                                             )}
                                                             {timerDuration !== undefined && timerDuration !== null && (

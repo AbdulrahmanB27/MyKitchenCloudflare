@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Restaurant, VoteSession, Vote } from '../types';
 import * as db from '../services/db';
-import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Hand, Play, WifiOff, BarChart3, Trophy, Check } from 'lucide-react';
+import { Search, Plus, Star, UtensilsCrossed, ThumbsUp, ThumbsDown, Loader, ArrowRight, Clock, BadgeCheck, Heart, Trash2, X, RotateCcw, CheckCircle, MapPin, ExternalLink, Image as ImageIcon, Upload, Lock, Users, ChevronDown, Play, WifiOff, BarChart3, Trophy, Check, ChefHat } from 'lucide-react';
 import Checkbox from './Checkbox';
 import AuthModal from './AuthModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
@@ -156,7 +156,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                     {restaurant.image ? (
                         <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${restaurant.image}")` }} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                             <UtensilsCrossed size={64} strokeWidth={1.5} />
                         </div>
                     )}
@@ -181,7 +181,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
                             <h2 className="text-2xl font-display font-extrabold text-text-main dark:text-white leading-tight line-clamp-2">{restaurant.name}</h2>
                             {restaurant.stars > 0 && (
                                 <div className="flex items-center shrink-0">
-                                    <Hand size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
+                                    <ChefHat size={14} className="text-yellow-500 fill-yellow-500 mr-1" />
                                     <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{restaurant.stars}</span>
                                 </div>
                             )}
@@ -231,6 +231,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [showAuth, setShowAuth] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<Restaurant>>({});
     const [isUploading, setIsUploading] = useState(false);
 
@@ -249,6 +250,96 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const [schedDays, setSchedDays] = useState<Set<string>>(new Set(['Mo','Tu','We','Th','Fr']));
     const [schedStart, setSchedStart] = useState('11:00 AM');
     const [schedEnd, setSchedEnd] = useState('9:00 PM');
+    const [isStartPeriodOpen, setIsStartPeriodOpen] = useState(false);
+    const [isEndPeriodOpen, setIsEndPeriodOpen] = useState(false);
+
+    // Draft Management
+    const saveRestaurantDraft = () => {
+        if (!isFormOpen) return;
+        const draft = {
+            formData,
+            schedDays: Array.from(schedDays),
+            schedStart,
+            schedEnd,
+            targetFamilyId,
+            editingId
+        };
+        db.safeSetItem(editingId ? `mykitchen_restaurant_draft_${editingId}` : 'mykitchen_restaurant_draft_new', JSON.stringify(draft));
+    };
+
+    const clearRestaurantDraft = (id: string | null) => {
+        db.safeRemoveItem(id ? `mykitchen_restaurant_draft_${id}` : 'mykitchen_restaurant_draft_new');
+    };
+
+    const restoreRestaurantDraft = (id: string | null) => {
+        const draftStr = db.safeGetItem(id ? `mykitchen_restaurant_draft_${id}` : 'mykitchen_restaurant_draft_new');
+        if (draftStr) {
+            try {
+                const draft = JSON.parse(draftStr);
+                setFormData(draft.formData);
+                setSchedDays(new Set(draft.schedDays));
+                setSchedStart(draft.schedStart);
+                setSchedEnd(draft.schedEnd);
+                setTargetFamilyId(draft.targetFamilyId);
+                return true;
+            } catch (e) {
+                console.error("Failed to restore restaurant draft", e);
+            }
+        }
+        return false;
+    };
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            saveRestaurantDraft();
+        }, 1000);
+        return () => clearTimeout(timeout);
+    }, [formData, schedDays, schedStart, schedEnd, targetFamilyId, isFormOpen]);
+
+    const handleTimeChange = (value: string, currentFullTime: string, setter: (val: string) => void) => {
+        // Only allow numbers and one colon
+        let sanitized = value.replace(/[^0-9:]/g, '');
+        
+        // Prevent multiple colons
+        const colonCount = (sanitized.match(/:/g) || []).length;
+        if (colonCount > 1) {
+            const parts = sanitized.split(':');
+            sanitized = parts[0] + ':' + parts.slice(1).join('');
+        }
+
+        // Limit length
+        if (sanitized.length > 5) sanitized = sanitized.slice(0, 5);
+
+        const period = parseTime(currentFullTime).period;
+        setter(`${sanitized} ${period}`);
+    };
+
+    const validateAndFormatTime = (fullTime: string, setter: (val: string) => void) => {
+        const { time, period } = parseTime(fullTime);
+        let [hours, minutes] = time.split(':');
+        
+        if (!hours && !minutes) {
+            setter(`12:00 ${period}`);
+            return;
+        }
+        
+        if (!minutes) minutes = '00';
+        
+        let h = parseInt(hours);
+        let m = parseInt(minutes);
+        
+        if (isNaN(h)) h = 12;
+        if (isNaN(m)) m = 0;
+        
+        // Clamp values for 12-hour format
+        if (h < 1) h = 1;
+        if (h > 12) h = 12;
+        if (m < 0) m = 0;
+        if (m > 59) m = 59;
+        
+        const formattedTime = `${h}:${m.toString().padStart(2, '0')}`;
+        setter(`${formattedTime} ${period}`);
+    };
 
     // Sorting & Filtering
     const [sortBy, setSortBy] = useState<'name' | 'rating' | 'price' | 'recent'>('recent');
@@ -257,7 +348,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     const sortOptions = [
         { id: 'recent', label: 'Recently Added', icon: <Clock size={16} /> },
         { id: 'name', label: 'Name (A-Z)', icon: <ArrowRight size={16} /> },
-        { id: 'rating', label: 'Highest Rated', icon: <Hand size={16} /> },
+        { id: 'rating', label: 'Highest Rated', icon: <ChefHat size={16} /> },
         { id: 'price', label: 'Price (Low-High)', icon: <span className="font-bold text-xs">$</span> },
     ];
 
@@ -392,6 +483,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             } else {
                 setTargetFamilyId('private');
             }
+            restoreRestaurantDraft(r.id);
         } else {
             setFormData({ stars: 0, price: '$$', cuisineTags: [], isApproved: false });
             setEditingId(null);
@@ -401,6 +493,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
             else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
             else setTargetFamilyId('private');
+            restoreRestaurantDraft(null);
         }
         setIsFormOpen(true);
     };
@@ -474,7 +567,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 image: formData.image ? sanitize(formData.image) : undefined,
                 openHours: formData.openHours ? sanitize(formData.openHours) : undefined,
                 id: editingId || uuidv4(),
-                familyId: 'global', 
+                familyId: targetFamilyId === 'private' ? 'private' : targetFamilyId, 
                 createdAt: formData.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 cuisineTags: typeof formData.cuisineTags === 'string' 
@@ -484,16 +577,14 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
             if (targetFamilyId === 'private') {
                 await db.upsertRestaurant(r, { localOnly: true });
-            } else if (targetFamilyId === currentFamilyId) {
-                await db.upsertRestaurant(r); 
-                
-                // Sync to all if checked
-                if (syncToAll && availableSessions.length > 1) {
-                     const otherSessions = availableSessions.filter(s => s.id !== targetFamilyId);
-                     await Promise.all(otherSessions.map(s => db.crossPostRestaurant(r, s.id)));
-                }
             } else {
-                await db.crossPostRestaurant(r, targetFamilyId);
+                // If it's for the current family, use upsertRestaurant which handles sync
+                if (targetFamilyId === currentFamilyId) {
+                    await db.upsertRestaurant(r);
+                } else {
+                    // If it's for another family, use crossPostRestaurant
+                    await db.crossPostRestaurant(r, targetFamilyId);
+                }
                 
                 // Sync to all if checked
                 if (syncToAll && availableSessions.length > 1) {
@@ -501,12 +592,16 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                      await Promise.all(otherSessions.map(s => db.crossPostRestaurant(r, s.id)));
                 }
 
-                alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}${syncToAll ? ' and synced to all families' : ''}.`);
-                setIsFormOpen(false);
-                return;
+                if (targetFamilyId !== currentFamilyId) {
+                    alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}${syncToAll ? ' and synced to all families' : ''}.`);
+                    clearRestaurantDraft(editingId);
+                    setIsFormOpen(false);
+                    return;
+                }
             }
 
             await loadData();
+            clearRestaurantDraft(editingId);
             setIsFormOpen(false);
         } catch (err: any) {
             alert(`Unable to save: ${err.message}`);
@@ -759,9 +854,9 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     }
 
     return (
-        <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-bg-white dark:bg-bg-dark">
+        <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-bg-subtle dark:bg-bg-dark">
             
-            <header className="md:hidden sticky top-0 z-40 w-full bg-bg-white/95 dark:bg-bg-dark/95 backdrop-blur-md border-b border-border-thin dark:border-border-dark transition-colors duration-300">
+            <header className="md:hidden sticky top-0 z-40 w-full bg-bg-white dark:bg-sidebar-dark border-b border-border-thin dark:border-border-dark transition-colors duration-300">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16 gap-3">
                         <div className="flex items-center gap-3 shrink-0">
@@ -773,16 +868,19 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         </div>
                         
                         {view === 'list' && (
-                            <div className="flex-1 relative group">
-                                <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search..." 
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark text-sm font-medium text-text-main dark:text-white placeholder-text-secondary focus:border-forest-green dark:focus:border-accent-herb transition-all outline-none"
-                                />
-                            </div>
+                            <>
+                                <div className="flex-1 relative group">
+                                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark text-sm font-medium text-text-main dark:text-white placeholder-text-secondary focus:border-forest-green dark:focus:border-accent-herb transition-all outline-none"
+                                    />
+                                </div>
+                                <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
+                            </>
                         )}
 
                         <div className="flex items-center gap-2 shrink-0">
@@ -791,7 +889,6 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     <button onClick={() => setJoinView(true)} className="p-2 rounded-full hover:bg-bg-subtle dark:hover:bg-white/10 text-text-secondary" title="Join Code">
                                         <Users size={20} />
                                     </button>
-                                    <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                                 </>
                             )}
                             {view === 'decide' && activeSession && (
@@ -819,15 +916,18 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                         <>
                             {/* Desktop Top Bar */}
                             <div className="hidden md:flex flex-row gap-4 justify-between items-center mb-8">
-                                <div className="relative flex-1 max-w-xl group">
-                                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={20} />
-                                    <input 
-                                        type="text" 
-                                        value={searchQuery} 
-                                        onChange={e => setSearchQuery(e.target.value)} 
-                                        placeholder="Search places..." 
-                                        className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" 
-                                    />
+                                <div className="relative flex-1 max-w-xl group flex items-center gap-4">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={20} />
+                                        <input 
+                                            type="text" 
+                                            value={searchQuery} 
+                                            onChange={e => setSearchQuery(e.target.value)} 
+                                            placeholder="Search places..." 
+                                            className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" 
+                                        />
+                                    </div>
+                                    <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                                 </div>
                                 <div className="flex gap-3 items-center">
                                     <button onClick={() => setJoinView(true)} className="bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-bg-subtle dark:hover:bg-white/5 transition-all text-text-secondary hover:text-text-main dark:hover:text-white flex items-center gap-2">
@@ -838,11 +938,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                             </div>
 
                             {/* Filters */}
-                            <div className="flex items-center justify-between gap-4 mb-8">
-                                <div className="flex flex-wrap gap-2 flex-1">
+                            <div className="space-y-4 mb-8">
+                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
                                     <button 
                                         onClick={() => setFilterTag(null)}
-                                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                     >
                                         All
                                     </button>
@@ -850,18 +950,28 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <button 
                                             key={tag}
                                             onClick={() => setFilterTag(tag === filterTag ? null : tag)}
-                                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-white border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                            className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                         >
                                             {tag}
                                         </button>
                                     ))}
                                 </div>
-                                <SortMenu options={sortOptions} currentSort={sortBy} onSortChange={setSortBy} />
                             </div>
 
                             {/* Restaurant Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredRestaurants.map(r => (
+                            {filteredRestaurants.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="w-24 h-24 bg-bg-subtle dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+                                        <UtensilsCrossed size={48} className="text-text-secondary opacity-50" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-text-main dark:text-white mb-2">No restaurants found</h3>
+                                    <p className="text-text-secondary max-w-md mx-auto mb-8">
+                                        {searchQuery || filterTag ? "Try adjusting your search or filters to find what you're looking for." : "You haven't added any restaurants yet. Start building your list to make dining out decisions easier!"}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredRestaurants.map(r => (
                                     <div 
                                         key={r.id} 
                                         onClick={() => openForm(r)}
@@ -871,7 +981,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             {r.image ? (
                                                 <div className="w-full h-full bg-cover bg-center transform group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                                                     <UtensilsCrossed size={48} strokeWidth={1.5} />
                                                 </div>
                                             )}
@@ -881,7 +991,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                 </div>
                                                 {r.stars > 0 && (
                                                     <div className="text-yellow-600 dark:text-yellow-400 text-[10px] font-bold px-1 py-0.5 flex items-center gap-1">
-                                                        <Hand size={12} fill="currentColor" /> {r.stars === 3 ? 'Super' : r.stars === 2 ? 'Great' : 'Good'}
+                                                        <ChefHat size={12} fill="currentColor" /> {r.stars === 3 ? 'Super' : r.stars === 2 ? 'Great' : 'Good'}
                                                     </div>
                                                 )}
                                             </div>
@@ -903,6 +1013,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     </div>
                                 ))}
                             </div>
+                            )}
                         </>
                     ) : (
                         <div className="h-full flex flex-col">
@@ -1032,7 +1143,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                                 {r.image ? (
                                                                     <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${r.image}")` }}></div>
                                                                 ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center bg-[#2d333f] text-[#4a5568]">
+                                                                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                                                                         <UtensilsCrossed size={32} strokeWidth={1.5} />
                                                                     </div>
                                                                 )}
@@ -1204,20 +1315,20 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <div className="flex flex-col sm:flex-row gap-6">
                                             <div className="flex-1">
                                                 <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Rating</label>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
                                                     {[1, 2, 3].map(s => (
-                                                        <button key={s} type="button" onClick={() => setFormData({...formData, stars: s === formData.stars ? 0 : s})} className={`group p-2 rounded-xl border transition-all flex flex-col items-center gap-1 min-w-[70px] ${formData.stars && formData.stars >= s ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-900/50' : 'bg-transparent border-transparent hover:bg-bg-subtle dark:hover:bg-white/5'}`}>
-                                                        <Hand size={24} className={`transition-all ${formData.stars && formData.stars >= s ? 'text-yellow-500 fill-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'}`} />
+                                                        <button key={s} type="button" onClick={() => setFormData({...formData, stars: s === formData.stars ? 0 : s})} className={`group p-2 rounded-xl border transition-all flex flex-col items-center gap-1 flex-1 sm:flex-none sm:min-w-[70px] ${formData.stars && formData.stars >= s ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-900/50' : 'bg-transparent border-transparent hover:bg-bg-subtle dark:hover:bg-white/5'}`}>
+                                                        <ChefHat size={24} className={`transition-all ${formData.stars && formData.stars >= s ? 'text-yellow-500 fill-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'}`} />
                                                             <span className={`text-[10px] font-bold ${formData.stars && formData.stars >= s ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-400'}`}>
                                                                 {s === 1 ? 'Good' : s === 2 ? 'Great' : 'Super'}
                                                             </span>
                                                         </button>
                                                     ))}
-                                                    <div className="w-px h-10 bg-border-thin dark:bg-border-dark mx-2"></div>
+                                                    <div className="w-px h-10 bg-border-thin dark:bg-border-dark mx-1 sm:mx-2 hidden sm:block"></div>
                                                     <button 
                                                         type="button" 
                                                         onClick={() => setFormData({...formData, isApproved: !formData.isApproved})}
-                                                        className={`group flex flex-col items-center gap-1 p-2 rounded-xl transition-all min-w-[60px] ${formData.isApproved ? 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/50' : 'border border-transparent hover:bg-bg-subtle dark:hover:bg-white/5'}`}
+                                                        className={`group flex flex-col items-center gap-1 p-2 rounded-xl transition-all flex-1 sm:flex-none sm:min-w-[60px] ${formData.isApproved ? 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/50' : 'border border-transparent hover:bg-bg-subtle dark:hover:bg-white/5'}`}
                                                     >
                                                         <div className={`size-6 flex items-center justify-center transition-all ${formData.isApproved ? 'text-blue-500' : 'text-gray-300 dark:text-gray-600'}`}>
                                                             <BadgeCheck size={24} className={formData.isApproved ? "text-blue-500" : "text-gray-300"} />
@@ -1235,7 +1346,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                                             key={p} 
                                                             type="button"
                                                             onClick={() => setFormData({...formData, price: p as any})} 
-                                                            className={`px-3 py-2 text-xs font-bold rounded-lg transition-all ${formData.price === p ? 'bg-white dark:bg-card-dark text-text-main dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                                                            className={`px-3 py-2 text-xs font-bold rounded-lg transition-all flex-1 sm:flex-none ${formData.price === p ? 'bg-white dark:bg-card-dark text-text-main dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
                                                         >
                                                             {p}
                                                         </button>
@@ -1248,59 +1359,93 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                     {/* Schedule Card */}
                                     <div className="bg-white dark:bg-card-dark p-5 rounded-2xl shadow-sm border border-border-thin dark:border-border-dark">
                                         <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Operating Hours</label>
-                                        <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
+                                        <div className="flex items-center justify-between gap-1 mb-4">
                                             {DAYS.map(day => (
                                                 <button 
                                                     key={day.id}
                                                     type="button" 
                                                     onClick={() => toggleSchedDay(day.id)}
-                                                    className={`size-9 shrink-0 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md shadow-forest-green/30 dark:shadow-accent-herb/30' : 'bg-bg-subtle dark:bg-white/5 border-border-thin dark:border-border-dark text-gray-400 hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
+                                                    className={`size-7 sm:size-9 shrink-0 rounded-full text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md shadow-forest-green/30 dark:shadow-accent-herb/30' : 'bg-bg-subtle dark:bg-white/5 border-border-thin dark:border-border-dark text-gray-400 hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                                 >
                                                     {day.label}
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="flex items-center gap-3 p-4 bg-bg-subtle dark:bg-black/20 rounded-xl border border-border-thin dark:border-border-dark">
-                                            <div className="flex items-center gap-2 flex-1 bg-white dark:bg-card-dark rounded-lg p-1 border border-border-thin dark:border-white/5 shadow-sm">
-                                                <Clock size={14} className="text-text-secondary ml-2" />
-                                                <select 
+                                        <div className="flex flex-col sm:flex-row items-center gap-3 p-4 bg-bg-subtle dark:bg-black/20 rounded-xl border border-border-thin dark:border-border-dark">
+                                            <div className="flex items-center gap-2 w-full sm:flex-1 bg-white dark:bg-card-dark rounded-lg p-1 border border-border-thin dark:border-white/5 shadow-sm">
+                                                <Clock size={14} className="text-text-secondary ml-2 shrink-0" />
+                                                <input 
+                                                    type="text"
                                                     value={parseTime(schedStart).time} 
-                                                    onChange={e => setSchedStart(`${e.target.value} ${parseTime(schedStart).period}`)}
-                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
-                                                >
-                                                    {HOURS.map(h => <option key={h} value={h} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{h}</option>)}
-                                                </select>
-                                                <div className="w-px h-4 bg-border-thin dark:bg-white/10"></div>
-                                                <select 
-                                                    value={parseTime(schedStart).period} 
-                                                    onChange={e => setSchedStart(`${parseTime(schedStart).time} ${e.target.value}`)}
-                                                    className="bg-transparent border-none text-xs font-bold text-forest-green dark:text-accent-herb font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
-                                                >
-                                                    <option value="AM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">AM</option>
-                                                    <option value="PM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">PM</option>
-                                                </select>
+                                                    onChange={e => handleTimeChange(e.target.value, schedStart, setSchedStart)}
+                                                    onBlur={() => validateAndFormatTime(schedStart, setSchedStart)}
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 py-1 pl-1 w-full"
+                                                    placeholder="11:00"
+                                                />
+                                                <div className="w-px h-4 bg-border-thin dark:bg-white/10 shrink-0"></div>
+                                                <div className="relative shrink-0">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setIsStartPeriodOpen(!isStartPeriodOpen)}
+                                                        className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-forest-green dark:text-accent-herb hover:bg-bg-subtle dark:hover:bg-white/5 rounded transition-colors"
+                                                    >
+                                                        {parseTime(schedStart).period}
+                                                        <ChevronDown size={12} className={`transition-transform ${isStartPeriodOpen ? 'rotate-180' : ''}`} />
+                                                    </button>
+                                                    {isStartPeriodOpen && (
+                                                        <div className="absolute top-full right-0 mt-1 w-20 bg-white dark:bg-card-dark rounded-lg shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                                            {['AM', 'PM'].map(p => (
+                                                                <button
+                                                                    key={p}
+                                                                    type="button"
+                                                                    onClick={() => { setSchedStart(`${parseTime(schedStart).time} ${p}`); setIsStartPeriodOpen(false); }}
+                                                                    className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors hover:bg-bg-subtle dark:hover:bg-white/5 ${parseTime(schedStart).period === p ? 'text-forest-green dark:text-accent-herb bg-forest-green/5' : 'text-text-main dark:text-gray-300'}`}
+                                                                >
+                                                                    {p}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             
-                                            <span className="text-gray-400 font-medium text-xs uppercase">to</span>
+                                            <span className="text-gray-400 font-medium text-xs uppercase shrink-0">to</span>
                                             
-                                            <div className="flex items-center gap-2 flex-1 bg-white dark:bg-card-dark rounded-lg p-1 border border-border-thin dark:border-white/5 shadow-sm">
-                                                <Clock size={14} className="text-text-secondary ml-2" />
-                                                <select 
+                                            <div className="flex items-center gap-2 w-full sm:flex-1 bg-white dark:bg-card-dark rounded-lg p-1 border border-border-thin dark:border-white/5 shadow-sm">
+                                                <Clock size={14} className="text-text-secondary ml-2 shrink-0" />
+                                                <input 
+                                                    type="text"
                                                     value={parseTime(schedEnd).time} 
-                                                    onChange={e => setSchedEnd(`${e.target.value} ${parseTime(schedEnd).period}`)}
-                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
-                                                >
-                                                    {HOURS.map(h => <option key={h} value={h} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{h}</option>)}
-                                                </select>
-                                                <div className="w-px h-4 bg-border-thin dark:bg-white/10"></div>
-                                                <select 
-                                                    value={parseTime(schedEnd).period} 
-                                                    onChange={e => setSchedEnd(`${parseTime(schedEnd).time} ${e.target.value}`)}
-                                                    className="bg-transparent border-none text-xs font-bold text-text-secondary font-sans focus:ring-0 cursor-pointer py-1 pl-1 pr-7"
-                                                >
-                                                    <option value="AM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">AM</option>
-                                                    <option value="PM" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">PM</option>
-                                                </select>
+                                                    onChange={e => handleTimeChange(e.target.value, schedEnd, setSchedEnd)}
+                                                    onBlur={() => validateAndFormatTime(schedEnd, setSchedEnd)}
+                                                    className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 py-1 pl-1 w-full"
+                                                    placeholder="9:00"
+                                                />
+                                                <div className="w-px h-4 bg-border-thin dark:bg-white/10 shrink-0"></div>
+                                                <div className="relative shrink-0">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setIsEndPeriodOpen(!isEndPeriodOpen)}
+                                                        className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-text-secondary hover:bg-bg-subtle dark:hover:bg-white/5 rounded transition-colors"
+                                                    >
+                                                        {parseTime(schedEnd).period}
+                                                        <ChevronDown size={12} className={`transition-transform ${isEndPeriodOpen ? 'rotate-180' : ''}`} />
+                                                    </button>
+                                                    {isEndPeriodOpen && (
+                                                        <div className="absolute top-full right-0 mt-1 w-20 bg-white dark:bg-card-dark rounded-lg shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                                            {['AM', 'PM'].map(p => (
+                                                                <button
+                                                                    key={p}
+                                                                    type="button"
+                                                                    onClick={() => { setSchedEnd(`${parseTime(schedEnd).time} ${p}`); setIsEndPeriodOpen(false); }}
+                                                                    className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors hover:bg-bg-subtle dark:hover:bg-white/5 ${parseTime(schedEnd).period === p ? 'text-text-main dark:text-white bg-bg-subtle dark:bg-white/5' : 'text-text-secondary dark:text-gray-400'}`}
+                                                                >
+                                                                    {p}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1359,20 +1504,54 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                         {/* Footer */}
                         <div className="p-6 border-t border-border-thin dark:border-border-dark bg-white dark:bg-card-dark flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-bg-subtle dark:bg-black/20 px-3 py-2 rounded-xl border border-border-thin dark:border-border-dark">
-                                    <Users size={16} className="text-text-secondary" />
-                                    <span className="text-xs font-bold text-text-secondary uppercase mr-1">Save to:</span>
-                                    <select
-                                        value={targetFamilyId}
-                                        onChange={(e) => setTargetFamilyId(e.target.value)}
-                                        className="bg-transparent border-none text-sm font-bold text-text-main dark:text-white font-sans focus:ring-0 cursor-pointer py-0 pl-0 pr-8"
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 w-full sm:w-auto">
+                                <div className="relative">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsFamilySelectorOpen(!isFamilySelectorOpen)}
+                                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-bg-subtle dark:bg-black/20 border border-border-thin dark:border-border-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50 text-xs font-bold text-text-main dark:text-text-main-dark transition-all shadow-sm"
                                     >
-                                        <option value="private" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Private List</option>
-                                        {availableSessions.map(s => (
-                                            <option key={s.id} value={s.id} className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">{s.name}</option>
-                                        ))}
-                                    </select>
+                                        {targetFamilyId === 'private' ? <Lock size={14} className="text-forest-green dark:text-accent-herb" /> : <Users size={14} className="text-forest-green dark:text-accent-herb" />}
+                                        <span className="text-xs font-bold text-text-secondary uppercase mr-1 hidden sm:inline">Save to:</span>
+                                        <span>{targetFamilyId === 'private' ? 'Private List' : availableSessions.find(s => s.id === targetFamilyId)?.name || 'Select Family'}</span>
+                                        <ChevronDown size={14} className={`text-text-secondary transition-transform ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isFamilySelectorOpen && (
+                                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="py-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setTargetFamilyId('private'); setIsFamilySelectorOpen(false); }}
+                                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
+                                                >
+                                                    <Lock size={16} />
+                                                    <span className="text-sm font-bold">Private List</span>
+                                                    {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
+                                                </button>
+                                                <div className="h-px bg-border-thin dark:border-border-dark mx-3 my-1"></div>
+                                                {availableSessions.map(s => {
+                                                    const isPrimary = targetFamilyId === s.id;
+                                                    
+                                                    return (
+                                                        <button
+                                                            key={s.id}
+                                                            type="button"
+                                                            onClick={() => { setTargetFamilyId(s.id); setIsFamilySelectorOpen(false); }}
+                                                            className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${isPrimary ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
+                                                        >
+                                                            <Users size={16} />
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold">{s.name}</span>
+                                                                {s.id === currentFamilyId && <span className="text-[10px] text-text-secondary uppercase font-bold">Current</span>}
+                                                            </div>
+                                                            {isPrimary && <Check size={14} className="ml-auto" />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 {targetFamilyId !== 'private' && (
@@ -1384,7 +1563,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                             {syncToAll && <Check size={10} className="text-white dark:text-black" />}
                                         </div>
                                         <span className="text-xs font-bold text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors">
-                                            {availableSessions.length > 1 ? "Sync to all families" : "Sync to Family"}
+                                            {availableSessions.length > 1 ? "Sync to all" : "Sync"}
                                         </span>
                                     </div>
                                 )}

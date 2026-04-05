@@ -10,6 +10,7 @@ import { formatFraction } from '../utils/format';
 
 interface RecipeDetailProps {
   recipeId: string;
+  mergedTenantIds?: string[];
   onClose: () => void;
   onEdit: (recipe: Recipe) => void;
   onRefreshList: () => void;
@@ -21,7 +22,7 @@ interface ActiveTimer {
     notified: boolean;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, onRefreshList }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, onEdit, onRefreshList }) => {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -608,9 +609,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, onClose, onEdit, 
                                 {availableSessions.length > 1 && recipe.shareToFamily && (
                                     <span className="px-2 py-1 rounded bg-primary/80 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1">
                                         <Users size={12} />
-                                        {recipe.tenantIds && recipe.tenantIds.length > 0 
-                                            ? recipe.tenantIds.map(tid => availableSessions.find(s => s.id === tid)?.name || 'Unknown').join(', ')
-                                            : availableSessions.find(s => s.id === recipe.familyId)?.name || 'Family'
+                                        {mergedTenantIds && mergedTenantIds.length > 0 
+                                            ? mergedTenantIds.map(tid => availableSessions.find(s => s.id === tid)?.name || 'Unknown').join(', ')
+                                            : recipe.tenantIds && recipe.tenantIds.length > 0 
+                                                ? recipe.tenantIds.map(tid => availableSessions.find(s => s.id === tid)?.name || 'Unknown').join(', ')
+                                                : availableSessions.find(s => s.id === recipe.familyId)?.name || 'Family'
                                         }
                                     </span>
                                 )}

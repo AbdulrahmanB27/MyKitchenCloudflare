@@ -292,22 +292,35 @@ export const syncDown = async () => {
                     versions.push(local);
                 }
 
-                // Sort by updatedAt desc to use latest data as base
-                versions.sort((a, b) => b.updatedAt - a.updatedAt);
-                const latest = versions[0];
+                // Collect all tenantIds where this recipe exists AND is NOT deleted
+                const activeVersions = versions.filter(v => !v.deleted);
+                const deletedVersions = versions.filter(v => v.deleted);
                 
-                // Collect all tenantIds where this recipe exists
-                const tenantIds = Array.from(new Set(versions.map(v => v.tenantId).filter(Boolean) as string[]));
+                // Get tenantIds from backend versions
+                const backendTenantIds = activeVersions.map(v => v.tenantId).filter(Boolean) as string[];
+                const deletedBackendTenantIds = new Set(deletedVersions.map(v => v.tenantId).filter(Boolean) as string[]);
                 
-                // Create merged object
-                const merged: Recipe = {
-                    ...latest,
-                    tenantIds: tenantIds
-                };
+                // Also include local tenantIds if local version exists and has them
+                // But filter out any that were explicitly deleted on the backend
+                const localTenantIds = (local && !local.deleted && local.tenantIds ? local.tenantIds : [])
+                    .filter(tid => !deletedBackendTenantIds.has(tid));
                 
-                if (merged.deleted) {
+                const tenantIds = Array.from(new Set([...backendTenantIds, ...localTenantIds]));
+
+                if (activeVersions.length === 0) {
+                    // It's deleted in all known versions
                     await idb.remove(STORE_RECIPES, id);
                 } else {
+                    // Sort active versions by updatedAt desc to use latest data as base
+                    activeVersions.sort((a, b) => b.updatedAt - a.updatedAt);
+                    const latest = activeVersions[0];
+                    
+                    // Create merged object
+                    const merged: Recipe = {
+                        ...latest,
+                        tenantIds: tenantIds
+                    };
+                    
                     await idb.put(STORE_RECIPES, merged);
                 }
             }

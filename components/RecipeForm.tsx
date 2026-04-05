@@ -188,12 +188,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
 
       // Handle Sharing Default
       if (data.shareToFamily) {
-          if (data.familyId) setTargetFamilyId(data.familyId);
-          else if (currentFamilyId) setTargetFamilyId(currentFamilyId);
-          else if (pinnedFamilyId) setTargetFamilyId(pinnedFamilyId);
+          let target = 'private';
+          if (data.familyId) target = data.familyId;
+          else if (currentFamilyId) target = currentFamilyId;
+          else if (pinnedFamilyId) target = pinnedFamilyId;
+          
+          setTargetFamilyId(target);
 
           if (data.tenantIds) {
-              setAdditionalSyncFamilyIds(new Set(data.tenantIds.filter(id => id !== data.familyId)));
+              setAdditionalSyncFamilyIds(new Set(data.tenantIds.filter(id => id !== target)));
           }
       } else {
           setTargetFamilyId('private');
@@ -693,71 +696,61 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
     const isMovingToOtherFamily = oldShared && targetFamilyId !== 'private' && targetFamilyId !== oldFamilyId;
 
     try {
-        // If it was shared and we are moving it away from that family, delete it from the old family
-        // UNLESS we are explicitly syncing to it
-        if (initialData && oldShared && (isMovingToPrivate || isMovingToOtherFamily)) {
-            const keepingOldAsSync = oldFamilyId && additionalSyncFamilyIds.has(oldFamilyId);
+        // 1. Update Recipe State
+        if (targetFamilyId === 'private') {
+            recipe.shareToFamily = false;
+            recipe.familyId = undefined;
+            recipe.tenantIds = [];
+        } else {
+            recipe.shareToFamily = true;
+            recipe.familyId = targetFamilyId === currentFamilyId ? currentFamilyId : targetFamilyId;
             
-            if (!keepingOldAsSync) {
-                // Delete from old family
-                if (oldFamilyId === currentFamilyId || !oldFamilyId) {
-                    await db.deleteRecipe(initialData.id, { keepReviews: true });
-                } else if (oldFamilyId) {
-                    // It was in another family. We should delete it from there.
-                    await db.crossDeleteRecipe(initialData.id, oldFamilyId);
-                }
-            }
+            const newTenantIds = new Set(additionalSyncFamilyIds);
+            newTenantIds.add(targetFamilyId);
+            recipe.tenantIds = Array.from(newTenantIds);
         }
 
         const promises: Promise<any>[] = [];
 
-        // 1. Sync to Additional Families
-        if (targetFamilyId !== 'private' && additionalSyncFamilyIds.size > 0) {
-             additionalSyncFamilyIds.forEach(fid => {
-                 // Ensure we don't double-post if targetFamilyId is somehow in the set
-                 if (fid !== targetFamilyId) {
-                     promises.push(db.crossPostRecipe(recipe, fid));
-                 }
-             });
+        // 2. Handle Removals (Stop Syncing)
+        const oldFamilyId = initialData?.familyId;
+        const oldShared = initialData?.shareToFamily;
+        const oldTenantIds = new Set(initialData?.tenantIds || []);
+        if (oldShared && oldFamilyId) {
+            oldTenantIds.add(oldFamilyId);
         }
 
-        // 2. Handle Removals (Stop Syncing)
-        if (initialData && initialData.tenantIds) {
-            initialData.tenantIds.forEach(oldTid => {
-                // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs (or if moving to private)
-                if (targetFamilyId === 'private' || (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid))) {
+        oldTenantIds.forEach(oldTid => {
+            // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs (or if moving to private)
+            if (targetFamilyId === 'private' || (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid))) {
+                if (oldTid === currentFamilyId) {
+                    // Delete from current family backend (but keep local via upsert later)
+                    promises.push(db.deleteRecipe(recipe.id, { keepReviews: true }));
+                } else {
                     // Check if we have access to delete it
                     const session = availableSessions.find(s => s.id === oldTid);
                     if (session) {
                         promises.push(db.crossDeleteRecipe(recipe.id, oldTid));
                     }
                 }
-            });
+            }
+        });
+
+        // 3. Sync to Additional Families
+        if (targetFamilyId !== 'private' && additionalSyncFamilyIds.size > 0) {
+             additionalSyncFamilyIds.forEach(fid => {
+                 if (fid !== targetFamilyId) {
+                     promises.push(db.crossPostRecipe(recipe, fid));
+                 }
+             });
         }
 
-        // 3. Handle Primary Target
-        if (targetFamilyId === 'private') {
-            recipe.shareToFamily = false;
-            recipe.familyId = undefined;
-            recipe.tenantIds = [];
-        } else if (targetFamilyId === currentFamilyId) {
-            recipe.shareToFamily = true;
-            recipe.familyId = currentFamilyId;
-        } else {
-            // Target is another family. We need to crossPost to it.
-            recipe.shareToFamily = true;
-            recipe.familyId = targetFamilyId;
+        // 4. Handle Primary Target (if not current family)
+        if (targetFamilyId !== 'private' && targetFamilyId !== currentFamilyId) {
             promises.push(db.crossPostRecipe(recipe, targetFamilyId));
         }
 
-        // Update local tenantIds to reflect the new state
-        if (targetFamilyId !== 'private') {
-            const newTenantIds = new Set(additionalSyncFamilyIds);
-            newTenantIds.add(targetFamilyId);
-            recipe.tenantIds = Array.from(newTenantIds);
-        }
-
-        // Wait for cross-posts
+        // Wait for cross-posts and deletes
         if (promises.length > 0) await Promise.all(promises);
 
         // Finalize

@@ -21,6 +21,60 @@ import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator } from 'lucide-react';
 import Checkbox from './components/Checkbox';
 
+const getRecipeSignature = (r: Recipe) => {
+    const signatureObj = {
+        name: r.name,
+        description: r.description,
+        ingredients: r.ingredients,
+        instructions: r.instructions,
+        prepTime: r.prepTime,
+        prepTimeMax: r.prepTimeMax,
+        cookTime: r.cookTime,
+        cookTimeMax: r.cookTimeMax,
+        servings: r.servings,
+        yieldUnit: r.yieldUnit,
+        category: r.category,
+        tags: r.tags,
+        image: r.image,
+        video: r.video,
+        source: r.source,
+        nutrition: r.nutrition,
+        storageNotes: r.storageNotes,
+        cookware: r.cookware
+    };
+    return JSON.stringify(signatureObj);
+};
+
+const mergeIdenticalRecipes = (recipesList: Recipe[]) => {
+    const signatureMap = new Map<string, Recipe>();
+    
+    for (const r of recipesList) {
+        const sig = getRecipeSignature(r);
+        if (signatureMap.has(sig)) {
+            const existing = signatureMap.get(sig)!;
+            const allTenants = new Set([
+                ...(existing.tenantIds || []), 
+                ...(r.tenantIds || []),
+                existing.familyId !== 'private' ? existing.familyId : null,
+                r.familyId !== 'private' ? r.familyId : null
+            ].filter(Boolean) as string[]);
+            
+            existing.favorite = existing.favorite || r.favorite;
+            existing.tenantIds = Array.from(allTenants);
+            
+            if (!existing.mergedIds) existing.mergedIds = [existing.id];
+            if (!existing.mergedIds.includes(r.id)) {
+                existing.mergedIds.push(r.id);
+            }
+        } else {
+            const copy = JSON.parse(JSON.stringify(r));
+            copy.mergedIds = [copy.id];
+            signatureMap.set(sig, copy);
+        }
+    }
+    return Array.from(signatureMap.values());
+};
+
 const App: React.FC = () => {
   const NAV_BTN_BASE = "flex items-center gap-4 px-5 py-3 rounded-lg text-sm font-medium transition-all w-full";
   const NAV_BTN_INACTIVE = "text-text-secondary dark:text-text-secondary-dark hover:bg-white/5 dark:hover:bg-white/5 hover:text-forest-green dark:hover:text-white";
@@ -233,11 +287,12 @@ const App: React.FC = () => {
           db.getAllRecipes(),
           db.getSyncQueue()
       ]);
-      setRecipes(loadedRecipes);
+      const mergedRecipes = mergeIdenticalRecipes(loadedRecipes);
+      setRecipes(mergedRecipes);
       // Track which IDs are pending sync
       const pendingIds = new Set(queue.map(q => q.id));
       setPendingSyncIds(pendingIds);
-      return loadedRecipes;
+      return mergedRecipes;
     } catch (err) {
       console.error("Failed to load recipes", err);
       return [];
@@ -251,7 +306,8 @@ const App: React.FC = () => {
                 db.getAllRecipes(),
                 db.getSettings()
             ]);
-            setRecipes(loadedRecipes);
+            const mergedRecipes = mergeIdenticalRecipes(loadedRecipes);
+            setRecipes(mergedRecipes);
             setSettings(loadedSettings);
             applyTheme(loadedSettings.theme);
             
@@ -475,7 +531,11 @@ const App: React.FC = () => {
   };
 
   const performSave = async (recipe: Recipe) => {
-      await db.upsertRecipe(recipe);
+      // Remove mergedIds before saving as it's a UI-only concept
+      const recipeToSave = { ...recipe };
+      delete recipeToSave.mergedIds;
+      
+      await db.upsertRecipe(recipeToSave);
       await loadData();
       setIsFormOpen(false);
       setEditingRecipe(null);
@@ -501,7 +561,12 @@ const App: React.FC = () => {
 
   const handleToggleFavorite = async (e: React.MouseEvent | null, recipe: Recipe) => {
     if (e) e.stopPropagation();
-    const updated = { ...recipe, favorite: !recipe.favorite };
+    
+    // Remove mergedIds before saving
+    const recipeToSave = { ...recipe };
+    delete recipeToSave.mergedIds;
+    
+    const updated = { ...recipeToSave, favorite: !recipeToSave.favorite };
     // Pass localOnly: true to prevent syncing favorite status
     await db.upsertRecipe(updated, { localOnly: true });
     await loadData();
@@ -526,14 +591,20 @@ const App: React.FC = () => {
 
       const currentFamilyId = db.getCurrentFamilyId();
       const promises: Promise<any>[] = [];
+      
+      const idsToDelete = recipeToDelete.mergedIds && recipeToDelete.mergedIds.length > 0 
+          ? recipeToDelete.mergedIds 
+          : [recipeToDelete.id];
 
-      for (const familyId of selectedFamilyIds) {
-          if (familyId === 'private' || familyId === currentFamilyId) {
-              // Local Delete (handles sync if needed)
-              promises.push(db.deleteRecipe(recipeToDelete.id));
-          } else {
-              // Cross Delete
-              promises.push(db.crossDeleteRecipe(recipeToDelete.id, familyId));
+      for (const id of idsToDelete) {
+          for (const familyId of selectedFamilyIds) {
+              if (familyId === 'private' || familyId === currentFamilyId) {
+                  // Local Delete (handles sync if needed)
+                  promises.push(db.deleteRecipe(id));
+              } else {
+                  // Cross Delete
+                  promises.push(db.crossDeleteRecipe(id, familyId));
+              }
           }
       }
 
@@ -772,6 +843,7 @@ const App: React.FC = () => {
         {activeRecipeId && !editingRecipe ? (
             <RecipeDetail 
                 recipeId={activeRecipeId}
+                mergedTenantIds={recipes.find(r => r.id === activeRecipeId)?.tenantIds}
                 onClose={() => setActiveRecipeId(null)} 
                 onEdit={(r) => { setEditingRecipe(r); }} 
                 onRefreshList={loadData}

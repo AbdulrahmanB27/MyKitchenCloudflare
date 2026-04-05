@@ -110,6 +110,7 @@ export interface Recipe {
   tenantIds?: string[]; // List of families this recipe is synced to (local merge)
   schemaVersion?: number; 
   deleted?: boolean; // Tombstone flag for sync
+  mergedIds?: string[]; // IDs of identical recipes that were merged in the UI
 
   // Timestamps
   createdAt: number;

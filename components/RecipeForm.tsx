@@ -666,6 +666,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
       navigator.clipboard.writeText(JSON.stringify(exportData, null, 2)).then(() => showToast('Recipe JSON copied (clean format)!', 'success'));
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -705,7 +714,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             recipe.shareToFamily = true;
             recipe.familyId = targetFamilyId === currentFamilyId ? currentFamilyId : targetFamilyId;
             
-            const newTenantIds = new Set(additionalSyncFamilyIds);
+            const newTenantIds = new Set<string>(additionalSyncFamilyIds);
             newTenantIds.add(targetFamilyId);
             recipe.tenantIds = Array.from(newTenantIds);
         }
@@ -715,12 +724,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
         // 2. Handle Removals (Stop Syncing)
         const oldFamilyId = initialData?.familyId;
         const oldShared = initialData?.shareToFamily;
-        const oldTenantIds = new Set(initialData?.tenantIds || []);
+        const oldTenantIds = new Set<string>((initialData?.tenantIds || []) as string[]);
         if (oldShared && oldFamilyId) {
             oldTenantIds.add(oldFamilyId);
         }
 
-        oldTenantIds.forEach(oldTid => {
+        oldTenantIds.forEach((oldTid: string) => {
             // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs (or if moving to private)
             if (targetFamilyId === 'private' || (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid))) {
                 if (oldTid === currentFamilyId) {
@@ -983,6 +992,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
             }
             return newBlocks;
         });
+    } else if (type === 'INSTRUCTION_SECTION') {
+        setInstructionBlocks(prev => {
+            const newBlocks = [...prev];
+            const [removed] = newBlocks.splice(source.index, 1);
+            newBlocks.splice(destination.index, 0, removed);
+            return newBlocks;
+        });
+    } else if (type === 'INGREDIENT_SECTION') {
+        setIngredientBlocks(prev => {
+            const newBlocks = [...prev];
+            const [removed] = newBlocks.splice(source.index, 1);
+            newBlocks.splice(destination.index, 0, removed);
+            return newBlocks;
+        });
     }
   };
 
@@ -995,9 +1018,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
-      <form onSubmit={handleSubmit} className="relative w-full max-w-4xl bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-thin dark:border-border-dark">
+      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="relative w-full max-w-4xl bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-thin dark:border-border-dark">
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-thin dark:border-border-dark">
           <h2 className="text-xl font-bold text-text-main dark:text-text-main-dark">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <div className="flex items-center gap-1">
@@ -1019,7 +1042,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
               <button type="button" onClick={onClose} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-full transition-colors"><X size={20} className="text-text-secondary" /></button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-8 custom-scrollbar">
           <DragDropContext onDragEnd={onDragEnd}>
           {/* Basics */}
           <section className="space-y-4">
@@ -1164,7 +1187,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                    <label className={LABEL_CLASS}>Yield</label>
                    <div className="flex gap-2">
                        <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className={`${INPUT_CLASS} w-20 text-center`} placeholder="1"/>
-                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-[100px]`} placeholder="servings" />
+                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-0`} placeholder="servings" />
                    </div>
                </div>
              </div>
@@ -1190,172 +1213,214 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              </div>
           </section>
 
-             <section className="space-y-4">
+                       <section className="space-y-4">
              <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Ingredients</h3>
-             {ingredientBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative mb-6 last:mb-0">
-                     <div className="flex items-center gap-2 mb-3">
-                         <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
-                         {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
-                     </div>
-                     <Droppable droppableId={block.id} type="INGREDIENT">
-                        {(provided) => (
-                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                         {block.ingredients.map((ing, index) => (
-                                  <Draggable key={ing.id} draggableId={ing.id} index={index}>
-                                    {(provided, snapshot) => (
-                                      <div 
-                                        ref={provided.innerRef} 
-                                        {...provided.draggableProps} 
-                                        className={`flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
-                                      >
-                                          <div className="flex flex-col sm:flex-row gap-2">
-                                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                  <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0">
-                                                      <GripVertical size={18} />
-                                                  </div>
-                                         <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
-                                     </div>
-                                     <div className="flex items-center justify-between sm:justify-start gap-2 pl-7 sm:pl-0">
-                                         <div className="flex gap-2 items-center">
-                                             <input type="text" placeholder="Amt" value={ing.amount} onChange={e => {
-                                                 const value = e.target.value;
-                                                 if (value === '' || /^[0-9./\s]*$/.test(value)) {
-                                                     updateIngredientInBlock(block.id, ing.id, 'amount', value);
-                                                 }
-                                             }} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
-                                             <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
-                                         </div>
-                                         <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
-                                               <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
-                                               <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
-                                               <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
-                                               <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
-                                         </div>
-                                     </div>
-                                 </div>
-                                 
-                                 {/* Secondary & Substitution Rows */}
-                                 {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
-                                    <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark pl-7">
-                                        {ing.secondaryAmount !== undefined && (
-                                            <div className="flex gap-2 items-center">
-                                                <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
-                                                <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => {
-                                                     const value = e.target.value;
-                                                     if (value === '' || /^[0-9./\s]*$/.test(value)) {
-                                                         updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', value);
-                                                     }
-                                                 }} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
-                                                <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
+             <Droppable droppableId="ingredient-sections" type="INGREDIENT_SECTION">
+               {(provided) => (
+                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                   {ingredientBlocks.map((block, bIdx) => (
+                     <Draggable key={block.id} draggableId={block.id} index={bIdx} {...({} as any)}>
+                       {(provided, snapshot) => (
+                         <div 
+                           ref={provided.innerRef} 
+                           {...provided.draggableProps}
+                           className={`relative mb-6 last:mb-0 p-3 rounded-xl border transition-all ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-2xl border-forest-green/20 dark:border-accent-herb/20 z-[160]' : 'border-transparent'}`}
+                         >
+                            <div className="flex items-center gap-2 mb-3">
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-forest-green/30 dark:text-accent-herb/30 hover:text-forest-green dark:hover:text-accent-herb transition-colors shrink-0">
+                                    <GripVertical size={20} />
+                                </div>
+                                <input type="text" value={block.name} onChange={e => updateIngredientBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Ingredients" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
+                                {ingredientBlocks.length > 1 && <button type="button" onClick={() => removeIngredientBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
+                            </div>
+                            <Droppable droppableId={block.id} type="INGREDIENT">
+                               {(provided) => (
+                                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                                {block.ingredients.map((ing, index) => (
+                                         <Draggable key={ing.id} draggableId={ing.id} index={index} {...({} as any)}>
+                                           {(provided, snapshot) => (
+                                             <div 
+                                               ref={provided.innerRef} 
+                                               {...provided.draggableProps} 
+                                               className={`flex flex-col py-2 transition-colors border-b border-border-thin/50 dark:border-border-dark/50 last:border-0 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                             >
+                                                 <div className="flex flex-col sm:flex-row gap-2">
+                                                     <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                         <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0">
+                                                             <GripVertical size={18} />
+                                                         </div>
+                                                <input type="text" placeholder="Item Name" value={ing.item || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'item', e.target.value)} className={`w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-medium ${ing.optional ? 'text-text-secondary italic' : 'text-text-main dark:text-white'}`} />
                                             </div>
-                                        )}
-                                        {ing.substitution !== undefined && (
-                                            <div className="flex gap-2 items-center">
-                                                <div className="w-5 flex justify-center shrink-0"><ArrowRightLeft size={14} className="text-orange-400" /></div>
-                                                <input type="text" placeholder="Substitution notes..." value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
+                                            <div className="flex items-center justify-between sm:justify-start gap-2 pl-6 sm:pl-0 flex-wrap">
+                                                <div className="flex gap-2 items-center">
+                                                    <input type="text" placeholder="Amt" value={ing.amount} onChange={e => {
+                                                        const value = e.target.value;
+                                                        if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                            updateIngredientInBlock(block.id, ing.id, 'amount', value);
+                                                        }
+                                                    }} className="w-16 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-center text-text-main dark:text-white" />
+                                                    <input type="text" placeholder="Unit" value={ing.unit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'unit', e.target.value)} className="w-20 p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white" />
+                                                </div>
+                                                <div className="flex gap-1 items-center justify-end sm:justify-start pl-2 border-l border-border-thin dark:border-border-dark ml-2">
+                                                      <button type="button" onClick={() => toggleIngredientOptional(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16} /></button>
+                                                      <button type="button" onClick={() => toggleIngredientSecondary(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.secondaryAmount !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-400 hover:text-purple-400'}`} title="Add Secondary Measurement"><Scale size={16} /></button>
+                                                      <button type="button" onClick={() => toggleIngredientSub(block.id, ing.id)} className={`p-1.5 rounded transition-colors ${ing.substitution !== undefined ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400 hover:text-orange-400'}`} title="Add Substitution"><ArrowRightLeft size={16} /></button>
+                                                      <button type="button" onClick={() => removeIngredientFromBlock(block.id, ing.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded" title="Delete Ingredient"><Trash2 size={16} /></button>
+                                                </div>
                                             </div>
+                                        </div>
+                                        
+                                        {/* Secondary & Substitution Rows */}
+                                        {(ing.secondaryAmount !== undefined || ing.substitution !== undefined) && (
+                                           <div className="w-full flex flex-col gap-2 mt-2 pt-2 border-t border-dashed border-border-thin dark:border-border-dark pl-6">
+                                               {ing.secondaryAmount !== undefined && (
+                                                   <div className="flex gap-2 items-center">
+                                                       <div className="w-5 flex justify-center shrink-0"><Scale size={14} className="text-purple-400" /></div>
+                                                       <input type="text" placeholder="Sec. Amt" value={ing.secondaryAmount || ''} onChange={e => {
+                                                            const value = e.target.value;
+                                                            if (value === '' || /^[0-9./\s]*$/.test(value)) {
+                                                                updateIngredientInBlock(block.id, ing.id, 'secondaryAmount', value);
+                                                            }
+                                                        }} className="w-20 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs text-center" />
+                                                       <input type="text" placeholder="Sec. Unit (e.g. g)" value={ing.secondaryUnit || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'secondaryUnit', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
+                                                   </div>
+                                               )}
+                                               {ing.substitution !== undefined && (
+                                                   <div className="flex gap-2 items-center">
+                                                       <div className="w-5 flex justify-center shrink-0"><ArrowRightLeft size={14} className="text-orange-400" /></div>
+                                                       <input type="text" placeholder="Substitution notes..." value={ing.substitution || ''} onChange={e => updateIngredientInBlock(block.id, ing.id, 'substitution', e.target.value)} className="flex-1 p-1.5 rounded border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-xs" />
+                                                   </div>
+                                               )}
+                                           </div>
                                         )}
                                     </div>
-                                 )}
-                             </div>
-                                   )}
-                                 </Draggable>
-                             ))}
-                             {provided.placeholder}
-                         <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
-                     </div>
-                   )}
-                 </Droppable>
+                                          )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                    <button type="button" onClick={() => addIngredientToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 mt-2 hover:underline"><Plus size={16} /> Add Ingredient</button>
+                                 </div>
+                               )}
+                             </Droppable>
+                          </div>
+                        )}
+                      </Draggable>
+                   ))}
+                   {provided.placeholder}
                  </div>
-             ))}
+               )}
+             </Droppable>
              <button type="button" onClick={addIngredientBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Ingredient Group</button>
           </section>
 
           <section className="space-y-4">
              <h3 className="text-lg font-bold text-forest-green dark:text-accent-herb border-b border-border-thin dark:border-border-dark pb-2">Instructions</h3>
-             {instructionBlocks.map((block, bIdx) => (
-                 <div key={block.id} className="relative mb-6 last:mb-0">
-                     <div className="flex items-center gap-2 mb-3">
-                         <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
-                         {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
-                     </div>
-                     <Droppable droppableId={block.id} type="INSTRUCTION">
-                       {(provided) => (
-                         <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
-                             {block.steps.map((step, idx) => (
-                                 <Draggable key={step.id} draggableId={step.id} index={idx}>
-                                   {(provided, snapshot) => (
-                                     <div 
-                                       ref={provided.innerRef} 
-                                       {...provided.draggableProps} 
-                                       className={`flex gap-3 py-2 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
-                                     >
-                                         <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0 mt-2">
-                                             <GripVertical size={18} />
-                                         </div>
-                                         <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
-                                         <div className="flex-1 space-y-2 min-w-0">
-                                     <div className="flex gap-2 items-center">
-                                        <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
-                                        <div className="flex gap-1 shrink-0">
-                                            <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
-                                            <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
-                                            <button type="button" onClick={() => toggleStepImage(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.image !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Image"><ImageIcon size={16}/></button>
-                                            <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
-                                            <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
-                                        </div>
-                                     </div>
-                                     <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white resize-none" />
-                                     <div className="flex flex-wrap gap-2">
-                                         {step.timer !== undefined && (
-                                             <div className="flex items-center gap-1 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-md px-2 py-1">
-                                                 <Clock size={12} className="text-forest-green dark:text-accent-herb"/>
-                                                 <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0 text-text-main dark:text-white" placeholder="Min" />
-                                                 <span className="text-xs text-forest-green dark:text-accent-herb font-medium">min</span>
+             <Droppable droppableId="instruction-sections" type="INSTRUCTION_SECTION">
+               {(provided) => (
+                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                   {instructionBlocks.map((block, bIdx) => (
+                     <Draggable key={block.id} draggableId={block.id} index={bIdx} {...({} as any)}>
+                       {(provided, snapshot) => (
+                         <div 
+                           ref={provided.innerRef} 
+                           {...provided.draggableProps}
+                           className={`relative mb-6 last:mb-0 p-3 rounded-xl border transition-all ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-2xl border-forest-green/20 dark:border-accent-herb/20 z-[160]' : 'border-transparent'}`}
+                         >
+                            <div className="flex items-center gap-2 mb-3">
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-forest-green/30 dark:text-accent-herb/30 hover:text-forest-green dark:hover:text-accent-herb transition-colors shrink-0">
+                                    <GripVertical size={20} />
+                                </div>
+                                <input type="text" value={block.name} onChange={e => updateInstructionBlockName(block.id, e.target.value)} placeholder={bIdx === 0 ? "Main Instructions" : "Section Name"} className="bg-transparent font-bold text-forest-green dark:text-accent-herb placeholder:text-forest-green/40 dark:placeholder:text-accent-herb/40 focus:outline-none w-full"/>
+                                {instructionBlocks.length > 1 && <button type="button" onClick={() => removeInstructionBlock(block.id)} className="text-red-400 p-1"><Trash2 size={16}/></button>}
+                            </div>
+                            <Droppable droppableId={block.id} type="INSTRUCTION">
+                              {(provided) => (
+                                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                                  {block.steps.map((step, idx) => (
+                                      <Draggable key={step.id} draggableId={step.id} index={idx} {...({} as any)}>
+                                        {(provided, snapshot) => (
+                                          <div 
+                                            ref={provided.innerRef} 
+                                            {...provided.draggableProps} 
+                                            className={`flex gap-2 sm:gap-3 py-2 ${snapshot.isDragging ? 'bg-bg-subtle dark:bg-card-dark shadow-lg rounded-lg border-none z-50' : ''}`}
+                                          >
+                                              <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-secondary/40 hover:text-text-secondary transition-colors shrink-0 mt-2">
+                                                  <GripVertical size={18} />
+                                              </div>
+                                              <div className={`size-6 rounded-full flex items-center justify-center text-xs font-bold mt-1 shrink-0 ${step.optional ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800' : 'bg-forest-green/10 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb'}`}>{idx + 1}</div>
+                                              <div className="flex-1 space-y-2 min-w-0">
+                                          <div className="flex gap-2 items-center">
+                                             <input type="text" value={step.title || ''} onChange={e => updateStepInBlock(block.id, step.id, 'title', e.target.value)} placeholder="Title (Opt)" className="w-full p-1.5 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm font-bold text-text-main dark:text-white" />
+                                             <div className="flex gap-1 shrink-0">
+                                                 <button type="button" onClick={() => toggleStepTimer(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.timer !== undefined ? 'text-forest-green dark:text-accent-herb bg-forest-green/10 dark:bg-accent-herb/20' : 'text-gray-300 hover:text-forest-green dark:hover:text-accent-herb'}`} title="Add Timer"><Clock size={16}/></button>
+                                                 <button type="button" onClick={() => toggleStepTip(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.tip !== undefined ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400'}`} title="Add Tip"><Lightbulb size={16}/></button>
+                                                 <button type="button" onClick={() => toggleStepImage(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.image !== undefined ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-gray-300 hover:text-purple-400'}`} title="Add Image"><ImageIcon size={16}/></button>
+                                                 <button type="button" onClick={() => toggleStepOptional(block.id, step.id)} className={`p-1.5 rounded transition-colors ${step.optional ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-300 hover:text-blue-400'}`} title="Toggle Optional"><AlertCircle size={16}/></button>
+                                                 <button type="button" onClick={() => removeStepFromBlock(block.id, step.id)} className="text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"><Trash2 size={16}/></button>
                                              </div>
-                                         )}
-                                         {step.tip !== undefined && (
-                                             <div className="flex items-center gap-1 flex-1 min-w-[200px]">
-                                                 <input type="text" value={step.tip} onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} placeholder="Add a helpful tip..." className="w-full p-1.5 rounded border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 text-xs text-text-main dark:text-white" />
-                                             </div>
-                                         )}
-                                        {step.image !== undefined && (
-                                            <div className="flex flex-col gap-2 w-full">
-                                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                                                    <input type="text" value={step.image} onChange={e => updateStepInBlock(block.id, step.id, 'image', e.target.value)} placeholder="Image URL..." className="w-full p-1.5 rounded border border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:border-purple-900/30 focus:border-purple-400 text-xs text-text-main dark:text-white" disabled={isUploading} />
-                                                    <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`}>
-                                                        <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
-                                                        {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
-                                                    </label>
-                                                </div>
-                                                {step.image && (
-                                                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border-thin dark:border-border-dark mt-1">
-                                                        <img src={step.image} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => updateStepInBlock(block.id, step.id, 'image', '')}
-                                                            className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                     </div>
-                                 </div>
-                             </div>
+                                          </div>
+                                          <textarea value={step.text || ''} onChange={e => updateStepInBlock(block.id, step.id, 'text', e.target.value)} placeholder="Step description..." rows={2} className="w-full p-2 rounded-md border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb focus:outline-none text-sm text-text-main dark:text-white resize-none" />
+                                          <div className="flex flex-wrap gap-2">
+                                              {step.timer !== undefined && (
+                                                  <div className="flex items-center gap-1 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-md px-2 py-1">
+                                                      <Clock size={12} className="text-forest-green dark:text-accent-herb"/>
+                                                      <input type="number" value={step.timer} onChange={e => updateStepInBlock(block.id, step.id, 'timer', parseInt(e.target.value))} className="bg-transparent border-none p-0 text-xs w-12 text-center font-bold focus:ring-0 text-text-main dark:text-white" placeholder="Min" />
+                                                      <span className="text-xs text-forest-green dark:text-accent-herb font-medium">min</span>
+                                                  </div>
+                                              )}
+                                              {step.tip !== undefined && (
+                                                  <div className="flex items-start gap-1 flex-1 min-w-0">
+                                                      <textarea 
+                                                          value={step.tip} 
+                                                          onChange={e => updateStepInBlock(block.id, step.id, 'tip', e.target.value)} 
+                                                          placeholder="Add a helpful tip..." 
+                                                          rows={2}
+                                                          className="w-full p-2 rounded border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 dark:border-yellow-900/30 focus:border-yellow-400 text-xs text-text-main dark:text-white resize-none" 
+                                                      />
+                                                  </div>
+                                              )}
+                                             {step.image !== undefined && (
+                                                 <div className="flex flex-col gap-2 w-full">
+                                                     <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                         <input type="text" value={step.image} onChange={e => updateStepInBlock(block.id, step.id, 'image', e.target.value)} placeholder="Image URL..." className="w-full p-1.5 rounded border border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:border-purple-900/30 focus:border-purple-400 text-xs text-text-main dark:text-white" disabled={isUploading} />
+                                                         <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`}>
+                                                             <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
+                                                             {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
+                                                         </label>
+                                                     </div>
+                                                     {step.image && (
+                                                         <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border-thin dark:border-border-dark mt-1">
+                                                             <img src={step.image} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                             <button 
+                                                                 type="button" 
+                                                                 onClick={() => updateStepInBlock(block.id, step.id, 'image', '')}
+                                                                 className="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                                                             >
+                                                                 <X size={12} />
+                                                             </button>
+                                                         </div>
+                                                     )}
+                                                 </div>
+                                             )}
+                                          </div>
+                                       </div>
+                                    </div>
                                    )}
                                  </Draggable>
-                             ))}
-                             {provided.placeholder}
-                         <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
-                     </div>
-                   )}
-                 </Droppable>
+                                  ))}
+                                  {provided.placeholder}
+                                  <button type="button" onClick={() => addStepToBlock(block.id)} className="text-sm font-bold text-forest-green dark:text-accent-herb flex items-center gap-1 hover:underline"><Plus size={16} /> Add Step</button>
+                                </div>
+                              )}
+                            </Droppable>
+                         </div>
+                       )}
+                     </Draggable>
+                   ))}
+                   {provided.placeholder}
                  </div>
-             ))}
+               )}
+             </Droppable>
              <button type="button" onClick={addInstructionBlock} className="w-full py-2 border-2 border-dashed border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb font-bold rounded-lg hover:bg-forest-green/5 dark:hover:bg-accent-herb/5">+ Add Instruction Section</button>
           </section>
 

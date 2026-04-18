@@ -109,6 +109,7 @@ const App: React.FC = () => {
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isCookMode, setIsCookMode] = useState(false);
   
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -280,6 +281,67 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [showDeleteModal, showAuthModal, showExportModal, isFormOpen, activeRecipeId, isMobileMenuOpen, currentView]);
+
+  // --- History Management for Hardware Back Button ---
+  const isPoppingState = useRef(false);
+  
+  useEffect(() => {
+      // Sync state to history whenever significant view state changes
+      if (loading) return;
+      if (isPoppingState.current) {
+          isPoppingState.current = false;
+          return;
+      }
+
+      const currentState = {
+          view: currentView,
+          recipeId: activeRecipeId,
+          isForm: isFormOpen || !!editingRecipe,
+          isCook: isCookMode
+      };
+
+      // Only push if different from current history state
+      const histState = window.history.state;
+      const isDifferent = !histState || 
+          histState.view !== currentState.view || 
+          histState.recipeId !== currentState.recipeId || 
+          histState.isForm !== currentState.isForm || 
+          histState.isCook !== currentState.isCook;
+
+      if (isDifferent) {
+          window.history.pushState(currentState, '');
+      }
+  }, [currentView, activeRecipeId, isFormOpen, editingRecipe, isCookMode, loading]);
+
+  useEffect(() => {
+      const handlePopState = (event: PopStateEvent) => {
+          const state = event.state;
+          isPoppingState.current = true;
+          
+          if (state) {
+              setCurrentView(state.view || 'recipes');
+              setActiveRecipeId(state.recipeId || null);
+              if (!state.isForm) {
+                  setIsFormOpen(false);
+                  setEditingRecipe(null);
+              }
+              setIsCookMode(state.isCook || false);
+          } else {
+              // Level 0: Home
+              setCurrentView('recipes');
+              setActiveRecipeId(null);
+              setIsFormOpen(false);
+              setEditingRecipe(null);
+              setIsCookMode(false);
+          }
+      };
+
+      // Initialize history
+      window.history.replaceState({ view: 'recipes', recipeId: null, isForm: false, isCook: false }, '');
+      
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -644,22 +706,27 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen overflow-hidden font-sans bg-bg-white dark:bg-bg-dark text-text-main dark:text-white transition-colors duration-200">
       
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-[90] md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside 
-        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
+        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
       >
         <div className={`p-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-3'}`}>
             {!isSidebarCollapsed ? (
-                <>
-                    <UtensilsCrossed className="size-8 text-accent-herb" />
-                    <h1 className="text-2xl font-black tracking-tightest text-text-main dark:text-white uppercase">MyKitchen</h1>
-                </>
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <UtensilsCrossed className="size-8 text-accent-herb shrink-0" />
+                    <h1 className="text-xl sm:text-2xl font-black tracking-tightest text-text-main dark:text-white uppercase truncate">MyKitchen</h1>
+                </div>
             ) : (
                 <UtensilsCrossed className="size-8 text-accent-herb" />
             )}
-            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden ml-auto text-text-secondary hover:text-text-main dark:hover:text-white transition-colors">
-                <CloseIcon size={24} />
-            </button>
         </div>
 
         {/* Desktop Sidebar Toggle */}
@@ -845,6 +912,8 @@ const App: React.FC = () => {
                 recipeId={activeRecipeId}
                 mergedTenantIds={recipes.find(r => r.id === activeRecipeId)?.tenantIds}
                 onClose={() => setActiveRecipeId(null)} 
+                isCookMode={isCookMode}
+                setIsCookMode={setIsCookMode}
                 onEdit={(r) => { setEditingRecipe(r); }} 
                 onRefreshList={loadData}
             />
@@ -857,7 +926,7 @@ const App: React.FC = () => {
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
-                        <div className="md:hidden p-4 flex items-center gap-3 bg-bg-white dark:bg-sidebar-dark border-b border-border-thin dark:border-border-dark sticky top-0 z-10">
+                        <div className="md:hidden p-4 flex items-center gap-3 bg-bg-white dark:bg-sidebar-dark border-b border-border-thin dark:border-border-dark sticky top-0 z-40">
                             <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 -ml-1 shrink-0 text-text-main dark:text-white">
                                 <Menu size={24} />
                             </button>
@@ -902,7 +971,7 @@ const App: React.FC = () => {
                                     <div className="flex justify-between items-center gap-4">
                                         <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:w-auto sm:gap-2">
                                             {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white border-transparent shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
                                                     {cat}
                                                 </button>
                                             ))}
@@ -915,7 +984,7 @@ const App: React.FC = () => {
                                             
                                             let activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
                                             if (tag === 'All') {
-                                                activeClass = "bg-forest-green dark:bg-white text-white dark:text-black border-forest-green dark:border-white";
+                                                activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
                                             } else if (tag === 'Favorites') {
                                                 activeClass = "bg-forest-green dark:bg-card-dark text-white dark:text-accent-herb border-forest-green dark:border-border-dark";
                                             }

@@ -10,9 +10,10 @@ interface SortMenuProps {
   options: SortOption[];
   currentSort: string;
   onSortChange: (value: any) => void;
+  align?: 'left' | 'right';
 }
 
-const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange }) => {
+const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange, align = 'right' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -49,7 +50,7 @@ const SortMenu: React.FC<SortMenuProps> = ({ options, currentSort, onSortChange 
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-48 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
           <div className="py-1">
             {options.map((option) => (
               <button

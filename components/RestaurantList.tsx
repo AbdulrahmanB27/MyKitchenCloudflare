@@ -939,10 +939,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
                             {/* Filters */}
                             <div className="space-y-4 mb-8">
-                                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar items-center">
+                                <div className="flex gap-3 overflow-x-auto pb-4 pt-1 px-1 no-scrollbar items-center">
                                     <button 
                                         onClick={() => setFilterTag(null)}
-                                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                        className={`shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${!filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                     >
                                         All
                                     </button>
@@ -950,7 +950,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                                         <button 
                                             key={tag}
                                             onClick={() => setFilterTag(tag === filterTag ? null : tag)}
-                                            className={`px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
+                                            className={`shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${tag === filterTag ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}
                                         >
                                             {tag}
                                         </button>

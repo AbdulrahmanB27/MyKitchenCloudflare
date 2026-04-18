@@ -224,8 +224,9 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                      <div className="flex flex-wrap gap-2 items-center">
                          {/* Sort Dropdown */}
                          <SortMenu 
+                             align="left"
                              currentSort={sortBy} 
-                             onSortChange={(val) => setSortBy(val as SortOption)} 
+                             onSortChange={(val) => setSortBy(val as SortOption)}  
                              options={[
                                  { label: 'Relevance', value: 'relevance' },
                                  { label: 'Fastest', value: 'time' },

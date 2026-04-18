@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot } from 'lucide-react';
+import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot, Mic, MicOff } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 import * as db from '../services/db';
 import Checkbox from './Checkbox';
@@ -41,6 +41,13 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
 
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const speakText = (text: string) => {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+  };
 
   // Helper to extract text from Instruction or String
   const getStepText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
@@ -122,6 +129,109 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
   }, [recipe]);
 
   // --- Effects ---
+
+  // --- Voice Commands State & Logic ---
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef(false);
+
+  const stateRef = useRef({ 
+      currentStep, 
+      allSteps, 
+      isFinished: currentStep >= allSteps.length,
+      allIngredients,
+      isCountdown,
+      timerSeconds,
+      timerTarget,
+      isTimerRunning
+  });
+
+  useEffect(() => {
+      stateRef.current = { currentStep, allSteps, isFinished: currentStep >= allSteps.length, allIngredients, isCountdown, timerSeconds, timerTarget, isTimerRunning };
+  }, [currentStep, allSteps, allIngredients, isCountdown, timerSeconds, timerTarget, isTimerRunning]);
+
+  useEffect(() => {
+      isListeningRef.current = isListening;
+      if (isListening && recognitionRef.current) {
+          try { recognitionRef.current.start(); } catch(e) {}
+      } else if (!isListening && recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch(e) {}
+      }
+  }, [isListening]);
+
+  useEffect(() => {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event: any) => {
+          const lastResultIndex = event.results.length - 1;
+          const command = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
+          console.log('Voice Command Heard:', command);
+
+          if (command.includes('next') || command.includes('forward')) {
+              setCurrentStep(c => Math.min(stateRef.current.allSteps.length, c + 1));
+          } else if (command.includes('back') || command.includes('previous')) {
+              setCurrentStep(c => Math.max(0, c - 1));
+          } else if (command.includes('pause') || command.includes('stop timer')) {
+              setIsTimerRunning(false);
+          } else if (command.includes('start') || command.includes('resume')) {
+              setIsTimerRunning(true);
+          } else if (command.includes('read step') || command.includes('read instruction') || command.includes('read that')) {
+              const { currentStep, allSteps, isFinished } = stateRef.current;
+              if (!isFinished) {
+                  const stepTxt = allSteps[currentStep]?.txt;
+                  if (stepTxt) speakText(stepTxt);
+              }
+          } else if (command.includes('read ingredients')) {
+              const ings = stateRef.current.allIngredients.map(i => i.txt).join('. ');
+              speakText("Ingredients are: " + ings);
+          } else if (command.match(/add (\d+) minute/)) {
+              const minsMatch = command.match(/add (\d+) minute/);
+              if (minsMatch) {
+                  const mins = parseInt(minsMatch[1], 10);
+                  setTimerSeconds(prev => Math.max(0, prev + mins * 60));
+                  setTimerTarget(prev => (prev || 0) + mins * 60);
+                  setHasAlerted(false);
+                  speakText(`Added ${mins} minutes`);
+              }
+          } else if (command.includes('timer') && command.match(/(\d+)/)) {
+              const minsMatch = command.match(/(\d+)/);
+              if (minsMatch) {
+                  const mins = parseInt(minsMatch[1], 10);
+                  setManualTimers(prev => [...prev, { id: Date.now(), label: `${mins}m Timer`, timeLeft: mins * 60, running: true }]);
+                  speakText(`Started a ${mins} minute timer`);
+              }
+          }
+      };
+
+      recognition.onerror = (e: any) => {
+          console.warn('Speech Rec Error:', e.error);
+          if (e.error === 'not-allowed') {
+              setIsListening(false);
+              alert("Microphone permission denied.");
+          }
+      };
+
+      recognition.onend = () => {
+          if (isListeningRef.current) {
+              try { recognition.start(); } catch(e) {}
+          }
+      };
+
+      recognitionRef.current = recognition;
+
+      return () => {
+          if (recognitionRef.current) {
+              recognitionRef.current.onend = null;
+              recognitionRef.current.stop();
+          }
+      };
+  }, []);
 
   // --- Wake Lock ---
   useEffect(() => {
@@ -381,6 +491,15 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
             </div>
         </div>
         <div className="flex items-center gap-2">
+            {((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) && (
+                 <button 
+                    onClick={() => setIsListening(!isListening)} 
+                    className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-white/10'}`}
+                    title={isListening ? "Listening for commands..." : "Enable Voice Commands"}
+                 >
+                     {isListening ? <Mic size={20} /> : <MicOff size={20} />}
+                 </button>
+            )}
             <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
                 <span className="material-symbols-outlined">{isFullscreen ? 'close_fullscreen' : 'fullscreen'}</span>
             </button>

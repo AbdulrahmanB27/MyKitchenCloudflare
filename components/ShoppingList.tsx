@@ -330,7 +330,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 value={newItemItem}
                 onChange={(e) => setNewItemItem(e.target.value)}
                 placeholder="Item (e.g. Flour)"
-                className="flex-1 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+                className="flex-1 min-w-0 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
             </div>
             <button

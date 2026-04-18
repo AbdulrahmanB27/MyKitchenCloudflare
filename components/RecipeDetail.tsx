@@ -12,6 +12,8 @@ interface RecipeDetailProps {
   recipeId: string;
   mergedTenantIds?: string[];
   onClose: () => void;
+  isCookMode: boolean;
+  setIsCookMode: (val: boolean) => void;
   onEdit: (recipe: Recipe) => void;
   onRefreshList: () => void;
 }
@@ -22,13 +24,12 @@ interface ActiveTimer {
     notified: boolean;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, onEdit, onRefreshList }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, isCookMode, setIsCookMode, onEdit, onRefreshList }) => {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
   const [currentServings, setCurrentServings] = useState<number | ''>(1); // Allow empty string state
-  const [isCookMode, setIsCookMode] = useState(false);
   
   // Review State
   const [isRatingOpen, setIsRatingOpen] = useState(false);

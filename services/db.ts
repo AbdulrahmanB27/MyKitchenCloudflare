@@ -96,7 +96,7 @@ export const getPinnedFamilyId = (): string | null => {
     return getCurrentFamilyId();
 };
 
-export const getSavedSessions = (): { id: string, name: string, token: string }[] => {
+export const getSavedSessions = (): { id: string, name: string, token: string, password?: string }[] => {
     try {
         return JSON.parse(safeGetItem(STORAGE_KEY_SESSIONS) || '[]');
     } catch { return []; }
@@ -254,6 +254,7 @@ export const syncDown = async () => {
     // --- Recipes Sync (Multi-Tenant Merge) ---
     try {
         const allFetchedRecipes: Recipe[] = [];
+        const successfulSessionIds = new Set<string>();
         
         // Fetch from all sessions in parallel
         await Promise.all(sessions.map(async (session) => {
@@ -267,13 +268,15 @@ export const syncDown = async () => {
                 if (res.ok) {
                     const recipes = await res.json();
                     allFetchedRecipes.push(...recipes);
+                    successfulSessionIds.add(session.id);
                 }
             } catch (e) {
                 console.warn(`Failed to sync session ${session.name}`, e);
             }
         }));
 
-        if (allFetchedRecipes.length > 0) {
+        // Always process if we successfully fetched from ANY session or have data
+        if (allFetchedRecipes.length > 0 || successfulSessionIds.size > 0) {
             // Group by ID to merge
             const grouped = new Map<string, Recipe[]>();
             for (const r of allFetchedRecipes) {
@@ -290,6 +293,7 @@ export const syncDown = async () => {
                 const local = localMap.get(id);
                 if (local) {
                     versions.push(local);
+                    localMap.delete(id); // mark as processed
                 }
 
                 // Collect all tenantIds where this recipe exists AND is NOT deleted
@@ -324,6 +328,21 @@ export const syncDown = async () => {
                     await idb.put(STORE_RECIPES, merged);
                 }
             }
+
+            // Clean up hard-deleted shared recipes
+            // Any recipe left in `localMap` was NOT returned by any successful backend session.
+            for (const [id, localRecipe] of localMap) {
+                if (localRecipe.shareToFamily) {
+                    const relevantTenants = localRecipe.tenantIds?.length ? localRecipe.tenantIds : [localRecipe.familyId];
+                    // If we successfully fetched from ALL the families this recipe claims to belong to:
+                    const allRelevantTenantsFetched = relevantTenants.every(tid => !tid || successfulSessionIds.has(tid));
+                    
+                    if (allRelevantTenantsFetched && relevantTenants.some(tid => tid)) {
+                        await idb.remove(STORE_RECIPES, id);
+                    }
+                }
+            }
+
             window.dispatchEvent(new Event('recipes-updated'));
         }
     } catch (e) { console.warn("Failed to sync recipes", e); }
@@ -559,7 +578,10 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     const sessions = getSavedSessions();
     const targetSession = sessions.find(s => s.id === targetFamilyId);
     
-    if (!targetSession) throw new Error("Not authenticated with target family");
+    if (!targetSession) {
+        console.warn(`Skipping cross-post to ${targetFamilyId}: Not authenticated`);
+        return;
+    }
     
     // Ensure the recipe is set to be shared
     const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
@@ -584,7 +606,10 @@ export const crossDeleteRecipe = async (recipeId: string, targetFamilyId: string
     const sessions = getSavedSessions();
     const targetSession = sessions.find(s => s.id === targetFamilyId);
     
-    if (!targetSession) throw new Error("Not authenticated with target family");
+    if (!targetSession) {
+        console.warn(`Skipping cross-delete to ${targetFamilyId}: Not authenticated`);
+        return;
+    }
 
     try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
@@ -607,11 +632,13 @@ export const getShoppingList = async (): Promise<ShoppingItem[]> => {
 
 export const upsertShoppingItem = async (item: ShoppingItem) => {
     await idb.put(STORE_SHOPPING, item);
+    window.dispatchEvent(new Event('shopping-updated'));
     // Local only - no sync
 };
 
 export const deleteShoppingItem = async (id: string) => {
     await idb.remove(STORE_SHOPPING, id);
+    window.dispatchEvent(new Event('shopping-updated'));
 };
 
 export const clearShoppingList = async (purchasedOnly: boolean) => {
@@ -623,6 +650,7 @@ export const clearShoppingList = async (purchasedOnly: boolean) => {
         const all = await idb.getAll<ShoppingItem>(STORE_SHOPPING);
         for(const item of all) await idb.remove(STORE_SHOPPING, item.id);
     }
+    window.dispatchEvent(new Event('shopping-updated'));
 };
 
 // --- Meal Plans ---
@@ -633,6 +661,7 @@ export const getMealPlans = async (): Promise<MealPlan[]> => {
 
 export const upsertMealPlan = async (plan: MealPlan) => {
     await idb.put(STORE_PLANS, plan);
+    window.dispatchEvent(new Event('plans-updated'));
     if (hasAuthToken()) {
         apiCall('/plans', 'POST', plan).catch(console.error);
     }
@@ -640,6 +669,7 @@ export const upsertMealPlan = async (plan: MealPlan) => {
 
 export const deleteMealPlan = async (id: string) => {
     await idb.remove(STORE_PLANS, id);
+    window.dispatchEvent(new Event('plans-updated'));
     if (hasAuthToken()) {
         apiCall(`/plans?id=${id}`, 'DELETE').catch(console.error);
     }
@@ -697,7 +727,7 @@ export const authenticate = async (familyName: string, password: string, turnsti
     try {
         const res = await apiCall('/auth/login', 'POST', { familyName, password, turnstileToken });
         if (res.token) {
-            handleLoginSuccess(res.token, res.familyId, res.name);
+            handleLoginSuccess(res.token, res.familyId, res.name, password);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -710,6 +740,28 @@ export const registerFamily = async (familyName: string, password: string, admin
     try {
         const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword, turnstileToken });
         if (res.token) {
+            handleLoginSuccess(res.token, res.familyId, res.name, password);
+            return { success: true };
+        }
+        return { success: false, error: 'Invalid response' };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+export const generateFamilyLink = async (type: 'temporary' | 'view'): Promise<{ success: boolean; token?: string; error?: string }> => {
+    try {
+        const res = await apiCall('/family-links/generate', 'POST', { type });
+        return { success: true, token: res.token };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+};
+
+export const useFamilyJoinLink = async (token: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const res = await apiCall('/family-links/join', 'POST', { token });
+        if (res.token) {
             handleLoginSuccess(res.token, res.familyId, res.name);
             return { success: true };
         }
@@ -719,7 +771,19 @@ export const registerFamily = async (familyName: string, password: string, admin
     }
 };
 
-const handleLoginSuccess = (token: string, familyId: string, name: string) => {
+export const fetchPublicFamily = async (token: string): Promise<{ familyName: string, recipes: Recipe[] } | null> => {
+    try {
+        // Unauthenticated fetch, avoiding apiCall
+        const res = await fetch(`${API_BASE}/family-links/view/${token}`);
+        if (!res.ok) throw new Error("Link invalid or expired");
+        return await res.json();
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
+};
+
+const handleLoginSuccess = (token: string, familyId: string, name: string, password?: string) => {
     safeSetItem(STORAGE_KEY_TOKEN, token);
     safeSetItem(STORAGE_KEY_FAMILY_ID, familyId);
     safeSetItem(STORAGE_KEY_FAMILY_NAME, name);
@@ -727,17 +791,24 @@ const handleLoginSuccess = (token: string, familyId: string, name: string) => {
     // Save session
     const sessions = getSavedSessions();
     if (!sessions.find(s => s.id === familyId)) {
-        sessions.push({ id: familyId, name, token });
+        sessions.push({ id: familyId, name, token, password });
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } else {
-        // Update token
-        const updated = sessions.map(s => s.id === familyId ? { ...s, token } : s);
+        // Update token and password
+        const updated = sessions.map(s => s.id === familyId ? { ...s, token, password: password || s.password } : s);
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
     // Trigger sync
     retrySync();
     syncDown();
+};
+
+export const getCurrentFamilyPassword = (): string | undefined => {
+    const familyId = getCurrentFamilyId();
+    if (!familyId) return undefined;
+    const session = getSavedSessions().find(s => s.id === familyId);
+    return session?.password;
 };
 
 export const switchFamily = (familyId: string) => {

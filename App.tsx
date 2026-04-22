@@ -20,6 +20,7 @@ import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator } from 'lucide-react';
 import Checkbox from './components/Checkbox';
+import MissingIngredientsBanner from './components/MissingIngredientsBanner';
 
 const getRecipeSignature = (r: Recipe) => {
     const signatureObj = {
@@ -114,11 +115,21 @@ const App: React.FC = () => {
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register' | 'switch'>('login');
+  const [authModalFamilyName, setAuthModalFamilyName] = useState('');
+  
+  // Public Link State
+  const [publicFamilyView, setPublicFamilyView] = useState<{ familyName: string, recipes: Recipe[] } | null>(null);
+  const [isLoadingLink, setIsLoadingLink] = useState(false);
+
   const [showExportModal, setShowExportModal] = useState(false);
   
   // Delete Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
+  
+  // Missing ingredients reminder
+  const [upcomingMissingRecipes, setUpcomingMissingRecipes] = useState<Recipe[]>([]);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   
   // State to hold a recipe that is waiting for authentication to be saved
   const [pendingRecipeSave, setPendingRecipeSave] = useState<Recipe | null>(null);
@@ -354,11 +365,44 @@ const App: React.FC = () => {
       // Track which IDs are pending sync
       const pendingIds = new Set(queue.map(q => q.id));
       setPendingSyncIds(pendingIds);
+      
+      // Check for missing ingredients
+      checkMissingIngredients(mergedRecipes);
+      
       return mergedRecipes;
     } catch (err) {
       console.error("Failed to load recipes", err);
       return [];
     }
+  };
+
+  const checkMissingIngredients = async (currentRecipes: Recipe[]) => {
+      try {
+          const [plans, shopping] = await Promise.all([
+              db.getMealPlans(),
+              db.getShoppingList()
+          ]);
+          
+          const today = new Date().toISOString().split('T')[0];
+          const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+          
+          // Get all recipes planned for today or tomorrow
+          const upcomingPlans = plans.filter(p => p.date === today || p.date === tomorrow);
+          const recipesWithMissing = new Set<string>();
+          
+          for (const plan of upcomingPlans) {
+              // A recipe is "missing ingredients" if it has UNCHECKED items on the shopping list
+              const hasUnchecked = shopping.some(item => item.recipeId === plan.recipeId && !item.isChecked);
+              if (hasUnchecked) {
+                  recipesWithMissing.add(plan.recipeId);
+              }
+          }
+          
+          const missing = currentRecipes.filter(r => recipesWithMissing.has(r.id));
+          setUpcomingMissingRecipes(missing);
+      } catch (err) {
+          console.error("Error checking missing ingredients", err);
+      }
   };
 
   useEffect(() => {
@@ -368,8 +412,7 @@ const App: React.FC = () => {
                 db.getAllRecipes(),
                 db.getSettings()
             ]);
-            const mergedRecipes = mergeIdenticalRecipes(loadedRecipes);
-            setRecipes(mergedRecipes);
+            const mergedRecipes = await loadData();
             setSettings(loadedSettings);
             applyTheme(loadedSettings.theme);
             
@@ -406,6 +449,8 @@ const App: React.FC = () => {
     // Listen for background sync updates - NOW ONLY RELOADS LOCAL DATA
     const handleUpdates = () => loadData();
     window.addEventListener('recipes-updated', handleUpdates);
+    window.addEventListener('plans-updated', handleUpdates);
+    window.addEventListener('shopping-updated', handleUpdates);
     
     // Listen for queue updates separately to update status indicator instantly
     const handleQueueUpdate = async () => {
@@ -414,11 +459,46 @@ const App: React.FC = () => {
     };
     window.addEventListener('queue-updated', handleQueueUpdate);
     
-    // Check for shared recipe link
+    // Check for shared recipe link and family links
     const params = new URLSearchParams(window.location.search);
     const sharedId = params.get('shared_recipe') || params.get('recipeId');
     const token = params.get('share');
     
+    const joinFamilyNameParam = params.get('join_family');
+    const tempJoinToken = params.get('temp_join');
+    const viewFamilyToken = params.get('view_family');
+
+    const handleLinks = async () => {
+        if (joinFamilyNameParam) {
+            setAuthModalFamilyName(joinFamilyNameParam);
+            setAuthModalView('login');
+            setShowAuthModal(true);
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (tempJoinToken) {
+            setIsLoadingLink(true);
+            const res = await db.useFamilyJoinLink(tempJoinToken);
+            setIsLoadingLink(false);
+            if (res.success) {
+                showToast("Joined family successfully!", "success");
+                window.location.replace(window.location.pathname); // Reload totally to reflect auth
+            } else {
+                showToast(res.error || "Failed to join", "error");
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        } else if (viewFamilyToken) {
+            setIsLoadingLink(true);
+            const data = await db.fetchPublicFamily(viewFamilyToken);
+            setIsLoadingLink(false);
+            if (data) {
+                setPublicFamilyView(data);
+            } else {
+                showToast("View link invalid or expired", "error");
+            }
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    };
+    handleLinks();
+
     if (sharedId && token) {
         setSharedRecipeId(sharedId);
         setShareToken(token);
@@ -518,12 +598,8 @@ const App: React.FC = () => {
             result = result.filter(r => r.shareToFamily);
         }
     } else if (familyFilter === 'all') {
-        // "All" shows all recipes from all joined families (shared recipes)
-        // We also include private recipes here to match "All" expectation, 
-        // but the user specifically asked for "all recipes from all joined families".
-        // I'll include both for a true "All" view, or just shared if that's the intent.
-        // Given the request, I'll filter to shared recipes only for "All".
-        result = result.filter(r => r.shareToFamily);
+        // "All" includes all recipes (both private "mine" and shared "family")
+        // No additional filtering needed here as result starts as all recipes
     }
 
     if (!showArchived) result = result.filter(r => !r.archived);
@@ -544,8 +620,9 @@ const App: React.FC = () => {
     if (searchQuery) {
       const q = sanitize(searchQuery).toLowerCase();
       result = result.filter(r => 
-        r.name.toLowerCase().includes(q) || 
-        r.ingredients.some(i => i.item.toLowerCase().includes(q))
+        r.name?.toLowerCase().includes(q) || 
+        r.description?.toLowerCase().includes(q) ||
+        r.ingredients?.some(i => i.item?.toLowerCase().includes(q))
       );
     }
 
@@ -737,38 +814,38 @@ const App: React.FC = () => {
             {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto mt-2">
+        <nav className={`flex-1 px-4 space-y-1 overflow-y-auto mt-2 ${isSidebarCollapsed ? 'no-scrollbar' : ''}`}>
             <div className="pb-4 space-y-1">
                 <button 
                     onClick={() => { setCurrentView('recipes'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`${NAV_BTN_BASE} ${currentView === 'recipes' && !activeRecipeId ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'recipes' && !activeRecipeId ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Recipes"
                 >
-                    <BookOpen size={20} className={currentView === 'recipes' && !activeRecipeId ? 'text-white dark:text-accent-herb' : ''} /> 
+                    <BookOpen size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recipes' && !activeRecipeId ? 'text-white dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Recipes"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('recommendations'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`${NAV_BTN_BASE} ${currentView === 'recommendations' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'recommendations' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="What can I make?"
                 >
-                    <Refrigerator size={20} className={currentView === 'recommendations' ? 'text-white dark:text-accent-herb' : ''} /> 
+                    <Refrigerator size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recommendations' ? 'text-white dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "What can I make?"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('planner'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`${NAV_BTN_BASE} ${currentView === 'planner' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'planner' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Planner"
                 >
-                    <Calendar size={20} className={currentView === 'planner' ? 'text-white dark:text-accent-herb' : ''} /> 
+                    <Calendar size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'planner' ? 'text-white dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Planner"}
                 </button>
                 <button 
                     onClick={() => { setCurrentView('shopping'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                    className={`${NAV_BTN_BASE} ${currentView === 'shopping' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                    className={`${NAV_BTN_BASE} ${currentView === 'shopping' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Shopping List"
                 >
-                    <ShoppingCart size={20} className={currentView === 'shopping' ? 'text-white dark:text-accent-herb' : ''} /> 
+                    <ShoppingCart size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'shopping' ? 'text-white dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Shopping List"}
                 </button>
                 
@@ -776,10 +853,10 @@ const App: React.FC = () => {
                 {ENABLE_RESTAURANTS && (
                     <button 
                         onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
-                        className={`${NAV_BTN_BASE} ${currentView === 'restaurants' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
+                        className={`${NAV_BTN_BASE} ${currentView === 'restaurants' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                         title="Eat Out"
                     >
-                        <UtensilsCrossed size={20} className={currentView === 'restaurants' ? 'text-white dark:text-accent-herb' : ''} />
+                        <UtensilsCrossed size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'restaurants' ? 'text-white dark:text-accent-herb' : ''}`} />
                         {!isSidebarCollapsed && "Eat Out"}
                     </button>
                 )}
@@ -877,11 +954,11 @@ const App: React.FC = () => {
                     </>
                  ) : (
                     <>
-                         <button onClick={() => setShowArchived(!showArchived)} className={`${NAV_BTN_BASE} justify-center px-0 ${showArchived ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Archived">
-                            <Archive size={20} />
+                         <button onClick={() => setShowArchived(!showArchived)} className={`${NAV_BTN_BASE} justify-center p-3 ${showArchived ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Archived">
+                            <Archive size={isSidebarCollapsed ? 24 : 20} className="shrink-0" />
                          </button>
-                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`${NAV_BTN_BASE} justify-center px-0 ${familyFilter !== 'all' ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Family Filter">
-                            <Users size={20} />
+                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`${NAV_BTN_BASE} justify-center p-3 ${familyFilter !== 'all' ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Family Filter">
+                            <Users size={isSidebarCollapsed ? 24 : 20} className="shrink-0" />
                          </button>
                     </>
                  )}
@@ -889,23 +966,32 @@ const App: React.FC = () => {
         </nav>
         <div className={`p-4 border-t border-border-thin dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
             <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-1'}`}>
-                <button onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Import Recipes"><Upload size={18} /></button>
-                <button onClick={() => setShowExportModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Backup/Export"><Download size={18} /></button>
+                <button onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Import Recipes"><Upload size={isSidebarCollapsed ? 24 : 18} className="shrink-0" /></button>
+                <button onClick={() => setShowExportModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Backup/Export"><Download size={isSidebarCollapsed ? 24 : 18} className="shrink-0" /></button>
                 <button 
                     onClick={() => { setAuthModalView('switch'); setShowAuthModal(true); }} 
                     className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" 
                     title="Switch Family / Logout"
                 >
-                    <Users size={18}/>
+                    <Users size={isSidebarCollapsed ? 24 : 18} className="shrink-0" />
                 </button>
             </div>
-            <button onClick={toggleTheme} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all">{settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button onClick={toggleTheme} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all">
+                {settings.theme === 'dark' ? <Sun size={isSidebarCollapsed ? 24 : 18} className="shrink-0"/> : <Moon size={isSidebarCollapsed ? 24 : 18} className="shrink-0"/>}
+            </button>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-bg-subtle dark:bg-bg-dark">
+        {!isBannerDismissed && upcomingMissingRecipes.length > 0 && (
+            <MissingIngredientsBanner 
+                missingRecipes={upcomingMissingRecipes}
+                onDismiss={() => setIsBannerDismissed(true)}
+                onAction={() => { setCurrentView('shopping'); window.scrollTo(0, 0); }}
+            />
+        )}
         
         {activeRecipeId && !editingRecipe ? (
             <RecipeDetail 
@@ -1032,7 +1118,52 @@ const App: React.FC = () => {
         />
       )}
 
-      {showAuthModal && <AuthModal initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
+      {isLoadingLink && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-bg-main/80 backdrop-blur-sm">
+              <div className="bg-white dark:bg-card-dark p-6 rounded-2xl shadow-xl border border-border-thin dark:border-border-dark flex flex-col items-center gap-4">
+                  <Loader2 size={32} className="animate-spin text-forest-green dark:text-accent-herb" />
+                  <p className="text-text-main dark:text-white font-medium">Validating link...</p>
+              </div>
+          </div>
+      )}
+
+      {publicFamilyView && !sharedRecipeId && (
+        <div className="fixed inset-0 z-[150] bg-bg-main dark:bg-bg-dark overflow-y-auto">
+            <div className="max-w-7xl mx-auto p-4 sm:p-8">
+                <div className="flex justify-between items-center mb-8 bg-white dark:bg-card-dark p-6 rounded-2xl border border-border-thin dark:border-border-dark shadow-sm">
+                    <div>
+                        <h1 className="text-2xl font-black text-text-main dark:text-white flex items-center gap-3">
+                           <Users className="text-forest-green dark:text-accent-herb" /> 
+                           {publicFamilyView.familyName}
+                        </h1>
+                        <p className="text-sm border border-forest-green/30 dark:border-accent-herb/30 text-forest-green dark:text-accent-herb px-2 py-0.5 rounded-full inline-block mt-2 font-bold tracking-wider uppercase text-[10px]">Read-Only View</p>
+                    </div>
+                    <button onClick={() => { setPublicFamilyView(null); window.history.replaceState({}, '', window.location.pathname); }} className="px-4 py-2 bg-bg-subtle dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl text-text-main dark:text-white font-bold transition-colors">
+                        Exit View
+                    </button>
+                </div>
+
+                {publicFamilyView.recipes.length === 0 ? (
+                    <div className="text-center py-20 text-text-secondary rounded-2xl bg-white/50 dark:bg-card-dark/30">
+                        <p className="text-lg">No shared recipes found for this family.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {publicFamilyView.recipes.map(recipe => (
+                            <RecipeCard key={recipe.id} recipe={recipe} onClick={(r) => { 
+                                // To view the recipe detail securely read-only without breaking state:
+                                // We can use the existing PublicRecipeView but we might need a modified version or just set the app state to show it.
+                                // It's easiest to navigate them to the share link variant.
+                                setSharedRecipeId(r.id);
+                            }} onToggleFavorite={() => {}} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
+
+      {showAuthModal && <AuthModal initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       {showDeleteModal && recipeToDelete && (
           <DeleteConfirmationModal 

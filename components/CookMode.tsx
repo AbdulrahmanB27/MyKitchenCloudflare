@@ -41,6 +41,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
 
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
 
   const speakText = (text: string) => {
       if (!window.speechSynthesis) return;
@@ -150,18 +151,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
       stateRef.current = { currentStep, allSteps, isFinished: currentStep >= allSteps.length, allIngredients, isCountdown, timerSeconds, timerTarget, isTimerRunning };
   }, [currentStep, allSteps, allIngredients, isCountdown, timerSeconds, timerTarget, isTimerRunning]);
 
-  useEffect(() => {
-      isListeningRef.current = isListening;
-      if (isListening && recognitionRef.current) {
-          try { recognitionRef.current.start(); } catch(e) {}
-      } else if (!isListening && recognitionRef.current) {
-          try { recognitionRef.current.stop(); } catch(e) {}
-      }
-  }, [isListening]);
+  const initRecognition = () => {
+      if (recognitionRef.current) return recognitionRef.current;
 
-  useEffect(() => {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) return;
+      if (!SpeechRecognition) return null;
 
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
@@ -173,8 +167,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
           const command = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
           console.log('Voice Command Heard:', command);
 
+          // Use stateRef to get latest values in the callback
+          const { allSteps, allIngredients } = stateRef.current;
+
           if (command.includes('next') || command.includes('forward')) {
-              setCurrentStep(c => Math.min(stateRef.current.allSteps.length, c + 1));
+              setCurrentStep(c => Math.min(allSteps.length, c + 1));
           } else if (command.includes('back') || command.includes('previous')) {
               setCurrentStep(c => Math.max(0, c - 1));
           } else if (command.includes('pause') || command.includes('stop timer')) {
@@ -182,13 +179,13 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
           } else if (command.includes('start') || command.includes('resume')) {
               setIsTimerRunning(true);
           } else if (command.includes('read step') || command.includes('read instruction') || command.includes('read that')) {
-              const { currentStep, allSteps, isFinished } = stateRef.current;
+              const { currentStep, isFinished } = stateRef.current;
               if (!isFinished) {
                   const stepTxt = allSteps[currentStep]?.txt;
                   if (stepTxt) speakText(stepTxt);
               }
           } else if (command.includes('read ingredients')) {
-              const ings = stateRef.current.allIngredients.map(i => i.txt).join('. ');
+              const ings = allIngredients.map(i => i.txt).join('. ');
               speakText("Ingredients are: " + ings);
           } else if (command.match(/add (\d+) minute/)) {
               const minsMatch = command.match(/add (\d+) minute/);
@@ -219,18 +216,37 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
 
       recognition.onend = () => {
           if (isListeningRef.current) {
-              try { recognition.start(); } catch(e) {}
+              try { recognitionRef.current?.start(); } catch(e) {}
           }
       };
 
       recognitionRef.current = recognition;
+      return recognition;
+  };
 
-      return () => {
-          if (recognitionRef.current) {
-              recognitionRef.current.onend = null;
-              recognitionRef.current.stop();
+  useEffect(() => {
+      isListeningRef.current = isListening;
+      if (isListening) {
+          const recognition = initRecognition();
+          if (recognition) {
+              try { recognition.start(); } catch(e) { console.error("Recognition start failed", e); }
           }
-      };
+      } else if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch(e) {}
+      }
+  }, [isListening]);
+
+  useEffect(() => {
+    // Only check for feature support on mount, don't initialize the engine
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setIsSpeechSupported(!!SpeechRecognition);
+
+    return () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.onend = null;
+            try { recognitionRef.current.stop(); } catch(e) {}
+        }
+    };
   }, []);
 
   // --- Wake Lock ---
@@ -491,16 +507,24 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
             </div>
         </div>
         <div className="flex items-center gap-2">
-            {((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) && (
+            {isSpeechSupported ? (
                  <button 
                     onClick={() => setIsListening(!isListening)} 
-                    className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-white/10'}`}
+                    className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white'}`}
                     title={isListening ? "Listening for commands..." : "Enable Voice Commands"}
                  >
                      {isListening ? <Mic size={20} /> : <MicOff size={20} />}
                  </button>
+            ) : (
+                <button 
+                    onClick={() => alert("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.")} 
+                    className="p-2 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    title="Voice Commands Not Supported"
+                >
+                    <MicOff size={20} className="opacity-50" />
+                </button>
             )}
-            <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">
+            <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white">
                 <span className="material-symbols-outlined">{isFullscreen ? 'close_fullscreen' : 'fullscreen'}</span>
             </button>
             {/* Sidebar Toggle */}

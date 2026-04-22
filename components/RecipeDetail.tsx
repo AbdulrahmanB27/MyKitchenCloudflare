@@ -493,7 +493,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
 
         {/* Rating Modal */}
         {isRatingOpen && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsRatingOpen(false)}>
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsRatingOpen(false)}>
                 <div className="bg-white dark:bg-card-dark rounded-xl p-6 w-full max-w-sm border border-border-thin dark:border-border-dark shadow-2xl transform scale-100" onClick={e => e.stopPropagation()}>
                     <div className="text-center mb-6">
                         <h3 className="text-xl font-bold font-display mb-1 dark:text-white">Rate this Recipe</h3>
@@ -519,7 +519,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
 
         {/* Share Modal */}
         {isShareOpen && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsShareOpen(false)}>
                 <div className="bg-white dark:bg-card-dark rounded-xl w-full max-w-sm border border-border-thin dark:border-border-dark shadow-2xl transform scale-100 overflow-hidden" onClick={e => e.stopPropagation()}>
                     
                     {/* Header */}

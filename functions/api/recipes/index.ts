@@ -47,8 +47,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const url = new URL(context.request.url);
     const since = url.searchParams.get("since");
 
-    let query = "SELECT data, updated_at FROM recipes WHERE share_to_family = 1 AND tenant_id = ?";
-    let params: any[] = [familyId];
+    let query = "SELECT data, updated_at FROM recipes WHERE share_to_family = 1 AND (tenant_id = ? OR data LIKE ?)";
+    let params: any[] = [familyId, `%"${familyId}"%`];
 
     if (since) {
         query += " AND updated_at > ?";
@@ -78,7 +78,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const now = Date.now();
     recipe.updatedAt = now;
     
-    // Enforce tenant isolation
+    // Support multi-tenancy correctly
+    if (!recipe.tenantIds) {
+        recipe.tenantIds = [];
+    }
+    if (!recipe.tenantIds.includes(payload.familyId)) {
+        recipe.tenantIds.push(payload.familyId);
+    }
+    
+    // Set a primary tenantId for the column (simplifies basic queries, but data LIKE is the source of truth for cross-posts)
     recipe.tenantId = payload.familyId;
     
     delete recipe.deleted; // Ensure fresh updates don't carry deleted flag
@@ -118,11 +126,28 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     // 1. Fetch existing recipe to find Image URL and verify familyId
     const existing = await context.env.DB.prepare("SELECT data, tenant_id FROM recipes WHERE id = ?").bind(id).first();
     
-    if (!existing || existing.tenant_id !== familyId) {
+    let isAuthorized = false;
+    let recipeData: any = {};
+    if (existing) {
+        if (existing.tenant_id === familyId) {
+            isAuthorized = true;
+        } else {
+            try {
+                recipeData = JSON.parse(existing.data);
+                if (recipeData.tenantIds && recipeData.tenantIds.includes(familyId)) {
+                    isAuthorized = true;
+                }
+            } catch (e) {}
+        }
+    }
+    
+    if (!isAuthorized) {
         return new Response("Forbidden", { status: 403 });
     }
         try {
-            const recipeData = JSON.parse(existing.data);
+            if (!recipeData.id && existing.data) {
+                recipeData = JSON.parse(existing.data);
+            }
             // Check if image is hosted by us (contains /api/images?key=)
             if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
                 const key = recipeData.image.split('key=')[1];
@@ -135,8 +160,10 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
             // Continue with recipe deletion even if image delete fails
         }
 
+    let tenantIds = recipeData.tenantIds || [];
+
     const now = Date.now();
-    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });
+    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now, tenantIds });
 
     // Perform Soft Delete (update data with tombstone and flag record)
     await context.env.DB.prepare(

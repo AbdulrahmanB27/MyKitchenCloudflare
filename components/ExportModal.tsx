@@ -24,7 +24,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ onClose, onExport, totalRecip
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
       <div className="relative w-full max-w-sm bg-white dark:bg-card-dark rounded-2xl shadow-xl border border-border-thin dark:border-border-dark flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         

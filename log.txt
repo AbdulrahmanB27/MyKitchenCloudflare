@@ -1,0 +1,19 @@
+
+ ⛅️ wrangler 4.79.0 (update available 4.84.1)
+─────────────────────────────────────────────
+✨ Compiled Worker successfully
+Your Worker has access to the following bindings:
+Binding                                                                   Resource                  Mode
+env.DB (MyKitchenDB)                                                      D1 Database               local
+env.IMAGES (my-kitchen-images)                                            R2 Bucket                 local
+env.CF_PAGES ("1")                                                        Environment Variable      local
+env.CF_PAGES_BRANCH ("local")                                             Environment Variable      local
+env.CF_PAGES_COMMIT_SHA ("0000000000000000000000000000000000000...")      Environment Variable      local
+env.CF_PAGES_URL ("https://00000000.mykitchen.pages.dev")                 Environment Variable      local
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://0.0.0.0:3001
+[wrangler:info] - http://127.0.0.1:3001
+[wrangler:info] - http://169.254.8.1:3001
+[wrangler:info] - http://169.254.9.1:3001
+[wrangler:info] - http://169.254.169.1:3001

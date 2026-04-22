@@ -273,7 +273,10 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
             <div className="flex items-center justify-between border-t border-border-thin dark:border-border-dark pt-4">
                 <span className="text-xs font-bold uppercase text-text-secondary">{visibleIngredients.length} Ingredients Available</span>
                 {selectedIngredients.size > 0 && (
-                    <button onClick={clearSelection} className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1">
+                    <button 
+                        onClick={clearSelection} 
+                        className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors"
+                    >
                         <X size={14} /> Clear Selection ({selectedIngredients.size})
                     </button>
                 )}

@@ -219,7 +219,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
 
         {/* Recipe Picker Modal */}
         {isPickerOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={() => setIsPickerOpen(false)}></div>
                 <div className="relative w-full max-w-lg bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[80vh] border border-border-thin dark:border-border-dark">
                     <div className="p-4 border-b border-border-thin dark:border-border-dark flex justify-between items-center">

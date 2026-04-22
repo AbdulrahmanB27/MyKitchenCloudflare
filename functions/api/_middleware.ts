@@ -51,7 +51,8 @@ export const onRequest: PagesFunction = async (context) => {
             context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_list (id TEXT PRIMARY KEY, family_id TEXT, data TEXT, updated_at INTEGER)`),
             context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, family_id TEXT, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
             context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`),
-            context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`)
+            context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`),
+            context.env.DB.prepare(`CREATE TABLE IF NOT EXISTS family_links (token TEXT PRIMARY KEY, family_id TEXT, type TEXT, created_at INTEGER, expires_at INTEGER)`)
           ]);
       } catch (e) {
           // Ignore errors (e.g. if tables already exist or concurrent creation)

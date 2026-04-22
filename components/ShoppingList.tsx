@@ -309,21 +309,21 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           </div>
 
           {/* Add Item Form */}
-          <form onSubmit={addItem} className="flex flex-col sm:flex-row gap-2">
-            <div className="flex gap-2 flex-1">
+          <form onSubmit={addItem} className="flex flex-col sm:flex-row flex-wrap gap-2">
+            <div className="flex gap-2 flex-1 min-w-0">
               <input
                 type="text"
                 value={newItemAmount}
                 onChange={(e) => setNewItemAmount(e.target.value)}
                 placeholder="Amt"
-                className="w-20 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+                className="w-16 sm:w-20 px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
               <input
                 type="text"
                 value={newItemUnit}
                 onChange={(e) => setNewItemUnit(e.target.value)}
                 placeholder="Unit"
-                className="w-24 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+                className="w-20 sm:w-24 px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
               <input
                 type="text"
@@ -336,7 +336,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
             <button
               type="submit"
               disabled={!newItemItem.trim()}
-              className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
             >
               <span className="material-symbols-outlined text-base">add</span>
               Add

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus } from 'lucide-react';
+import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff } from 'lucide-react';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty } from '../utils/validation';
 
@@ -8,19 +8,26 @@ interface AuthModalProps {
     onClose: () => void;
     onSuccess: () => void;
     initialView?: 'login' | 'register' | 'switch';
+    initialFamilyName?: string;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView = 'login' }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView = 'login', initialFamilyName = '' }) => {
     const [mode, setMode] = useState<'login' | 'register' | 'admin' | 'switch'>(initialView);
-    const [familyName, setFamilyName] = useState('');
+    const [familyName, setFamilyName] = useState(initialFamilyName);
     const [password, setPassword] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
     
     // Admin Actions State
-    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'>('update');
+    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'>('update');
     const [newFamilyPassword, setNewFamilyPassword] = useState('');
     const [newAdminPassword, setNewAdminPassword] = useState('');
     const [newFamilyName, setNewFamilyName] = useState('');
+    
+    // UI State for Passwords
+    const [showPassword, setShowPassword] = useState(false);
+    const [showAdminPassword, setShowAdminPassword] = useState(false);
+    const [showNewFamilyPassword, setShowNewFamilyPassword] = useState(false);
+    const [showNewAdminPassword, setShowNewAdminPassword] = useState(false);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -97,8 +104,39 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
+    // Links State
+    const [generatedLinks, setGeneratedLinks] = useState<{ temp?: string, view?: string, permanent?: string }>({});
+
+    const handleGenerateLink = async (type: 'temporary' | 'view' | 'permanent') => {
+        if (type === 'permanent') {
+            const familyName = db.getCurrentFamilyName();
+            const link = `${window.location.origin}/?join_family=${encodeURIComponent(familyName)}`;
+            setGeneratedLinks(prev => ({ ...prev, permanent: link }));
+            return;
+        }
+
+        setLoading(true);
+        const res = await db.generateFamilyLink(type);
+        setLoading(false);
+        if (res.success) {
+            const queryParam = type === 'temporary' ? 'temp_join' : 'view_family';
+            const link = `${window.location.origin}/?${queryParam}=${res.token}`;
+            setGeneratedLinks(prev => ({ ...prev, [type]: link }));
+        } else {
+            setError(res.error || `Failed to generate ${type} link`);
+        }
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        alert('Link copied to clipboard!');
+    };
+
     const handleAdminSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (adminAction === 'view_password' || adminAction === 'links') return;
+
         setLoading(true);
         setError('');
 
@@ -142,7 +180,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const sessions = db.getSavedSessions(); // This uses safeGetItem now
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
             <div className="relative w-full max-w-md bg-white dark:bg-card-dark rounded-2xl shadow-2xl border border-border-thin dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 
                 {/* Header */}
@@ -221,13 +259,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Access Password</label>
-                                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password" />
+                                <div className="relative">
+                                    <input required type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password" />
+                                    <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowPassword(!showPassword)}>
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
                             </div>
                             
                             {mode === 'register' && (
                                 <div>
                                     <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Admin Password</label>
-                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="For managing settings" />
+                                    <div className="relative">
+                                        <input required type={showAdminPassword ? 'text' : 'password'} value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="For managing settings" />
+                                        <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowAdminPassword(!showAdminPassword)}>
+                                            {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                     <p className="text-[10px] text-text-secondary mt-1">Keep this safe! Needed for renaming or deleting the family.</p>
                                 </div>
                             )}
@@ -264,14 +312,83 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                     <option value="update" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Update Passwords</option>
                                     <option value="rename" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Rename Family</option>
                                     <option value="delete" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Delete Family Data</option>
+                                    {db.getCurrentFamilyPassword() && <option value="view_password" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">View Access Password</option>}
+                                    <option value="links" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Generate Invites & Links</option>
                                 </select>
                             </div>
+
+                            {adminAction === 'links' && (
+                                <div className="space-y-4">
+                                    <p className="text-xs text-text-secondary">Generate special links to share your family access with others.</p>
+                                    
+                                    {/* Permanent Link */}
+                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-text-main dark:text-white">Permanent Join Link</h4>
+                                                <p className="text-xs text-text-secondary">Prefills family name, user must enter password.</p>
+                                            </div>
+                                            <button type="button" onClick={() => handleGenerateLink('permanent')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
+                                        </div>
+                                        {generatedLinks.permanent && (
+                                            <div className="flex gap-2">
+                                                <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Temporary Link */}
+                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-text-main dark:text-white">Temporary VIP Link</h4>
+                                                <p className="text-xs text-text-secondary">Skips login entirely. Expires in 24 hours.</p>
+                                            </div>
+                                            <button type="button" onClick={() => handleGenerateLink('temporary')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
+                                        </div>
+                                        {generatedLinks.temp && (
+                                            <div className="flex gap-2">
+                                                <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* View Link */}
+                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-text-main dark:text-white">View-Only Link</h4>
+                                                <p className="text-xs text-text-secondary">Public read-only view of all family recipes.</p>
+                                            </div>
+                                            <button type="button" onClick={() => handleGenerateLink('view')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
+                                        </div>
+                                        {generatedLinks.view && (
+                                            <div className="flex gap-2">
+                                                <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {adminAction === 'update' && (
                                 <div className="space-y-3 p-3 border border-border-thin dark:border-border-dark rounded-xl bg-white dark:bg-card-dark">
                                     <h4 className="text-sm font-bold text-text-main dark:text-white">New Credentials (Optional)</h4>
-                                    <input type="password" value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Access Password" />
-                                    <input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Admin Password" />
+                                    <div className="relative">
+                                        <input type={showNewFamilyPassword ? 'text' : 'password'} value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 pr-10 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Access Password" />
+                                        <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowNewFamilyPassword(!showNewFamilyPassword)}>
+                                            {showNewFamilyPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                    <div className="relative">
+                                        <input type={showNewAdminPassword ? 'text' : 'password'} value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 pr-10 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Admin Password" />
+                                        <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowNewAdminPassword(!showNewAdminPassword)}>
+                                            {showNewAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -282,15 +399,41 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 </div>
                             )}
 
-                            <div>
-                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
-                                <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Required to verify" />
-                            </div>
+                            {adminAction === 'view_password' && (
+                                <div className="p-4 border border-border-thin dark:border-border-dark rounded-xl bg-white dark:bg-card-dark text-center">
+                                    <h4 className="text-sm font-bold text-text-secondary uppercase mb-2">Current Access Password</h4>
+                                    <div className="flex justify-center items-center gap-3">
+                                        <div className="font-mono text-lg font-bold text-text-main dark:text-white bg-bg-subtle dark:bg-white/5 py-2 px-4 rounded-lg tracking-wider">
+                                            {showPassword ? (db.getCurrentFamilyPassword() || 'Not stored securely locally') : '••••••••'}
+                                        </div>
+                                        <button type="button" className="p-2 border border-border-thin dark:border-border-dark rounded-lg text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors" onClick={() => setShowPassword(!showPassword)}>
+                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
+                                    {!db.getCurrentFamilyPassword() && (
+                                        <p className="text-xs text-text-secondary mt-3">You must fully log out and log back in to store this password on this device for local viewing.</p>
+                                    )}
+                                </div>
+                            )}
 
-                            <button type="submit" disabled={loading} className={`w-full py-3 text-white dark:text-black rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white dark:text-white shadow-red-500/20' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover shadow-forest-green/20 dark:shadow-accent-herb/20'}`}>
-                                {loading && <Loader size={18} className="animate-spin" />}
-                                {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
-                            </button>
+                            {adminAction !== 'view_password' && adminAction !== 'links' && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
+                                        <div className="relative">
+                                            <input required type={showAdminPassword ? 'text' : 'password'} value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Required to verify" />
+                                            <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowAdminPassword(!showAdminPassword)}>
+                                                {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" disabled={loading} className={`w-full py-3 text-white dark:text-black rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white dark:text-white shadow-red-500/20' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover shadow-forest-green/20 dark:shadow-accent-herb/20'}`}>
+                                        {loading && <Loader size={18} className="animate-spin" />}
+                                        {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
+                                    </button>
+                                </>
+                            )}
                         </form>
                     )}
                 </div>

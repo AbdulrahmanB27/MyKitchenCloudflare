@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n \"vite,wrangler\" -c \"blue,green\" \"vite --port 5173 --strictPort --host 0.0.0.0\" \"wait-on -t 30000 tcp:5173 && wrangler pages dev --ip 0.0.0.0 --port 3000 --proxy 5173\"",
+    "dev": "concurrently -k \"vite --port 5173 --host 0.0.0.0\" \"npx wrangler pages dev . --ip 0.0.0.0 --port 3000 --proxy 5173\"",
     "vite": "vite",
     "build": "vite build",
     "preview": "vite preview",

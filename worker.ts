@@ -91,7 +91,8 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, family_id TEXT, name TEXT, cuisine_tags TEXT, stars INTEGER DEFAULT 0, price TEXT, notes TEXT, go_to_order TEXT, last_visited_at INTEGER, data TEXT, updated_at INTEGER, created_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`)
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS family_links (token TEXT PRIMARY KEY, family_id TEXT, type TEXT, created_at INTEGER, expires_at INTEGER)`)
         ]);
 
         // 2. Perform Migrations (Add missing columns to existing tables)

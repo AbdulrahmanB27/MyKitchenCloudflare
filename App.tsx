@@ -19,6 +19,7 @@ import ExportModal, { ExportOptions } from './components/ExportModal';
 import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
+import CustomModal from './components/CustomModal';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck } from 'lucide-react';
 import Checkbox from './components/Checkbox';
 import MissingIngredientsBanner from './components/MissingIngredientsBanner';
@@ -78,9 +79,9 @@ const mergeIdenticalRecipes = (recipesList: Recipe[]) => {
 };
 
 const App: React.FC = () => {
-  const NAV_BTN_BASE = "flex items-center gap-4 px-5 py-3 rounded-lg text-sm font-medium transition-all w-full";
-  const NAV_BTN_INACTIVE = "text-text-secondary dark:text-text-secondary-dark hover:bg-white/5 dark:hover:bg-white/5 hover:text-forest-green dark:hover:text-white";
-  const NAV_BTN_ACTIVE = "bg-forest-green text-white dark:bg-active-green dark:text-accent-herb font-bold shadow-sm hover:bg-forest-green/90 dark:hover:bg-active-green/90";
+  const NAV_BTN_BASE = "flex items-center gap-4 px-5 py-3 rounded-lg text-sm font-medium transition-all w-full border border-transparent";
+  const NAV_BTN_INACTIVE = "text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-white/5 hover:text-forest-green dark:hover:text-white";
+  const NAV_BTN_ACTIVE = "bg-forest-green/10 text-forest-green border-forest-green/20 dark:bg-active-green dark:border-transparent dark:text-accent-herb font-bold shadow-sm hover:bg-forest-green/20 dark:hover:bg-active-green/90";
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pinnedTags, setPinnedTags] = useState<string[]>(['Dinner', 'Healthy', 'Quick']); // Defaults
@@ -137,6 +138,46 @@ const App: React.FC = () => {
 
   // Toast State
   const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
+
+  // Custom Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  }>({ isOpen: false, title: '', message: '', type: 'alert' });
+
+  const showAlert = (title: string, message: string, onConfirm?: () => void) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      type: 'alert',
+      onConfirm: () => {
+        setModalState(prev => ({ ...prev, isOpen: false }));
+        onConfirm?.();
+      }
+    });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      type: 'confirm',
+      onConfirm: () => {
+        setModalState(prev => ({ ...prev, isOpen: false }));
+        onConfirm();
+      },
+      onCancel: () => {
+        setModalState(prev => ({ ...prev, isOpen: false }));
+        onCancel?.();
+      }
+    });
+  };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, visible: true, type });
@@ -534,6 +575,7 @@ const App: React.FC = () => {
     window.addEventListener('recipes-updated', handleUpdates);
     window.addEventListener('plans-updated', handleUpdates);
     window.addEventListener('shopping-updated', handleUpdates);
+    window.addEventListener('available-updated', handleUpdates);
     
     // Listen for queue updates separately to update status indicator instantly
     const handleQueueUpdate = async () => {
@@ -705,7 +747,14 @@ const App: React.FC = () => {
       result = result.filter(r => 
         r.name?.toLowerCase().includes(q) || 
         r.description?.toLowerCase().includes(q) ||
-        r.ingredients?.some(i => i.item?.toLowerCase().includes(q))
+        r.addedBy?.toLowerCase().includes(q) ||
+        r.source?.author?.toLowerCase().includes(q) ||
+        r.source?.name?.toLowerCase().includes(q) ||
+        r.category?.toLowerCase().includes(q) ||
+        r.tags?.some(t => t.toLowerCase().includes(q)) ||
+        r.cookware?.some(c => c.toLowerCase().includes(q)) ||
+        r.ingredients?.some(i => i.item?.toLowerCase().includes(q)) ||
+        r.components?.some(comp => comp.ingredients?.some(i => i.item?.toLowerCase().includes(q)))
       );
     }
 
@@ -904,7 +953,7 @@ const App: React.FC = () => {
                     className={`${NAV_BTN_BASE} ${currentView === 'recipes' && !activeRecipeId ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Recipes"
                 >
-                    <BookOpen size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recipes' && !activeRecipeId ? 'text-white dark:text-accent-herb' : ''}`} /> 
+                    <BookOpen size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recipes' && !activeRecipeId ? 'dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Recipes"}
                 </button>
                 <button 
@@ -912,7 +961,7 @@ const App: React.FC = () => {
                     className={`${NAV_BTN_BASE} ${currentView === 'recommendations' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="What can I make?"
                 >
-                    <Refrigerator size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recommendations' ? 'text-white dark:text-accent-herb' : ''}`} /> 
+                    <Refrigerator size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'recommendations' ? 'dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "What can I make?"}
                 </button>
                 <button 
@@ -920,7 +969,7 @@ const App: React.FC = () => {
                     className={`${NAV_BTN_BASE} ${currentView === 'planner' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Planner"
                 >
-                    <Calendar size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'planner' ? 'text-white dark:text-accent-herb' : ''}`} /> 
+                    <Calendar size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'planner' ? 'dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Planner"}
                 </button>
                 <button 
@@ -928,7 +977,7 @@ const App: React.FC = () => {
                     className={`${NAV_BTN_BASE} ${currentView === 'shopping' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                     title="Shopping List"
                 >
-                    <ShoppingCart size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'shopping' ? 'text-white dark:text-accent-herb' : ''}`} /> 
+                    <ShoppingCart size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'shopping' ? 'dark:text-accent-herb' : ''}`} /> 
                     {!isSidebarCollapsed && "Shopping List"}
                 </button>
                 
@@ -939,7 +988,7 @@ const App: React.FC = () => {
                         className={`${NAV_BTN_BASE} ${currentView === 'restaurants' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
                         title="Eat Out"
                     >
-                        <UtensilsCrossed size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'restaurants' ? 'text-white dark:text-accent-herb' : ''}`} />
+                        <UtensilsCrossed size={isSidebarCollapsed ? 24 : 20} className={`shrink-0 ${currentView === 'restaurants' ? 'dark:text-accent-herb' : ''}`} />
                         {!isSidebarCollapsed && "Eat Out"}
                     </button>
                 )}
@@ -1087,13 +1136,15 @@ const App: React.FC = () => {
                 onEdit={(r) => { setEditingRecipe(r); }} 
                 onRefreshList={loadData}
                 showToast={showToast}
+                showAlert={showAlert}
+                showConfirm={showConfirm}
             />
         ) : (
             <>
-                {currentView === 'planner' && <MealPlanner showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
-                {currentView === 'shopping' && <ShoppingList showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
-                {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
-                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
+                {currentView === 'planner' && <MealPlanner showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
+                {currentView === 'shopping' && <ShoppingList showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
+                {currentView === 'recommendations' && <Recommendations showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
+                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -1248,7 +1299,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {showAuthModal && <AuthModal showToast={showToast} initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
+      {showAuthModal && <AuthModal showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       {showDeleteModal && recipeToDelete && (
           <DeleteConfirmationModal 
@@ -1258,6 +1309,16 @@ const App: React.FC = () => {
               onConfirm={confirmDeleteRecipe} 
           />
       )}
+
+      {/* Custom Modal for generalized alerts/confirms */}
+      <CustomModal 
+        isOpen={modalState.isOpen}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+        onConfirm={modalState.onConfirm}
+        onCancel={modalState.onCancel}
+      />
       
       {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90] md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 

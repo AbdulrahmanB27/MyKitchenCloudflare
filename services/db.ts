@@ -111,6 +111,7 @@ export const getAvailableIngredients = (): string[] => {
 
 export const saveAvailableIngredients = (ingredients: string[]) => {
     safeSetItem('available_ingredients', JSON.stringify(ingredients));
+    window.dispatchEvent(new CustomEvent('available-updated'));
 };
 
 let authCallback: (() => void) | null = null;

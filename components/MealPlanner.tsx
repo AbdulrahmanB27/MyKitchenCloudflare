@@ -10,9 +10,11 @@ interface MealPlannerProps {
   onOpenMenu: () => void;
   allRecipes: Recipe[];
   showToast?: (message: string, type?: 'success' | 'error') => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
+  showAlert?: (title: string, message: string) => void;
 }
 
-const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showToast }) => {
+const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showToast, showConfirm, showAlert }) => {
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plans, setPlans] = useState<MealPlan[]>([]);
@@ -79,9 +81,15 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showT
   };
 
   const removePlan = async (id: string) => {
-      if (!confirm('Remove this meal?')) return;
-      await db.deleteMealPlan(id);
-      setPlans(prev => prev.filter(p => p.id !== id));
+      if (showConfirm) {
+          showConfirm('Remove Meal', 'Remove this meal from your plan?', async () => {
+              await db.deleteMealPlan(id);
+              setPlans(prev => prev.filter(p => p.id !== id));
+          });
+      } else {
+          await db.deleteMealPlan(id);
+          setPlans(prev => prev.filter(p => p.id !== id));
+      }
   };
 
   const addToShoppingList = async () => {
@@ -93,41 +101,51 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showT
       
       if (weeklyPlans.length === 0) {
           if (showToast) showToast("No meals planned for this week.", 'error');
-          else alert("No meals planned for this week.");
+          else if (showAlert) showAlert("Empty Schedule", "No meals planned for this week.");
           return;
       }
 
-      if (!confirm(`Add ingredients from ${weeklyPlans.length} meals to shopping list?`)) return;
-
-      let count = 0;
-      for (const plan of weeklyPlans) {
-          const recipe = allRecipes.find(r => r.id === plan.recipeId);
-          if (recipe) {
-              // Add ingredients
-              let allItems: Ingredient[] = [...recipe.ingredients];
-              if (recipe.components) {
-                  recipe.components.forEach(c => allItems.push(...c.ingredients));
+      const processAdd = async () => {
+          let count = 0;
+          for (const plan of weeklyPlans) {
+              const recipe = allRecipes.find(r => r.id === plan.recipeId);
+              if (recipe) {
+                  // Add ingredients
+                  let allItems: Ingredient[] = [...recipe.ingredients];
+                  if (recipe.components) {
+                      recipe.components.forEach(c => allItems.push(...c.ingredients));
+                  }
+                  
+                  for (const ing of allItems) {
+                      await db.upsertShoppingItem({
+                          id: uuidv4(),
+                          text: `${ing.amount} ${ing.unit} ${ing.item}`.trim(),
+                          structured: {
+                              amount: ing.amount,
+                              unit: ing.unit,
+                              item: ing.item
+                          },
+                          isChecked: false,
+                          recipeId: recipe.id,
+                          recipeName: recipe.name
+                      });
+                  }
+                  count++;
               }
-              
-              for (const ing of allItems) {
-                  await db.upsertShoppingItem({
-                      id: uuidv4(),
-                      text: `${ing.amount} ${ing.unit} ${ing.item}`.trim(),
-                      structured: {
-                          amount: ing.amount,
-                          unit: ing.unit,
-                          item: ing.item
-                      },
-                      isChecked: false,
-                      recipeId: recipe.id,
-                      recipeName: recipe.name
-                  });
-              }
-              count++;
           }
+          if (showToast) showToast(`Added ingredients from ${count} recipes.`);
+          else if (showAlert) showAlert("Success", `Added ingredients from ${count} recipes.`);
+      };
+
+      if (showConfirm) {
+          showConfirm(
+              'Add to Shopping List', 
+              `Add ingredients from ${weeklyPlans.length} meals to your shopping list?`,
+              processAdd
+          );
+      } else {
+          await processAdd();
       }
-      if (showToast) showToast(`Added ingredients from ${count} recipes.`);
-      else alert(`Added ingredients from ${count} recipes.`);
   };
 
   // --- Computed ---

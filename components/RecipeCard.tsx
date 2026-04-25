@@ -86,7 +86,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
             )}
         </div>
         
-        {recipe.description && (
+        {recipe.description && recipe.description.trim() !== '' && (
             <p className="text-sm text-text-secondary dark:text-gray-400 line-clamp-2 mb-4 flex-1">
                 {recipe.description}
             </p>

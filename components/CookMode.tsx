@@ -11,13 +11,15 @@ interface CookModeProps {
   onClose: () => void;
   scalingFactor?: number;
   showToast?: (message: string, type?: 'success' | 'error') => void;
+  showAlert?: (title: string, message: string) => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
   <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
-const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast }) => {
+const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast, showAlert, showConfirm }) => {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Sidebar Tabs State
@@ -134,6 +136,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
 
   // --- Voice Commands State & Logic ---
   const [isListening, setIsListening] = useState(false);
+  const [lastCommand, setLastCommand] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
 
@@ -167,29 +170,40 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
           const lastResultIndex = event.results.length - 1;
           const command = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
           console.log('Voice Command Heard:', command);
+          setLastCommand(command);
+          setTimeout(() => setLastCommand(null), 3000);
 
           // Use stateRef to get latest values in the callback
           const { allSteps, allIngredients } = stateRef.current;
 
-          if (command.includes('next') || command.includes('forward')) {
+          // Navigation
+          if (command.includes('next') || command.includes('forward') || command.includes('advance') || command.includes('proceed')) {
               setCurrentStep(c => Math.min(allSteps.length, c + 1));
-          } else if (command.includes('back') || command.includes('previous')) {
+          } else if (command.includes('back') || command.includes('previous') || command.includes('return') || command.includes('backward')) {
               setCurrentStep(c => Math.max(0, c - 1));
-          } else if (command.includes('pause') || command.includes('stop timer')) {
+          } 
+          // Timer controls
+          else if (command.includes('pause') || command.includes('stop') || command.includes('hold')) {
               setIsTimerRunning(false);
-          } else if (command.includes('start') || command.includes('resume')) {
+          } else if (command.includes('start') || command.includes('resume') || command.includes('go')) {
               setIsTimerRunning(true);
-          } else if (command.includes('read step') || command.includes('read instruction') || command.includes('read that')) {
+          } else if (command.includes('reset timer') || command.includes('restart timer')) {
+              resetTimer();
+          }
+          // Reading
+          else if (command.includes('read step') || command.includes('read instruction') || command.includes('read that') || command.includes('say it')) {
               const { currentStep, isFinished } = stateRef.current;
               if (!isFinished) {
                   const stepTxt = allSteps[currentStep]?.txt;
                   if (stepTxt) speakText(stepTxt);
               }
-          } else if (command.includes('read ingredients')) {
+          } else if (command.includes('read ingredients') || command.includes('what ingredients')) {
               const ings = allIngredients.map(i => i.txt).join('. ');
               speakText("Ingredients are: " + ings);
-          } else if (command.match(/add (\d+) minute/)) {
-              const minsMatch = command.match(/add (\d+) minute/);
+          } 
+          // Advanced Timer
+          else if (command.includes('add') && (command.includes('minute') || command.includes('min'))) {
+              const minsMatch = command.match(/(\d+)/);
               if (minsMatch) {
                   const mins = parseInt(minsMatch[1], 10);
                   setTimerSeconds(prev => Math.max(0, prev + mins * 60));
@@ -212,7 +226,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
           if (e.error === 'not-allowed') {
               setIsListening(false);
               if (showToast) showToast("Microphone permission denied.", 'error');
-          else alert("Microphone permission denied.");
+              else if (showAlert) showAlert("Error", "Microphone permission denied.");
           }
       };
 
@@ -510,18 +524,25 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
         </div>
         <div className="flex items-center gap-2">
             {isSpeechSupported ? (
-                 <button 
-                    onClick={() => setIsListening(!isListening)} 
-                    className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white'}`}
-                    title={isListening ? "Listening for commands..." : "Enable Voice Commands"}
-                 >
-                     {isListening ? <Mic size={20} /> : <MicOff size={20} />}
-                 </button>
+                 <div className="relative flex items-center">
+                    {lastCommand && (
+                        <div className="absolute right-full mr-2 px-3 py-1 bg-forest-green/10 dark:bg-accent-herb/10 border border-forest-green/20 dark:border-accent-herb/20 rounded-lg text-[10px] font-bold text-forest-green dark:text-accent-herb whitespace-nowrap animate-in fade-in slide-in-from-right-2 duration-300">
+                             Hearing: "{lastCommand}"
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => setIsListening(!isListening)} 
+                        className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white'}`}
+                        title={isListening ? "Listening for commands..." : "Enable Voice Commands"}
+                    >
+                        {isListening ? <Mic size={20} /> : <MicOff size={20} />}
+                    </button>
+                 </div>
             ) : (
                 <button 
                     onClick={() => {
                         if (showToast) showToast("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.", 'error');
-                        else alert("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.");
+                        else if (showAlert) showAlert("Not Supported", "Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.");
                     }} 
                     className="p-2 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     title="Voice Commands Not Supported"
@@ -628,7 +649,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             {tipsList.map((tip, i) => (
                                 <div key={i} className="flex gap-2">
                                     <Lightbulb size={16} className="text-yellow-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm">{tip}</p>
+                                    <p className="text-sm whitespace-pre-wrap">{tip}</p>
                                 </div>
                             ))}
                             {tipsList.length === 0 && <p className="text-sm text-text-muted">No tips for specific steps.</p>}
@@ -772,7 +793,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             {currentStepData?.tip && (
                                 <div className="flex items-start gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-xl max-w-md w-full mx-auto">
                                     <Lightbulb className="text-yellow-600 shrink-0" />
-                                    <p className="text-sm text-yellow-900 dark:text-yellow-100">{currentStepData.tip}</p>
+                                    <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">{currentStepData.tip}</p>
                                 </div>
                             )}
 

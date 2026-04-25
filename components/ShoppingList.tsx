@@ -12,6 +12,8 @@ interface ShoppingListProps {
   pinnedTags: string[];
   onOpenRecipe: (recipeId: string) => void;
   showToast?: (message: string, type?: 'success' | 'error') => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
+  showAlert?: (title: string, message: string) => void;
 }
 
 type ViewMode = 'by-recipe' | 'combined';
@@ -32,7 +34,7 @@ const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () 
   <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
-const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinnedTags, onOpenRecipe, showToast }) => {
+const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinnedTags, onOpenRecipe, showToast, showConfirm, showAlert }) => {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('combined');
@@ -139,7 +141,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
   };
 
   const clearAll = async () => {
-    if (window.confirm('Clear entire shopping list? This cannot be undone.')) {
+    const doClear = async () => {
       try {
         await db.clearShoppingList(false);
         setItems([]); // Update state immediately to reflect empty list
@@ -147,8 +149,14 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
       } catch (error) {
         console.error("Failed to clear list", error);
         if (showToast) showToast("There was an error clearing the list.", 'error');
-        else alert("There was an error clearing the list.");
+        else if (showAlert) showAlert("Error", "There was an error clearing the list.");
       }
+    };
+
+    if (showConfirm) {
+      showConfirm('Clear List', 'Clear entire shopping list? This cannot be undone.', doClear);
+    } else {
+      await doClear();
     }
   };
 
@@ -228,7 +236,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
   const handleCopy = async () => {
     if (sortedCombinedItems.length === 0) {
         if (showToast) showToast("List is empty", 'error');
-        else alert("List is empty");
+        else if (showAlert) showAlert("Empty List", "List is empty");
         return;
     }
 
@@ -242,11 +250,11 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
     try {
         await navigator.clipboard.writeText(text);
         if (showToast) showToast('Ingredients copied to clipboard!');
-        else alert('Ingredients copied to clipboard!');
+        else if (showAlert) showAlert("Success", 'Ingredients copied to clipboard!');
     } catch (err) {
         console.error('Failed to copy', err);
         if (showToast) showToast('Failed to copy. Please allow clipboard access.', 'error');
-        else alert('Failed to copy. Please allow clipboard access.');
+        else if (showAlert) showAlert("Error", 'Failed to copy. Please allow clipboard access.');
     }
   };
 
@@ -428,8 +436,10 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                         <button 
                             onClick={(e) => { 
                                 e.stopPropagation(); 
-                                if (window.confirm(`Remove all ${item.text} from list?`)) {
+                                if (showConfirm) {
+                                  showConfirm('Remove Items', `Remove all ${item.text} from list?`, () => {
                                     item.itemIds.forEach(id => deleteItem(id));
+                                  });
                                 }
                             }}
                             className="opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"

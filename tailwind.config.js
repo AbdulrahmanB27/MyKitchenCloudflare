@@ -10,10 +10,10 @@ export default {
       colors: {
         // Light Mode Colors
         "bg-white": "#ffffff",
-        "bg-subtle": "#fafafa",
-        "sidebar-mint": "#f2fcf5", 
-        "border-thin": "#e5e5e5",
-        "forest-green": "#166534",
+        "bg-subtle": "#ffffff", // Main and sidebar are essentially white with thin borders
+        "sidebar-mint": "#ffffff", // The sidebar in the image does not have a tint 
+        "border-thin": "#e5e7eb",
+        "forest-green": "#86B371", // The muted sage green from the image
         
         // Dark Mode Colors
         "bg-dark": "#192019",

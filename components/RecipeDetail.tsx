@@ -16,6 +16,9 @@ interface RecipeDetailProps {
   setIsCookMode: (val: boolean) => void;
   onEdit: (recipe: Recipe) => void;
   onRefreshList: () => void;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
+  showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
 }
 
 interface ActiveTimer {
@@ -24,7 +27,7 @@ interface ActiveTimer {
     notified: boolean;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, isCookMode, setIsCookMode, onEdit, onRefreshList }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, isCookMode, setIsCookMode, onEdit, onRefreshList, showToast, showAlert, showConfirm }) => {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -41,13 +44,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   // Stopwatch Timers State: Map of step.id -> Timer Data
   const [activeTimers, setActiveTimers] = useState<{ [key: string]: ActiveTimer }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const [toast, setToast] = useState<{ message: string, visible: boolean }>({ message: '', visible: false });
-
-  const showToast = (message: string) => {
-      setToast({ message, visible: true });
-      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
-  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -188,7 +184,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   const scalingFactor = (typeof currentServings === 'number' && currentServings > 0) ? (currentServings / originalServings) : 1;
 
   if (isCookMode) {
-      return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} />;
+      return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} />;
   }
 
   const toggleIngredient = (id: string) => {
@@ -259,20 +255,20 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
         const url = await getShareLinkUrl();
         if (action === 'copy') {
             navigator.clipboard.writeText(url);
-            showToast("Public link copied to clipboard!");
+            showToast?.("Public link copied to clipboard!");
             setIsShareOpen(false);
         } else {
             if (navigator.share) {
                 await navigator.share({ title: recipe.name, url });
                 setIsShareOpen(false);
             } else {
-                showToast("Sharing not supported on this device");
+                showToast?.("Sharing not supported on this device");
             }
         }
     } catch (e: any) {
         console.error("Share failed", e);
         const msg = e.message || "Unknown error";
-        showToast(`Failed to generate link: ${msg}`);
+        showToast?.(`Failed to generate link: ${msg}`);
     }
   };
 
@@ -280,7 +276,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     const text = getRecipeText();
     if (action === 'copy') {
         navigator.clipboard.writeText(text);
-        showToast("Recipe text copied to clipboard!");
+        showToast?.("Recipe text copied to clipboard!");
         setIsShareOpen(false);
     } else {
         if (navigator.share) {
@@ -291,7 +287,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                 // Ignore aborts
             }
         } else {
-            showToast("Sharing not supported on this device");
+            showToast?.("Sharing not supported on this device");
         }
     }
   };
@@ -368,7 +364,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     });
 
     if (itemsToAdd.length === 0) {
-        showToast("No ingredients selected (all checked items were skipped).");
+        showToast?.("No ingredients selected (all checked items were skipped).");
         return;
     }
 
@@ -393,7 +389,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     for (const item of items) {
       await db.upsertShoppingItem(item);
     }
-    showToast(`Added ${items.length} items to Shopping List`);
+    showToast?.(`Added ${items.length} items to Shopping List`);
   };
 
   const getInstructionText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
@@ -869,7 +865,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                                                 {text}
                                                             </p>
                                                             {tip && (
-                                                                <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
+                                                                <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium whitespace-pre-wrap">
                                                                     <Lightbulb size={16} className="shrink-0 mt-0.5" />
                                                                     <span>{tip}</span>
                                                                 </div>
@@ -961,13 +957,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                 <div className="h-10"></div>
             </div>
         </main>
-        {/* Toast Notification */}
-        {toast.visible && (
-            <div className="fixed bottom-6 right-6 z-[120] bg-forest-green dark:bg-white text-white dark:text-black px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
-                <Check size={20} className="text-accent-herb dark:text-green-600" />
-                <span className="font-medium text-sm">{toast.message}</span>
-            </div>
-        )}
     </div>
   );
 };

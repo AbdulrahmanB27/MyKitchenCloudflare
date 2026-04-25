@@ -164,7 +164,7 @@ async function handleAuth(request: Request, env: Env) {
             const token = generateToken();
             await env.DB.prepare("INSERT INTO device_tokens (token, family_id, created_at, last_used_at) VALUES (?, ?, ?, ?)").bind(token, familyId, now, now).run();
 
-            return jsonResponse({ success: true, token, familyId, name: familyName });
+            return jsonResponse({ success: true, token, familyId, name: familyName, isAdmin: true });
         } catch (e: any) {
             return errorResponse(e.message);
         }
@@ -180,23 +180,50 @@ async function handleAuth(request: Request, env: Env) {
             const family = await env.DB.prepare("SELECT * FROM families WHERE lower(name) = lower(?)").bind(familyName).first();
             if (!family) return errorResponse("Family not found", 404);
 
+            let isAdmin = false;
+            let isValid = false;
+
+            // 1. Check if it's the access password
             let hash = await hashPassword(password, family.salt);
-            if (hash !== family.password_hash) {
-                hash = await hashPasswordPBKDF2(password, family.salt);
-                if (hash !== family.password_hash) return errorResponse("Incorrect password", 401);
-                
-                // Optional: Re-hash and save back to SHA-256 for future
-                // DO NOT generate a new salt or it will break the admin password hash. Use the existing salt.
-                const newHash = await hashPassword(password, family.salt);
-                await env.DB.prepare("UPDATE families SET password_hash = ? WHERE id = ?").bind(newHash, family.id).run();
+            if (hash === family.password_hash) {
+                isValid = true;
+            } else {
+                // 1b. Check legacy PBKDF2 access password
+                const legacyHash = await hashPasswordPBKDF2(password, family.salt);
+                if (legacyHash === family.password_hash) {
+                    isValid = true;
+                    // Migrate
+                    const newHash = await hashPassword(password, family.salt);
+                    await env.DB.prepare("UPDATE families SET password_hash = ? WHERE id = ?").bind(newHash, family.id).run();
+                }
             }
+
+            // 2. Check if it's the admin password
+            if (!isValid) {
+                if (hash === family.admin_password_hash) {
+                    isValid = true;
+                    isAdmin = true;
+                } else {
+                    // 2b. Check legacy PBKDF2 admin password
+                    const legacyHash = await hashPasswordPBKDF2(password, family.salt);
+                    if (legacyHash === family.admin_password_hash) {
+                        isValid = true;
+                        isAdmin = true;
+                        // Migrate
+                        const newAdminHash = await hashPassword(password, family.salt);
+                        await env.DB.prepare("UPDATE families SET admin_password_hash = ? WHERE id = ?").bind(newAdminHash, family.id).run();
+                    }
+                }
+            }
+
+            if (!isValid) return errorResponse("Incorrect password", 401);
 
             // Issue token
             const token = generateToken();
             const now = Date.now();
             await env.DB.prepare("INSERT INTO device_tokens (token, family_id, created_at, last_used_at) VALUES (?, ?, ?, ?)").bind(token, family.id, now, now).run();
 
-            return jsonResponse({ success: true, token, familyId: family.id, name: family.name });
+            return jsonResponse({ success: true, token, familyId: family.id, name: family.name, isAdmin });
         } catch (e: any) {
             return errorResponse(e.message);
         }

@@ -229,17 +229,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         </h2>
                         <button onClick={onClose} aria-label="Close modal"><X size={20} className="text-text-secondary hover:text-text-main dark:hover:text-white"/></button>
                     </div>
-
-                    {(mode === 'switch') && (
-                        <div className="flex px-6 gap-6">
-                            <button 
-                                onClick={() => setMode('switch')}
-                                className={`pb-3 text-sm font-bold transition-all border-b-2 border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb`}
-                            >
-                                Families
-                            </button>
-                        </div>
-                    )}
                 </div>
 
                 {/* Content */}
@@ -342,7 +331,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     setConfirmLeaveFamily({ id: s.id, name: s.name });
                                                     setActiveDrawer(null);
                                                 }}
-                                                className="px-5 text-white bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors relative"
+                                                className="px-5 text-rose-500 bg-rose-500/10 dark:bg-rose-500/20 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all relative border-l border-border-thin dark:border-border-dark"
                                                 title="Leave Family"
                                             >
                                                 <LogOut size={20} />
@@ -457,7 +446,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                             <div className="flex gap-2 border-b border-border-thin dark:border-border-dark mb-4 overflow-x-auto no-scrollbar">
                                                 <button type="button" onClick={() => setAdminAction('update')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'update' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Update Passwords</button>
                                                 <button type="button" onClick={() => setAdminAction('rename')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'rename' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Rename Family</button>
-                                                <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-red-500 border-b-2 border-red-500' : 'text-text-secondary hover:text-red-500'}`}>Delete Family</button>
+                                                <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-rose-500 border-b-2 border-rose-500' : 'text-text-secondary hover:text-rose-500'}`}>Delete Family</button>
                                             </div>
 
                                             <form onSubmit={handleAdminSubmit} className="space-y-4">
@@ -480,16 +469,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     </div>
                                                 )}
                                                 {adminAction === 'delete' && (
-                                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 text-xs rounded-lg border border-red-200 dark:border-red-900/50">
+                                                    <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200 text-xs rounded-lg border border-rose-200 dark:border-rose-900/50">
                                                         <strong>Warning:</strong> Deleting this family will permanently remove all associated recipes, reviews, and meal plans. This cannot be undone.
                                                     </div>
                                                 )}
 
                                                 <div className="pt-2 border-t border-border-thin dark:border-border-dark">
                                                     <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
-                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-red-300 dark:border-red-900 focus:border-red-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
+                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-rose-300 dark:border-rose-900 focus:border-rose-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
                                                     
-                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
+                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
                                                         {loading && <Loader size={14} className="animate-spin" />}
                                                         {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
                                                     </button>
@@ -500,39 +489,47 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 </React.Fragment>
                             ))}
                             
-                            {confirmLeaveFamily && (
-                                <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl space-y-4 animate-in slide-in-from-top-2 duration-200">
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 dark:text-red-400">
-                                            <ShieldAlert size={20} />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-bold text-red-950 dark:text-red-200">Leave "{confirmLeaveFamily.name}"?</h4>
-                                            <p className="text-xs text-red-800/70 dark:text-red-400/70 mt-1">
-                                                You will need the password to join this family again.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => {
-                                                db.logout(confirmLeaveFamily.id);
-                                                setConfirmLeaveFamily(null);
-                                                setRefreshTrigger(prev => prev + 1);
-                                            }}
-                                            className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-colors"
+                            <AnimatePresence>
+                                {confirmLeaveFamily && (
+                                    <div className="fixed inset-0 z-[170] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]" onClick={() => setConfirmLeaveFamily(null)}>
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            className="w-full max-w-[280px] bg-white dark:bg-card-dark p-6 rounded-2xl shadow-2xl border border-border-thin dark:border-border-dark flex flex-col items-center text-center space-y-4"
+                                            onClick={e => e.stopPropagation()}
                                         >
-                                            Leave
-                                        </button>
-                                        <button 
-                                            onClick={() => setConfirmLeaveFamily(null)}
-                                            className="flex-1 py-2 bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white rounded-lg text-xs font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
+                                            <div className="p-3 bg-rose-100 dark:bg-rose-500/20 rounded-full text-rose-500 dark:text-rose-400">
+                                                <ShieldAlert size={28} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-base font-bold text-text-main dark:text-white">Leave "{confirmLeaveFamily.name}"?</h4>
+                                                <p className="text-xs text-text-secondary mt-2">
+                                                    You will need the password to join this family again.
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col w-full gap-2 pt-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        db.logout(confirmLeaveFamily.id);
+                                                        setConfirmLeaveFamily(null);
+                                                        setRefreshTrigger(prev => prev + 1);
+                                                    }}
+                                                    className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-rose-500/20 transition-all active:scale-95"
+                                                >
+                                                    Leave Family
+                                                </button>
+                                                <button 
+                                                    onClick={() => setConfirmLeaveFamily(null)}
+                                                    className="w-full py-2 text-text-secondary hover:text-text-main dark:hover:text-white text-xs font-bold transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </motion.div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </AnimatePresence>
                             
                             <div className="pt-4 border-t border-border-thin dark:border-border-dark flex flex-col gap-2">
                                 <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
@@ -541,7 +538,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
                                     <UserPlus size={18} /> Create New Family
                                 </button>
-                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2 font-bold mt-2 border border-red-100 dark:border-red-900/30">
+                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors flex items-center justify-center gap-2 font-bold mt-2 border border-rose-100 dark:border-rose-500/20">
                                     <LogOut size={18} /> Log Out All
                                 </button>
                             </div>

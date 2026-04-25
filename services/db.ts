@@ -4,6 +4,12 @@ import * as idb from './idb';
 import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS, STORE_REVIEWS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
+const TEST_FAMILY_NAME = 'test';
+const TEST_PASSWORD = 'test';
+const TEST_ADMIN_PASSWORD = 'testadmin';
+const TEST_FAMILY_ID = 'test-family-id';
+const TEST_TOKEN = 'mock-test-token-isolated';
+
 const API_BASE = '/api';
 const STORAGE_KEY_TOKEN = 'family_auth_token';
 const STORAGE_KEY_SESSIONS = 'family_sessions';
@@ -123,6 +129,16 @@ export const setAuthCallback = (cb: () => void) => {
 
 export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean }) => {
     const token = safeGetItem(STORAGE_KEY_TOKEN);
+
+    // Isolated test family bypass
+    if (token === TEST_TOKEN) {
+        if (method === 'GET') {
+            if (endpoint.startsWith('/recipes')) return [];
+            if (endpoint.startsWith('/restaurants')) return [];
+        }
+        return { success: true };
+    }
+
     const headers: HeadersInit = {
         'Content-Type': 'application/json'
     };
@@ -270,6 +286,10 @@ export const syncDown = async () => {
         
         // Fetch from all sessions in parallel
         await Promise.all(sessions.map(async (session) => {
+            if (session.token === TEST_TOKEN) {
+                successfulSessionIds.add(session.id);
+                return;
+            }
             try {
                 const headers: Record<string, string> = { 
                     'Content-Type': 'application/json', 
@@ -700,6 +720,15 @@ export const removeFromSyncQueue = async (id: string) => {
 // --- Images ---
 
 export const uploadImage = async (blob: Blob): Promise<string> => {
+    // Isolated test family bypass
+    if (safeGetItem(STORAGE_KEY_TOKEN) === TEST_TOKEN) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+        });
+    }
+
     const formData = new FormData();
     formData.append('file', blob);
     
@@ -721,6 +750,16 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
 // --- Auth ---
 
 export const authenticate = async (familyName: string, password: string, turnstileToken?: string): Promise<{ success: boolean, error?: string }> => {
+    // --- Isolated Test Family Logic ---
+    if (familyName.toLowerCase() === TEST_FAMILY_NAME) {
+        if (password === TEST_PASSWORD || password === TEST_ADMIN_PASSWORD) {
+            const isAdmin = password === TEST_ADMIN_PASSWORD;
+            handleLoginSuccess(TEST_TOKEN, TEST_FAMILY_ID, "Test Family", password, isAdmin);
+            return { success: true };
+        }
+        return { success: false, error: 'Incorrect password' };
+    }
+
     try {
         const res = await apiCall('/auth/login', 'POST', { familyName, password, turnstileToken });
         if (res.token) {
@@ -845,6 +884,14 @@ export const logout = (familyId?: string) => {
 
 // Generic admin action handler
 export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family', data: any) => {
+    // Isolated test family bypass
+    if (safeGetItem(STORAGE_KEY_TOKEN) === TEST_TOKEN) {
+        if (action === 'delete_family') {
+            logout(TEST_FAMILY_ID);
+        }
+        return { success: true };
+    }
+
     try {
         const res = await apiCall('/admin', 'POST', { action, ...data });
         return { success: true, ...res };

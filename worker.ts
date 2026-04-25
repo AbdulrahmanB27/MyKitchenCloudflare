@@ -693,6 +693,80 @@ async function handleRecipeShare(request: Request, env: Env) {
     return errorResponse("Method Not Allowed", 405);
 }
 
+// 9. Family Links
+async function handleFamilyLinks(request: Request, env: Env) {
+    await ensureSchema(env);
+    const url = new URL(request.url);
+
+    // POST /api/family-links/generate (Auth required)
+    if (request.method === "POST" && url.pathname === "/api/family-links/generate") {
+        const session = await getSession(request, env);
+        if (!session) return errorResponse("Unauthorized", 401);
+
+        const body: any = await request.json();
+        const type = body.type; // 'temporary' or 'view'
+        if (type !== 'temporary' && type !== 'view') return errorResponse("Invalid type", 400);
+
+        const token = generateToken();
+        const now = Date.now();
+        const expiresAt = type === 'temporary' ? now + 24 * 60 * 60 * 1000 : now + 365 * 24 * 60 * 60 * 1000;
+
+        await env.DB.prepare(
+            "INSERT INTO family_links (token, family_id, type, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
+        ).bind(token, session.familyId, type, now, expiresAt).run();
+
+        return new Response(JSON.stringify({ success: true, token, type, expiresAt }), { headers: corsHeaders });
+    }
+
+    // POST /api/family-links/join
+    if (request.method === "POST" && url.pathname === "/api/family-links/join") {
+        const body: any = await request.json();
+        const token = body.token;
+        if (!token) return errorResponse("Missing token", 400);
+
+        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
+        if (!link) return errorResponse("Invalid link", 404);
+        if (link.expires_at < Date.now()) return errorResponse("Link expired", 403);
+        if (link.type !== 'temporary') return errorResponse("Invalid link type", 400);
+
+        const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
+        if (!family) return errorResponse("Family not found", 404);
+
+        // Issue token
+        const deviceToken = generateToken();
+        await env.DB.prepare(
+            "INSERT INTO device_tokens (token, family_id, created_at, last_used) VALUES (?, ?, ?, ?)"
+        ).bind(deviceToken, family.id, Date.now(), Date.now()).run();
+
+        return new Response(JSON.stringify({ success: true, token: deviceToken, familyId: family.id, name: family.name }), { headers: corsHeaders });
+    }
+
+    // GET /api/family-links/view/:token
+    if (request.method === "GET" && url.pathname.startsWith("/api/family-links/view/")) {
+        const token = url.pathname.split('/').pop();
+        if (!token) return errorResponse("Missing token", 400);
+
+        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
+        if (!link) return errorResponse("Invalid link", 404);
+        if (link.expires_at < Date.now()) return errorResponse("Link expired", 403);
+        if (link.type !== 'view') return errorResponse("Invalid link type", 400);
+
+        const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
+        if (!family) return errorResponse("Family not found", 404);
+
+        let query = "SELECT data FROM recipes WHERE is_archived = 0 AND (tenant_id = ? OR data LIKE ?)";
+        let params: any[] = [family.id, `%"${family.id}"%`];
+
+        const { results } = await env.DB.prepare(query).bind(...params).all();
+        
+        const recipes = results.map((row: any) => JSON.parse(row.data));
+        
+        return new Response(JSON.stringify({ familyName: family.name, recipes }), { headers: corsHeaders });
+    }
+
+    return errorResponse("Not Found", 404);
+}
+
 // --- Main Router ---
 
 export default {
@@ -710,6 +784,7 @@ export default {
         // Share Routes
         if (url.pathname.startsWith('/api/share')) return handleShare(request, env);
         if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return handleRecipeShare(request, env);
+        if (url.pathname.startsWith('/api/family-links')) return handleFamilyLinks(request, env);
 
         // Updated Routes (now use token-based session)
         if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);

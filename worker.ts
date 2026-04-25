@@ -33,19 +33,11 @@ function errorResponse(message: string, status = 500) {
 // --- Crypto Utils ---
 
 async function hashPassword(password: string, salt: string): Promise<string> {
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-        "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
-    );
-    const key = await crypto.subtle.deriveKey(
-        { "name": "PBKDF2", salt: enc.encode(salt), iterations: 100000, hash: "SHA-256" },
-        keyMaterial,
-        { "name": "AES-GCM", "length": 256 },
-        true,
-        [ "encrypt", "decrypt" ]
-    );
-    const exported = await crypto.subtle.exportKey("raw", key);
-    return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 function generateSalt(): string {

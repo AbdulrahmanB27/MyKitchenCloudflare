@@ -1054,11 +1054,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                      <button 
                         type="button"
                         onClick={() => setIsFamilySelectorOpen(!isFamilySelectorOpen)}
-                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg bg-bg-subtle dark:bg-card-dark border border-border-thin dark:border-border-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50 text-xs font-bold text-text-main dark:text-text-main-dark transition-all shadow-sm"
+                         className={`${INPUT_CLASS} flex items-center justify-between text-left min-w-[200px] gap-2`}
                      >
-                         {targetFamilyId === 'private' ? <Lock size={14} className="text-forest-green dark:text-accent-herb" /> : <Users size={14} className="text-forest-green dark:text-accent-herb" />}
-                         <span>{getTargetFamilyName()}</span>
-                         <ChevronDown size={14} className={`text-text-secondary transition-transform ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
+                         <div className="flex items-center gap-2 overflow-hidden">
+                           {targetFamilyId === 'private' ? <Lock size={14} className="text-forest-green dark:text-accent-herb shrink-0" /> : <Users size={14} className="text-forest-green dark:text-accent-herb shrink-0" />}
+                           <span className="text-sm font-medium truncate">{getTargetFamilyName()}</span>
+                         </div>
+                         <ChevronDown size={14} className={`text-text-secondary transition-transform shrink-0 ${isFamilySelectorOpen ? 'rotate-180' : ''}`} />
                      </button>
 
                      {isFamilySelectorOpen && (

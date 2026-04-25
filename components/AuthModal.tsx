@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff, Link as LinkIcon, Settings, Share2 } from 'lucide-react';
+import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff, Link as LinkIcon, Settings, Share2, ChevronDown } from 'lucide-react';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty } from '../utils/validation';
 
@@ -13,6 +13,9 @@ interface AuthModalProps {
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView = 'login', initialFamilyName = '', showToast }) => {
+    const INPUT_CLASS = "w-full p-3 rounded-xl border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
+    const LABEL_CLASS = "block text-xs font-bold text-text-secondary uppercase mb-1";
+
     const [mode, setMode] = useState<'login' | 'register' | 'admin' | 'switch'>(initialView);
     const [familyName, setFamilyName] = useState(initialFamilyName);
     const [password, setPassword] = useState('');
@@ -20,6 +23,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     
     // Admin Actions State
     const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'>('update');
+    const [isAdminActionOpen, setIsAdminActionOpen] = useState(false);
+    const adminActionDropdownRef = React.useRef<HTMLDivElement>(null);
+
     const [newFamilyPassword, setNewFamilyPassword] = useState('');
     const [newAdminPassword, setNewAdminPassword] = useState('');
     const [newFamilyName, setNewFamilyName] = useState('');
@@ -38,6 +44,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [confirmLeaveFamily, setConfirmLeaveFamily] = useState<{ id: string, name: string } | null>(null);
     const [quickShareFamily, setQuickShareFamily] = useState<{ id: string, name: string } | null>(null);
+    const [showPasswordInline, setShowPasswordInline] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (adminActionDropdownRef.current && !adminActionDropdownRef.current.contains(event.target as Node)) {
+                setIsAdminActionOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         // Initialize Turnstile if available
@@ -215,7 +232,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             >
                                 Families
                             </button>
-                            {db.getCurrentFamilyId() !== 'private' && (
+                            {db.getCurrentFamilyId() !== 'private' && db.isCurrentFamilyAdmin() && (
                                 <button 
                                     onClick={() => { setMode('admin'); setAdminAction('update'); }}
                                     className={`pb-3 text-sm font-bold transition-all border-b-2 ${mode === 'admin' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary hover:text-text-main dark:hover:text-white'}`}
@@ -274,13 +291,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            setMode('admin');
-                                                            setAdminAction('view_password');
+                                                            setShowPasswordInline(!showPasswordInline);
                                                         }}
-                                                        className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors"
+                                                        className={`p-2 transition-colors ${showPasswordInline ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
                                                         title="View Password"
                                                     >
-                                                        <Eye size={18} />
+                                                        {showPasswordInline ? <EyeOff size={18} /> : <Eye size={18} />}
                                                     </button>
                                                 </>
                                             )}
@@ -299,6 +315,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 </div>
                             ))}
 
+                            {showPasswordInline && db.getCurrentFamilyId() !== 'private' && (
+                                <div className="p-4 bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark rounded-xl space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-sm mb-3">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-xs font-bold text-text-secondary uppercase">Access Password</h4>
+                                        <button onClick={() => setShowPasswordInline(false)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={14} /></button>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-bg-subtle dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-border-dark">
+                                        <div className="font-mono text-base font-bold text-text-main dark:text-white tracking-wider flex-1 text-center">
+                                            {db.getCurrentFamilyPassword() || 'Not stored securely'}
+                                        </div>
+                                        <button 
+                                            onClick={() => copyToClipboard(db.getCurrentFamilyPassword() || '')}
+                                            className="text-[10px] font-bold px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    {!db.getCurrentFamilyPassword() && (
+                                        <p className="text-[10px] text-text-secondary leading-tight">Password not stored on this device. Log out & back in to save it.</p>
+                                    )}
+                                </div>
+                            )}
+
                             {quickShareFamily && (
                                 <div className="p-4 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-xl space-y-4 animate-in slide-in-from-top-2 duration-200">
                                     <div className="flex justify-between items-center">
@@ -306,42 +345,53 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         <button onClick={() => setQuickShareFamily(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
-                                        <button 
-                                            onClick={() => {
-                                                handleGenerateLink('permanent');
-                                                setMode('admin');
-                                                setAdminAction('links');
-                                                setQuickShareFamily(null);
-                                            }}
-                                            className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
-                                        >
-                                            <div className="font-bold text-xs text-text-main dark:text-white">Permanent Link</div>
-                                            <div className="text-[10px] text-text-secondary">Requires family password to join.</div>
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                handleGenerateLink('temporary');
-                                                setMode('admin');
-                                                setAdminAction('links');
-                                                setQuickShareFamily(null);
-                                            }}
-                                            className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
-                                        >
-                                            <div className="font-bold text-xs text-text-main dark:text-white">Temporary VIP Link</div>
-                                            <div className="text-[10px] text-text-secondary">Skips password. Expires in 24h.</div>
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                handleGenerateLink('view');
-                                                setMode('admin');
-                                                setAdminAction('links');
-                                                setQuickShareFamily(null);
-                                            }}
-                                            className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
-                                        >
-                                            <div className="font-bold text-xs text-text-main dark:text-white">Read-Only Link</div>
-                                            <div className="text-[10px] text-text-secondary">Public view of family recipes.</div>
-                                        </button>
+                                        {db.isCurrentFamilyAdmin() && (
+                                            <div className="flex flex-col gap-1">
+                                                <button 
+                                                    onClick={() => handleGenerateLink('permanent')}
+                                                    className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                                >
+                                                    <div className="font-bold text-xs text-text-main dark:text-white">Permanent Link</div>
+                                                    <div className="text-[10px] text-text-secondary">Requires family password to join.</div>
+                                                </button>
+                                                {generatedLinks.permanent && (
+                                                    <div className="flex gap-2">
+                                                        <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                        <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="flex flex-col gap-1">
+                                            <button 
+                                                onClick={() => handleGenerateLink('temporary')}
+                                                className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                            >
+                                                <div className="font-bold text-xs text-text-main dark:text-white">Temporary VIP Link</div>
+                                                <div className="text-[10px] text-text-secondary">Skips password. Expires in 24h.</div>
+                                            </button>
+                                            {generatedLinks.temp && (
+                                                <div className="flex gap-2">
+                                                    <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                    <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <button 
+                                                onClick={() => handleGenerateLink('view')}
+                                                className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                            >
+                                                <div className="font-bold text-xs text-text-main dark:text-white">Read-Only Link</div>
+                                                <div className="text-[10px] text-text-secondary">Public view of family recipes.</div>
+                                            </button>
+                                            {generatedLinks.view && (
+                                                <div className="flex gap-2">
+                                                    <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                    <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -441,7 +491,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         </form>
                     )}
 
-                    {mode === 'admin' && (
+                    {mode === 'admin' && db.isCurrentFamilyAdmin() && (
                         <form onSubmit={handleAdminSubmit} className="space-y-4">
                             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-100 dark:border-yellow-900/30">
                                 <p className="text-xs text-yellow-800 dark:text-yellow-200">
@@ -450,14 +500,46 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Action</label>
-                                <select value={adminAction} onChange={e => setAdminAction(e.target.value as any)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white font-sans cursor-pointer transition-all">
-                                    <option value="update" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Update Passwords</option>
-                                    <option value="rename" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Rename Family</option>
-                                    <option value="delete" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Delete Family Data</option>
-                                    {db.getCurrentFamilyPassword() && <option value="view_password" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">View Access Password</option>}
-                                    <option value="links" className="bg-white dark:bg-card-dark text-text-main dark:text-gray-300">Generate Invites & Links</option>
-                                </select>
+                                <label className={LABEL_CLASS}>Action</label>
+                                <div className="relative" ref={adminActionDropdownRef}>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsAdminActionOpen(!isAdminActionOpen)}
+                                        className={`${INPUT_CLASS} flex items-center justify-between text-left h-[46px]`}
+                                    >
+                                        <span className="text-sm font-medium">
+                                            {adminAction === 'update' && 'Update Passwords'}
+                                            {adminAction === 'rename' && 'Rename Family'}
+                                            {adminAction === 'delete' && 'Delete Family Data'}
+                                            {adminAction === 'view_password' && 'View Access Password'}
+                                            {adminAction === 'links' && 'Generate Invites & Links'}
+                                        </span>
+                                        <ChevronDown size={16} className={`text-text-secondary transition-transform ${isAdminActionOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    
+                                    {isAdminActionOpen && (
+                                        <div className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="py-1">
+                                                {[
+                                                    { id: 'update', label: 'Update Passwords' },
+                                                    { id: 'rename', label: 'Rename Family' },
+                                                    { id: 'delete', label: 'Delete Family Data' },
+                                                    ...(db.getCurrentFamilyPassword() ? [{ id: 'view_password', label: 'View Access Password' }] : []),
+                                                    { id: 'links', label: 'Generate Invites & Links' }
+                                                ].map(action => (
+                                                    <button
+                                                        key={action.id}
+                                                        type="button"
+                                                        onClick={() => { setAdminAction(action.id as any); setIsAdminActionOpen(false); }}
+                                                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm ${adminAction === action.id ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb font-bold' : 'text-text-main dark:text-text-main-dark'}`}
+                                                    >
+                                                        {action.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {adminAction === 'links' && (

@@ -96,7 +96,7 @@ export const getPinnedFamilyId = (): string | null => {
     return getCurrentFamilyId();
 };
 
-export const getSavedSessions = (): { id: string, name: string, token: string, password?: string }[] => {
+export const getSavedSessions = (): { id: string, name: string, token: string, password?: string, isAdmin?: boolean }[] => {
     try {
         return JSON.parse(safeGetItem(STORAGE_KEY_SESSIONS) || '[]');
     } catch { return []; }
@@ -712,7 +712,7 @@ export const authenticate = async (familyName: string, password: string, turnsti
     try {
         const res = await apiCall('/auth/login', 'POST', { familyName, password, turnstileToken });
         if (res.token) {
-            handleLoginSuccess(res.token, res.familyId, res.name, password);
+            handleLoginSuccess(res.token, res.familyId, res.name, password, res.isAdmin);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -725,7 +725,7 @@ export const registerFamily = async (familyName: string, password: string, admin
     try {
         const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword, turnstileToken });
         if (res.token) {
-            handleLoginSuccess(res.token, res.familyId, res.name, password);
+            handleLoginSuccess(res.token, res.familyId, res.name, password, res.isAdmin);
             return { success: true };
         }
         return { success: false, error: 'Invalid response' };
@@ -768,7 +768,7 @@ export const fetchPublicFamily = async (token: string): Promise<{ familyName: st
     }
 };
 
-const handleLoginSuccess = (token: string, familyId: string, name: string, password?: string) => {
+const handleLoginSuccess = (token: string, familyId: string, name: string, password?: string, isAdmin?: boolean) => {
     safeSetItem(STORAGE_KEY_TOKEN, token);
     safeSetItem(STORAGE_KEY_FAMILY_ID, familyId);
     safeSetItem(STORAGE_KEY_FAMILY_NAME, name);
@@ -776,17 +776,24 @@ const handleLoginSuccess = (token: string, familyId: string, name: string, passw
     // Save session
     const sessions = getSavedSessions();
     if (!sessions.find(s => s.id === familyId)) {
-        sessions.push({ id: familyId, name, token, password });
+        sessions.push({ id: familyId, name, token, password, isAdmin });
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } else {
         // Update token and password
-        const updated = sessions.map(s => s.id === familyId ? { ...s, token, password: password || s.password } : s);
+        const updated = sessions.map(s => s.id === familyId ? { ...s, token, password: password || s.password, isAdmin: isAdmin ?? s.isAdmin } : s);
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
     // Trigger sync
     retrySync();
     syncDown();
+};
+
+export const isCurrentFamilyAdmin = (): boolean => {
+    const familyId = getCurrentFamilyId();
+    if (!familyId || familyId === 'private') return true; // private is always admin
+    const session = getSavedSessions().find(s => s.id === familyId);
+    return !!session?.isAdmin;
 };
 
 export const getCurrentFamilyPassword = (): string | undefined => {

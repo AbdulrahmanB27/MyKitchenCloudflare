@@ -116,12 +116,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         sub: 'family_member',
         familyId: familyId,
         familyName: familyName,
+        isAdmin: true,
         // Set expiration to 100 years from now (effectively never)
         exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100) 
     };
     const token = await signToken(payload, jwtSecret);
     
-    return new Response(JSON.stringify({ token, success: true, familyId: familyId, name: familyName }), { 
+    return new Response(JSON.stringify({ token, success: true, familyId: familyId, name: familyName, isAdmin: true }), { 
         headers: { "Content-Type": "application/json", ...corsHeaders } 
     });
 

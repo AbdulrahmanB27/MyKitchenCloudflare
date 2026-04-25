@@ -530,10 +530,28 @@ const App: React.FC = () => {
     };
     window.addEventListener('queue-updated', handleQueueUpdate);
     
-    // Check for shared recipe link and family links
+    // Listen for visibility change to sync when app comes to foreground
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && navigator.onLine && db.hasAuthToken()) {
+            console.log("App foregrounded, syncing...");
+            db.retrySync();
+            db.syncDown();
+        }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+        window.removeEventListener('recipes-updated', handleUpdates);
+        window.removeEventListener('queue-updated', handleQueueUpdate);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Check for shared recipe link and family links
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sharedId = params.get('shared_recipe') || params.get('recipeId');
-    const token = params.get('share');
+    const sharedIdParam = params.get('shared_recipe') || params.get('recipeId');
+    const shareTokenParam = params.get('share');
     
     const joinFamilyNameParam = params.get('join_family');
     const tempJoinToken = params.get('temp_join');
@@ -570,32 +588,14 @@ const App: React.FC = () => {
     };
     handleLinks();
 
-    if (sharedId && token) {
-        setSharedRecipeId(sharedId);
-        setShareToken(token);
-        // Clean URL
+    if (sharedIdParam && shareTokenParam) {
+        setSharedRecipeId(sharedIdParam);
+        setShareToken(shareTokenParam);
         window.history.replaceState({}, '', window.location.pathname);
-    } else if (sharedId) {
-        // Legacy support or internal link
-        setSharedRecipeId(sharedId);
+    } else if (sharedIdParam) {
+        setSharedRecipeId(sharedIdParam);
         window.history.replaceState({}, '', window.location.pathname);
     }
-
-    // Listen for visibility change to sync when app comes to foreground
-    const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && navigator.onLine && db.hasAuthToken()) {
-            console.log("App foregrounded, syncing...");
-            db.retrySync();
-            db.syncDown();
-        }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-        window.removeEventListener('recipes-updated', handleUpdates);
-        window.removeEventListener('queue-updated', handleQueueUpdate);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   // Monitor Online Status

@@ -228,22 +228,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         <button onClick={onClose} aria-label="Close modal"><X size={20} className="text-text-secondary hover:text-text-main dark:hover:text-white"/></button>
                     </div>
 
-                    {(mode === 'switch' || mode === 'admin') && (
+                    {(mode === 'switch') && (
                         <div className="flex px-6 gap-6">
                             <button 
                                 onClick={() => setMode('switch')}
-                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${mode === 'switch' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary hover:text-text-main dark:hover:text-white'}`}
+                                className={`pb-3 text-sm font-bold transition-all border-b-2 border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb`}
                             >
                                 Families
                             </button>
-                            {db.getCurrentFamilyId() !== 'private' && db.isCurrentFamilyAdmin() && (
-                                <button 
-                                    onClick={() => { setMode('admin'); setAdminAction('update'); }}
-                                    className={`pb-3 text-sm font-bold transition-all border-b-2 ${mode === 'admin' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary hover:text-text-main dark:hover:text-white'}`}
-                                >
-                                    Settings & Sharing
-                                </button>
-                            )}
                         </div>
                     )}
                 </div>
@@ -518,176 +510,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         </form>
                     )}
 
-                    {mode === 'admin' && db.isCurrentFamilyAdmin() && (
-                        <form onSubmit={handleAdminSubmit} className="space-y-4">
-                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-100 dark:border-yellow-900/30">
-                                <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                                    Current Family: <strong>{db.getCurrentFamilyName()}</strong>
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className={LABEL_CLASS}>Action</label>
-                                <div className="relative" ref={adminActionDropdownRef}>
-                                    <button 
-                                        type="button"
-                                        onClick={() => setIsAdminActionOpen(!isAdminActionOpen)}
-                                        className={`${INPUT_CLASS} flex items-center justify-between text-left h-[46px]`}
-                                    >
-                                        <span className="text-sm font-medium">
-                                            {adminAction === 'update' && 'Update Passwords'}
-                                            {adminAction === 'rename' && 'Rename Family'}
-                                            {adminAction === 'delete' && 'Delete Family Data'}
-                                            {adminAction === 'view_password' && 'View Access Password'}
-                                            {adminAction === 'links' && 'Generate Invites & Links'}
-                                        </span>
-                                        <ChevronDown size={16} className={`text-text-secondary transition-transform ${isAdminActionOpen ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    
-                                    {isAdminActionOpen && (
-                                        <div className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="py-1">
-                                                {[
-                                                    { id: 'update', label: 'Update Passwords' },
-                                                    { id: 'rename', label: 'Rename Family' },
-                                                    { id: 'delete', label: 'Delete Family Data' },
-                                                    ...(db.getCurrentFamilyPassword() ? [{ id: 'view_password', label: 'View Access Password' }] : []),
-                                                    { id: 'links', label: 'Generate Invites & Links' }
-                                                ].map(action => (
-                                                    <button
-                                                        key={action.id}
-                                                        type="button"
-                                                        onClick={() => { setAdminAction(action.id as any); setIsAdminActionOpen(false); }}
-                                                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm ${adminAction === action.id ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb font-bold' : 'text-text-main dark:text-text-main-dark'}`}
-                                                    >
-                                                        {action.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {adminAction === 'links' && (
-                                <div className="space-y-4">
-                                    <p className="text-xs text-text-secondary">Generate special links to share your family access with others.</p>
-                                    
-                                    {/* Permanent Link */}
-                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-text-main dark:text-white">Permanent Join Link</h4>
-                                                <p className="text-xs text-text-secondary">Standard link that lets users join permanently after entering the password.</p>
-                                            </div>
-                                            <button type="button" onClick={() => handleGenerateLink('permanent')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
-                                        </div>
-                                        {generatedLinks.permanent && (
-                                            <div className="flex gap-2">
-                                                <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Temporary Link */}
-                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-text-main dark:text-white">Temporary VIP Join Link</h4>
-                                                <p className="text-xs text-text-secondary">Allows a permanent join without a password. The link itself expires in 24 hours.</p>
-                                            </div>
-                                            <button type="button" onClick={() => handleGenerateLink('temporary')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
-                                        </div>
-                                        {generatedLinks.temp && (
-                                            <div className="flex gap-2">
-                                                <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* View Link */}
-                                    <div className="p-3 border border-border-thin dark:border-border-dark rounded-xl bg-bg-subtle dark:bg-white/5 flex flex-col gap-2">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-text-main dark:text-white">View-Only Link</h4>
-                                                <p className="text-xs text-text-secondary">Public read-only view of all family recipes.</p>
-                                            </div>
-                                            <button type="button" onClick={() => handleGenerateLink('view')} className="text-xs font-bold px-3 py-1.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg">Generate</button>
-                                        </div>
-                                        {generatedLinks.view && (
-                                            <div className="flex gap-2">
-                                                <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {adminAction === 'update' && (
-                                <div className="space-y-3 p-3 border border-border-thin dark:border-border-dark rounded-xl bg-white dark:bg-card-dark">
-                                    <h4 className="text-sm font-bold text-text-main dark:text-white">New Credentials (Optional)</h4>
-                                    <div className="relative">
-                                        <input type={showNewFamilyPassword ? 'text' : 'password'} value={newFamilyPassword} onChange={e => setNewFamilyPassword(e.target.value)} className="w-full p-2 pr-10 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Access Password" />
-                                        <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowNewFamilyPassword(!showNewFamilyPassword)}>
-                                            {showNewFamilyPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                        </button>
-                                    </div>
-                                    <div className="relative">
-                                        <input type={showNewAdminPassword ? 'text' : 'password'} value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} className="w-full p-2 pr-10 text-sm rounded-lg bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark text-text-main dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-forest-green dark:focus:border-accent-herb" placeholder="New Admin Password" />
-                                        <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowNewAdminPassword(!showNewAdminPassword)}>
-                                            {showNewAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {adminAction === 'rename' && (
-                                <div>
-                                    <label className="block text-xs font-bold text-text-secondary uppercase mb-1">New Family Name</label>
-                                    <input required type="text" value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="New Name" />
-                                </div>
-                            )}
-
-                            {adminAction === 'view_password' && (
-                                <div className="p-4 border border-border-thin dark:border-border-dark rounded-xl bg-white dark:bg-card-dark text-center">
-                                    <h4 className="text-sm font-bold text-text-secondary uppercase mb-2">Current Access Password</h4>
-                                    <div className="flex justify-center items-center gap-3">
-                                        <div className="font-mono text-lg font-bold text-text-main dark:text-white bg-bg-subtle dark:bg-white/5 py-2 px-4 rounded-lg tracking-wider">
-                                            {showPassword ? (db.getCurrentFamilyPassword() || 'Not stored securely locally') : '••••••••'}
-                                        </div>
-                                        <button type="button" className="p-2 border border-border-thin dark:border-border-dark rounded-lg text-text-secondary hover:text-text-main dark:hover:text-white hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors" onClick={() => setShowPassword(!showPassword)}>
-                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                                        </button>
-                                    </div>
-                                    {!db.getCurrentFamilyPassword() && (
-                                        <p className="text-xs text-text-secondary mt-3">You must fully log out and log back in to store this password on this device for local viewing.</p>
-                                    )}
-                                </div>
-                            )}
-
-                            {adminAction !== 'view_password' && adminAction !== 'links' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
-                                        <div className="relative">
-                                            <input required type={showAdminPassword ? 'text' : 'password'} value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-red-500 outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Required to verify" />
-                                            <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowAdminPassword(!showAdminPassword)}>
-                                                {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <button type="submit" disabled={loading} className={`w-full py-3 text-white dark:text-black rounded-xl font-bold shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white dark:text-white shadow-red-500/20' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover shadow-forest-green/20 dark:shadow-accent-herb/20'}`}>
-                                        {loading && <Loader size={18} className="animate-spin" />}
-                                        {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
-                                    </button>
-                                </>
-                            )}
-                        </form>
+                    {mode === 'admin' && (
+                        <div className="p-4 text-center text-text-secondary">
+                            Admin settings have been moved to the active family session item.
+                        </div>
                     )}
+
                 </div>
             </div>
         </div>

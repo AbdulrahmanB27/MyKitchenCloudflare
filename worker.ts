@@ -40,6 +40,22 @@ async function hashPassword(password: string, salt: string): Promise<string> {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function hashPasswordPBKDF2(password: string, salt: string): Promise<string> {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
+    );
+    const key = await crypto.subtle.deriveKey(
+        { "name": "PBKDF2", salt: enc.encode(salt), iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { "name": "AES-GCM", "length": 256 },
+        true,
+        [ "encrypt", "decrypt" ]
+    );
+    const exported = await crypto.subtle.exportKey("raw", key);
+    return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function generateSalt(): string {
     return crypto.randomUUID();
 }
@@ -164,8 +180,16 @@ async function handleAuth(request: Request, env: Env) {
             const family = await env.DB.prepare("SELECT * FROM families WHERE lower(name) = lower(?)").bind(familyName).first();
             if (!family) return errorResponse("Family not found", 404);
 
-            const hash = await hashPassword(password, family.salt);
-            if (hash !== family.password_hash) return errorResponse("Incorrect password", 401);
+            let hash = await hashPassword(password, family.salt);
+            if (hash !== family.password_hash) {
+                hash = await hashPasswordPBKDF2(password, family.salt);
+                if (hash !== family.password_hash) return errorResponse("Incorrect password", 401);
+                
+                // Optional: Re-hash and save back to SHA-256 for future
+                // DO NOT generate a new salt or it will break the admin password hash. Use the existing salt.
+                const newHash = await hashPassword(password, family.salt);
+                await env.DB.prepare("UPDATE families SET password_hash = ? WHERE id = ?").bind(newHash, family.id).run();
+            }
 
             // Issue token
             const token = generateToken();
@@ -194,9 +218,12 @@ async function handleAdmin(request: Request, env: Env) {
         const family = await env.DB.prepare("SELECT * FROM families WHERE id = ?").bind(session.familyId).first();
         if (!family) return errorResponse("Family not found", 404);
 
-        const adminHashCheck = await hashPassword(adminPassword, family.salt);
+        let adminHashCheck = await hashPassword(adminPassword, family.salt);
         if (adminHashCheck !== family.admin_password_hash) {
-            return errorResponse("Invalid Admin Password", 403);
+            adminHashCheck = await hashPasswordPBKDF2(adminPassword, family.salt);
+            if (adminHashCheck !== family.admin_password_hash) {
+                return errorResponse("Invalid Admin Password", 403);
+            }
         }
 
         if (action === 'delete_family') {

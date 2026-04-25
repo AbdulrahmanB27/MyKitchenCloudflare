@@ -539,36 +539,38 @@ const App: React.FC = () => {
     const tempJoinToken = params.get('temp_join');
     const viewFamilyToken = params.get('view_family');
 
-    const handleLinks = async () => {
-        if (joinFamilyNameParam) {
-            setAuthModalFamilyName(joinFamilyNameParam);
-            setAuthModalView('login');
-            setShowAuthModal(true);
-            window.history.replaceState({}, '', window.location.pathname);
-        } else if (tempJoinToken) {
-            setIsLoadingLink(true);
-            const res = await db.useFamilyJoinLink(tempJoinToken);
-            setIsLoadingLink(false);
-            if (res.success) {
-                showToast("Joined family successfully!", "success");
-                window.location.replace(window.location.pathname); // Reload totally to reflect auth
-            } else {
-                showToast(res.error || "Failed to join", "error");
+    useEffect(() => {
+        const handleLinks = async () => {
+            if (joinFamilyNameParam) {
+                setAuthModalFamilyName(joinFamilyNameParam);
+                setAuthModalView('login');
+                setShowAuthModal(true);
+                window.history.replaceState({}, '', window.location.pathname);
+            } else if (tempJoinToken) {
+                setIsLoadingLink(true);
+                const res = await db.useFamilyJoinLink(tempJoinToken);
+                setIsLoadingLink(false);
+                if (res.success) {
+                    showToast("Joined family successfully!", "success");
+                    window.location.replace(window.location.pathname); // Reload totally to reflect auth
+                } else {
+                    showToast(res.error || "Failed to join", "error");
+                    window.history.replaceState({}, '', window.location.pathname);
+                }
+            } else if (viewFamilyToken) {
+                setIsLoadingLink(true);
+                const data = await db.fetchPublicFamily(viewFamilyToken);
+                setIsLoadingLink(false);
+                if (data) {
+                    setPublicFamilyView(data);
+                } else {
+                    showToast("View link invalid or expired", "error");
+                }
                 window.history.replaceState({}, '', window.location.pathname);
             }
-        } else if (viewFamilyToken) {
-            setIsLoadingLink(true);
-            const data = await db.fetchPublicFamily(viewFamilyToken);
-            setIsLoadingLink(false);
-            if (data) {
-                setPublicFamilyView(data);
-            } else {
-                showToast("View link invalid or expired", "error");
-            }
-            window.history.replaceState({}, '', window.location.pathname);
-        }
-    };
-    handleLinks();
+        };
+        handleLinks();
+    }, [joinFamilyNameParam, tempJoinToken, viewFamilyToken]);
 
     if (sharedId && token) {
         setSharedRecipeId(sharedId);

@@ -36,9 +36,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             
     // Create payload
     const payload = {
+        sub: 'family_member',
         familyId: family.id,
-        name: family.name,
-        iat: Date.now(),
+        familyName: family.name,
+        isAdmin: false, // Temporary links don't grant admin
         // 100 years
         exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100)
     };

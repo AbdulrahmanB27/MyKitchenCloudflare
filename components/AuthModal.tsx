@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff, Link as LinkIcon, Settings, Share2, ChevronDown } from 'lucide-react';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty } from '../utils/validation';
@@ -39,12 +40,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     
+    // UI Drawer State (Mutually Exclusive)
+    const [activeDrawer, setActiveDrawer] = useState<'password' | 'share' | null>(null);
+    
     // Turnstile
     const [turnstileToken, setTurnstileToken] = useState('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [confirmLeaveFamily, setConfirmLeaveFamily] = useState<{ id: string, name: string } | null>(null);
-    const [quickShareFamily, setQuickShareFamily] = useState<{ id: string, name: string } | null>(null);
-    const [showPasswordInline, setShowPasswordInline] = useState(false);
+    const quickShareFamily = activeDrawer === 'share' ? { id: db.getCurrentFamilyId() || '', name: db.getCurrentFamilyName() } : null;
+    const showPasswordInline = activeDrawer === 'password';
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -141,7 +145,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         if (res.success) {
             const queryParam = type === 'temporary' ? 'temp_join' : 'view_family';
             const link = `${window.location.origin}/?${queryParam}=${res.token}`;
-            setGeneratedLinks(prev => ({ ...prev, [type]: link }));
+            setGeneratedLinks(prev => ({ ...prev, [type === 'temporary' ? 'temp' : type]: link }));
         } else {
             setError(res.error || `Failed to generate ${type} link`);
         }
@@ -256,145 +260,168 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         <div className="space-y-3">
                             <p className="text-sm text-text-secondary mb-2">Select a saved family session:</p>
                             {sessions.map(s => (
-                                <div 
-                                    key={s.id} 
-                                    className={`w-full rounded-xl border flex items-center group transition-all ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
-                                >
-                                    <button 
-                                        onClick={() => db.switchFamily(s.id)}
-                                        className="flex-1 p-4 flex flex-col items-start text-left"
+                                <React.Fragment key={s.id}>
+                                    <div 
+                                        className={`w-full rounded-xl border flex items-center group transition-all mb-2 ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                     >
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-text-main dark:text-white">{s.name}</span>
-                                            {s.id === db.getCurrentFamilyId() && <CheckCircle size={14} className="text-forest-green dark:text-accent-herb"/>}
-                                        </div>
-                                        {s.id === db.getCurrentFamilyId() && (
-                                            <span className="text-[10px] text-forest-green dark:text-accent-herb font-bold uppercase tracking-wider mt-0.5">Active Session</span>
-                                        )}
-                                    </button>
-                                    
-                                    <div className="flex items-center">
-                                        <div className="w-px h-8 bg-border-thin dark:bg-border-dark mr-2 opacity-30 group-hover:opacity-100 transition-opacity"></div>
-                                        <div className="flex items-center pr-2 gap-1">
-                                            {s.id === db.getCurrentFamilyId() && (
-                                                <>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setQuickShareFamily({ id: s.id, name: s.name });
-                                                        }}
-                                                        className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors"
-                                                        title="Share Links"
-                                                    >
-                                                        <Share2 size={18} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setShowPasswordInline(!showPasswordInline);
-                                                        }}
-                                                        className={`p-2 transition-colors ${showPasswordInline ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                        title="View Password"
-                                                    >
-                                                        {showPasswordInline ? <EyeOff size={18} /> : <Eye size={18} />}
-                                                    </button>
-                                                </>
-                                            )}
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setConfirmLeaveFamily({ id: s.id, name: s.name });
-                                                }}
-                                                className="p-2 text-text-secondary hover:text-red-500 transition-colors"
-                                                title="Leave Family"
-                                            >
-                                                <LogOut size={18} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {showPasswordInline && db.getCurrentFamilyId() !== 'private' && (
-                                <div className="p-4 bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark rounded-xl space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-sm mb-3">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-xs font-bold text-text-secondary uppercase">Access Password</h4>
-                                        <button onClick={() => setShowPasswordInline(false)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={14} /></button>
-                                    </div>
-                                    <div className="flex items-center gap-3 bg-bg-subtle dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-border-dark">
-                                        <div className="font-mono text-base font-bold text-text-main dark:text-white tracking-wider flex-1 text-center">
-                                            {db.getCurrentFamilyPassword() || 'Not stored securely'}
-                                        </div>
                                         <button 
-                                            onClick={() => copyToClipboard(db.getCurrentFamilyPassword() || '')}
-                                            className="text-[10px] font-bold px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                                            onClick={() => db.switchFamily(s.id)}
+                                            className="flex-1 p-4 flex flex-col items-start text-left"
                                         >
-                                            Copy
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-text-main dark:text-white">{s.name}</span>
+                                                {s.id === db.getCurrentFamilyId() && <CheckCircle size={14} className="text-forest-green dark:text-accent-herb"/>}
+                                            </div>
+                                            {s.id === db.getCurrentFamilyId() && (
+                                                <span className="text-[10px] text-forest-green dark:text-accent-herb font-bold uppercase tracking-wider mt-0.5">Active Session</span>
+                                            )}
                                         </button>
-                                    </div>
-                                    {!db.getCurrentFamilyPassword() && (
-                                        <p className="text-[10px] text-text-secondary leading-tight">Password not stored on this device. Log out & back in to save it.</p>
-                                    )}
-                                </div>
-                            )}
-
-                            {quickShareFamily && (
-                                <div className="p-4 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-xl space-y-4 animate-in slide-in-from-top-2 duration-200">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-bold text-text-main dark:text-white">Share "{quickShareFamily.name}"</h4>
-                                        <button onClick={() => setQuickShareFamily(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {db.isCurrentFamilyAdmin() && (
-                                            <div className="flex flex-col gap-1">
+                                        
+                                        <div className="flex items-center">
+                                            <div className="w-px h-8 bg-border-thin dark:bg-border-dark mr-2 opacity-30 group-hover:opacity-100 transition-opacity"></div>
+                                            <div className="flex items-center pr-2 gap-1">
+                                                {s.id === db.getCurrentFamilyId() && (
+                                                    <>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (activeDrawer === 'share') {
+                                                                    setActiveDrawer(null);
+                                                                } else {
+                                                                    setActiveDrawer('share');
+                                                                    setConfirmLeaveFamily(null);
+                                                                }
+                                                            }}
+                                                            className={`p-2 transition-colors ${activeDrawer === 'share' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                            title="Share Links"
+                                                        >
+                                                            <Share2 size={18} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (activeDrawer === 'password') {
+                                                                    setActiveDrawer(null);
+                                                                } else {
+                                                                    setActiveDrawer('password');
+                                                                    setConfirmLeaveFamily(null);
+                                                                }
+                                                            }}
+                                                            className={`p-2 transition-colors ${activeDrawer === 'password' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                            title="View Password"
+                                                        >
+                                                            {activeDrawer === 'password' ? <EyeOff size={18} /> : <Eye size={18} />}
+                                                        </button>
+                                                    </>
+                                                )}
                                                 <button 
-                                                    onClick={() => handleGenerateLink('permanent')}
-                                                    className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setConfirmLeaveFamily({ id: s.id, name: s.name });
+                                                        setActiveDrawer(null);
+                                                    }}
+                                                    className="p-2 text-text-secondary hover:text-red-500 transition-colors"
+                                                    title="Leave Family"
                                                 >
-                                                    <div className="font-bold text-xs text-text-main dark:text-white">Permanent Link</div>
-                                                    <div className="text-[10px] text-text-secondary">Requires family password to join.</div>
+                                                    <LogOut size={18} />
                                                 </button>
-                                                {generatedLinks.permanent && (
-                                                    <div className="flex gap-2">
-                                                        <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                        <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Inline Detail Drawers */}
+                                    {showPasswordInline && s.id === db.getCurrentFamilyId() && s.id !== 'private' && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="p-4 bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark rounded-xl space-y-3 shadow-sm mb-3 overflow-hidden"
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="text-xs font-bold text-text-secondary uppercase">Access Password</h4>
+                                                <button onClick={() => setActiveDrawer(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={14} /></button>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-bg-subtle dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-border-dark">
+                                                <div className="font-mono text-base font-bold text-text-main dark:text-white tracking-wider flex-1 text-center">
+                                                    {db.getCurrentFamilyPassword() || 'Not stored securely'}
+                                                </div>
+                                                <button 
+                                                    onClick={() => copyToClipboard(db.getCurrentFamilyPassword() || '')}
+                                                    className="text-[10px] font-bold px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            {!db.getCurrentFamilyPassword() && (
+                                                <p className="text-[10px] text-text-secondary leading-tight">Password not stored on this device. Log out & back in to save it.</p>
+                                            )}
+                                        </motion.div>
+                                    )}
+
+                                    {quickShareFamily?.id === s.id && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="p-4 bg-forest-green/5 dark:bg-accent-herb/5 border border-forest-green/20 dark:border-accent-herb/20 rounded-xl space-y-4 mb-3 overflow-hidden"
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="text-sm font-bold text-text-main dark:text-white">Share "{quickShareFamily.name}"</h4>
+                                                <button onClick={() => setActiveDrawer(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {db.isCurrentFamilyAdmin() && (
+                                                    <div className="flex flex-col gap-1">
+                                                        <button 
+                                                            onClick={() => handleGenerateLink('permanent')}
+                                                            className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                                        >
+                                                            <div className="font-bold text-xs text-text-main dark:text-white">Permanent Link</div>
+                                                            <div className="text-[10px] text-text-secondary">Requires family password to join.</div>
+                                                        </button>
+                                                        {generatedLinks.permanent && (
+                                                            <div className="flex gap-2">
+                                                                <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => handleGenerateLink('temporary')}
+                                                        className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                                    >
+                                                        <div className="font-bold text-xs text-text-main dark:text-white">Temporary VIP Link</div>
+                                                        <div className="text-[10px] text-text-secondary">Skips password. Expires in 24h.</div>
+                                                    </button>
+                                                    {generatedLinks.temp && (
+                                                        <div className="flex gap-2">
+                                                            <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                            <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => handleGenerateLink('view')}
+                                                        className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
+                                                    >
+                                                        <div className="font-bold text-xs text-text-main dark:text-white">Read-Only Link</div>
+                                                        <div className="text-[10px] text-text-secondary">Public view of family recipes.</div>
+                                                    </button>
+                                                    {generatedLinks.view && (
+                                                        <div className="flex gap-2">
+                                                            <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
+                                                            <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
-                                        <div className="flex flex-col gap-1">
-                                            <button 
-                                                onClick={() => handleGenerateLink('temporary')}
-                                                className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
-                                            >
-                                                <div className="font-bold text-xs text-text-main dark:text-white">Temporary VIP Link</div>
-                                                <div className="text-[10px] text-text-secondary">Skips password. Expires in 24h.</div>
-                                            </button>
-                                            {generatedLinks.temp && (
-                                                <div className="flex gap-2">
-                                                    <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                    <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <button 
-                                                onClick={() => handleGenerateLink('view')}
-                                                className="w-full p-3 rounded-lg border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb hover:bg-white dark:hover:bg-white/5 transition-all text-left"
-                                            >
-                                                <div className="font-bold text-xs text-text-main dark:text-white">Read-Only Link</div>
-                                                <div className="text-[10px] text-text-secondary">Public view of family recipes.</div>
-                                            </button>
-                                            {generatedLinks.view && (
-                                                <div className="flex gap-2">
-                                                    <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                    <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                                        </motion.div>
+                                    )}
+                                </React.Fragment>
+                            ))}
                             
                             {confirmLeaveFamily && (
                                 <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl space-y-4 animate-in slide-in-from-top-2 duration-200">

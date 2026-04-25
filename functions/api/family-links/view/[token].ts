@@ -19,7 +19,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const family = await context.env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
     if (!family) return new Response(JSON.stringify({ error: "Family not found" }), { status: 404 });
 
-    let query = "SELECT data FROM recipes WHERE share_to_family = 1 AND (tenant_id = ? OR data LIKE ?)";
+    // Use tenant_id or data LIKE for multi-tenancy support, matching recipes/index.ts pattern
+    let query = "SELECT data FROM recipes WHERE is_archived = 0 AND (tenant_id = ? OR data LIKE ?)";
     let params: any[] = [family.id, `%"${family.id}"%`];
 
     const { results } = await context.env.DB.prepare(query).bind(...params).all();

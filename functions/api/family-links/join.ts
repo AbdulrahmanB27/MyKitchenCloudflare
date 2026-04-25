@@ -39,7 +39,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         familyId: family.id,
         name: family.name,
         iat: Date.now(),
-        exp: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+        // 100 years
+        exp: Date.now() + (1000 * 60 * 60 * 24 * 365 * 100)
     };
 
     const jwt = await signToken(payload, jwtSecret);

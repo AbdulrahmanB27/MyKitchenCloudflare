@@ -9,9 +9,10 @@ import { ChevronLeft, ChevronRight, Plus, Calendar, Search, Trash2, ShoppingCart
 interface MealPlannerProps {
   onOpenMenu: () => void;
   allRecipes: Recipe[];
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
-const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => {
+const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showToast }) => {
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plans, setPlans] = useState<MealPlan[]>([]);
@@ -91,7 +92,8 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
       const weeklyPlans = plans.filter(p => p.date >= startStr && p.date <= endStr);
       
       if (weeklyPlans.length === 0) {
-          alert("No meals planned for this week.");
+          if (showToast) showToast("No meals planned for this week.", 'error');
+          else alert("No meals planned for this week.");
           return;
       }
 
@@ -124,7 +126,8 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes }) => 
               count++;
           }
       }
-      alert(`Added ingredients from ${count} recipes.`);
+      if (showToast) showToast(`Added ingredients from ${count} recipes.`);
+      else alert(`Added ingredients from ${count} recipes.`);
   };
 
   // --- Computed ---

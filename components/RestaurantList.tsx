@@ -12,6 +12,7 @@ import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
 
 interface RestaurantListProps {
     onOpenMenu: () => void;
+    showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 const HOURS = [
@@ -217,7 +218,7 @@ const SwipeableCard: React.FC<SwipeableCardProps> = ({
     );
 };
 
-const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
+const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast }) => {
     const [view, setView] = useState<'list' | 'decide'>('list');
     const [joinView, setJoinView] = useState(false);
     const [joinCode, setJoinCode] = useState('');
@@ -536,7 +537,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             setEditingId(null);
         } catch (e: any) {
             console.error(e);
-            alert(`Failed to delete: ${e.message}`);
+            if (showToast) showToast(`Failed to delete: ${e.message}`, 'error');
+            else alert(`Failed to delete: ${e.message}`);
         } finally {
             setShowDeleteModal(false);
             setRestaurantToDelete(null);
@@ -547,7 +549,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
         e.preventDefault();
         
         if (!isNotEmpty(formData.name)) {
-            alert("Restaurant name is required");
+            if (showToast) showToast("Restaurant name is required", 'error');
+            else alert("Restaurant name is required");
             return;
         }
 
@@ -593,7 +596,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 }
 
                 if (targetFamilyId !== currentFamilyId) {
+                    if (showToast) {
+                    showToast(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}${syncToAll ? ' and synced to all families' : ''}.`);
+                } else {
                     alert(`Restaurant saved to ${availableSessions.find(s => s.id === targetFamilyId)?.name}${syncToAll ? ' and synced to all families' : ''}.`);
+                }
                     clearRestaurantDraft(editingId);
                     setIsFormOpen(false);
                     return;
@@ -604,7 +611,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             clearRestaurantDraft(editingId);
             setIsFormOpen(false);
         } catch (err: any) {
-            alert(`Unable to save: ${err.message}`);
+            if (showToast) showToast(`Unable to save: ${err.message}`, 'error');
+            else alert(`Unable to save: ${err.message}`);
         }
     };
 
@@ -616,7 +624,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             const url = await db.uploadImage(file);
             setFormData(prev => ({ ...prev, image: url }));
         } catch (error) {
-            alert("Failed to upload image.");
+            if (showToast) showToast("Failed to upload image.", 'error');
+            else alert("Failed to upload image.");
         } finally {
             setIsUploading(false);
         }
@@ -654,7 +663,11 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
     };
 
     const startSession = async () => {
-        if (selection.size === 0) { alert("Please select at least one restaurant."); return; }
+        if (selection.size === 0) { 
+            if (showToast) showToast("Please select at least one restaurant.", 'error');
+            else alert("Please select at least one restaurant."); 
+            return; 
+        }
         
         setLoading(true);
         
@@ -688,7 +701,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
             setActiveSession(session);
         } catch (e: any) {
             console.error(e);
-            alert(`Failed to start session: ${e.message}`);
+            if (showToast) showToast(`Failed to start session: ${e.message}`, 'error');
+            else alert(`Failed to start session: ${e.message}`);
             setView('list');
             setIsHost(false);
         } finally {
@@ -698,12 +712,17 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
 
     const handleJoinSession = async (codeOverride?: string) => {
         const code = codeOverride || joinCode;
-        if (code.length !== 4) return alert("Please enter a 4-character code.");
+        if (code.length !== 4) {
+            if (showToast) showToast("Please enter a 4-character code.", 'error');
+            else alert("Please enter a 4-character code.");
+            return;
+        }
         setLoading(true);
         try {
             const data = await db.joinSession(code);
             if (!data) {
-                alert("Session not found or inactive.");
+                if (showToast) showToast("Session not found or inactive.", 'error');
+                else alert("Session not found or inactive.");
             } else {
                 setActiveSession(data.session);
                 setSessionVotes(data.votes);
@@ -717,7 +736,8 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu }) => {
                 if (data.session.mode) setSelectedMode(data.session.mode);
             }
         } catch (e) {
-            alert("Failed to join.");
+            if (showToast) showToast("Failed to join.", 'error');
+            else alert("Failed to join.");
         } finally {
             setLoading(false);
         }

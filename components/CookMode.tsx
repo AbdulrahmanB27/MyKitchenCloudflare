@@ -10,13 +10,14 @@ interface CookModeProps {
   recipe: Recipe;
   onClose: () => void;
   scalingFactor?: number;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
   <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
-const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 }) => {
+const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast }) => {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Sidebar Tabs State
@@ -210,7 +211,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
           console.warn('Speech Rec Error:', e.error);
           if (e.error === 'not-allowed') {
               setIsListening(false);
-              alert("Microphone permission denied.");
+              if (showToast) showToast("Microphone permission denied.", 'error');
+          else alert("Microphone permission denied.");
           }
       };
 
@@ -517,7 +519,10 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1 
                  </button>
             ) : (
                 <button 
-                    onClick={() => alert("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.")} 
+                    onClick={() => {
+                        if (showToast) showToast("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.", 'error');
+                        else alert("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.");
+                    }} 
                     className="p-2 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     title="Voice Commands Not Supported"
                 >

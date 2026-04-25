@@ -18,7 +18,7 @@ import ExportModal, { ExportOptions } from './components/ExportModal';
 import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator } from 'lucide-react';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck } from 'lucide-react';
 import Checkbox from './components/Checkbox';
 import MissingIngredientsBanner from './components/MissingIngredientsBanner';
 
@@ -383,18 +383,37 @@ const App: React.FC = () => {
               db.getShoppingList()
           ]);
           
-          const today = new Date().toISOString().split('T')[0];
-          const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+          const today = new Date();
+          const datesToCheck = [
+              today.toISOString().split('T')[0],
+              new Date(today.getTime() + 86400000).toISOString().split('T')[0],
+              new Date(today.getTime() + 86400000 * 2).toISOString().split('T')[0]
+          ];
           
-          // Get all recipes planned for today or tomorrow
-          const upcomingPlans = plans.filter(p => p.date === today || p.date === tomorrow);
+          // Get all recipes planned for the next 3 days
+          const upcomingPlans = plans.filter(p => datesToCheck.includes(p.date));
           const recipesWithMissing = new Set<string>();
           
           for (const plan of upcomingPlans) {
-              // A recipe is "missing ingredients" if it has UNCHECKED items on the shopping list
-              const hasUnchecked = shopping.some(item => item.recipeId === plan.recipeId && !item.isChecked);
-              if (hasUnchecked) {
-                  recipesWithMissing.add(plan.recipeId);
+              const recipe = currentRecipes.find(r => 
+                  r.id === plan.recipeId || (r.mergedIds && r.mergedIds.includes(plan.recipeId))
+              );
+              
+              if (!recipe) continue;
+
+              const recipeItemsInShopping = shopping.filter(item => 
+                  item.recipeId === recipe.id || 
+                  (recipe.mergedIds && item.recipeId && recipe.mergedIds.includes(item.recipeId))
+              );
+
+              // Heuristic for "missing":
+              // 1. No items in shopping list for this recipe
+              // 2. Or some items exist but are unchecked
+              const isMissing = recipeItemsInShopping.length === 0 || 
+                               recipeItemsInShopping.some(i => !i.isChecked);
+
+              if (isMissing) {
+                  recipesWithMissing.add(recipe.id);
               }
           }
           
@@ -403,6 +422,58 @@ const App: React.FC = () => {
       } catch (err) {
           console.error("Error checking missing ingredients", err);
       }
+  };
+
+  const handleAddMissingIngredients = async () => {
+    if (upcomingMissingRecipes.length === 0) return;
+
+    try {
+        const shopping = await db.getShoppingList();
+        let addedCount = 0;
+
+        for (const recipe of upcomingMissingRecipes) {
+            const existingItems = shopping.filter(i => 
+                i.recipeId === recipe.id || 
+                (recipe.mergedIds && i.recipeId && recipe.mergedIds.includes(i.recipeId))
+            );
+            
+            // Collect all ingredients from the recipe
+            let allIngredients = [...recipe.ingredients];
+            if (recipe.components) {
+                recipe.components.forEach(c => allIngredients.push(...c.ingredients));
+            }
+
+            for (const ing of allIngredients) {
+                // Check if this ingredient (by name) is already in the list for this recipe
+                const alreadyInList = existingItems.some(i => 
+                    i.structured?.item.toLowerCase() === ing.item.toLowerCase()
+                );
+
+                if (!alreadyInList) {
+                    await db.upsertShoppingItem({
+                        id: uuidv4(),
+                        text: `${ing.amount} ${ing.unit} ${ing.item}`.trim(),
+                        structured: {
+                            amount: ing.amount,
+                            unit: ing.unit,
+                            item: ing.item
+                        },
+                        isChecked: false,
+                        recipeId: recipe.id,
+                        recipeName: recipe.name
+                    });
+                    addedCount++;
+                }
+            }
+        }
+
+        showToast(`Added ${addedCount} missing ingredients to list!`, 'success');
+        // loadData will be triggered by the custom event 'shopping-updated' dispatched in db.ts
+        // which we added in the previous turn.
+    } catch (e) {
+        console.error("Failed to add missing ingredients", e);
+        showToast("Failed to add ingredients", "error");
+    }
   };
 
   useEffect(() => {
@@ -989,7 +1060,8 @@ const App: React.FC = () => {
             <MissingIngredientsBanner 
                 missingRecipes={upcomingMissingRecipes}
                 onDismiss={() => setIsBannerDismissed(true)}
-                onAction={() => { setCurrentView('shopping'); window.scrollTo(0, 0); }}
+                onViewList={() => { setCurrentView('shopping'); window.scrollTo(0, 0); }}
+                onAddMissing={handleAddMissingIngredients}
             />
         )}
         
@@ -1002,13 +1074,14 @@ const App: React.FC = () => {
                 setIsCookMode={setIsCookMode}
                 onEdit={(r) => { setEditingRecipe(r); }} 
                 onRefreshList={loadData}
+                showToast={showToast}
             />
         ) : (
             <>
-                {currentView === 'planner' && <MealPlanner onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
-                {currentView === 'shopping' && <ShoppingList onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
+                {currentView === 'planner' && <MealPlanner showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
+                {currentView === 'shopping' && <ShoppingList showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
                 {currentView === 'recommendations' && <Recommendations onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
-                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList onOpenMenu={() => setIsMobileMenuOpen(true)} />}
+                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList showToast={showToast} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -1163,7 +1236,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {showAuthModal && <AuthModal initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
+      {showAuthModal && <AuthModal showToast={showToast} initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
       {showDeleteModal && recipeToDelete && (
           <DeleteConfirmationModal 

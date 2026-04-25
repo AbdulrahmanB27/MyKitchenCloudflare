@@ -348,17 +348,8 @@ export const syncDown = async () => {
     } catch (e) { console.warn("Failed to sync recipes", e); }
 
     // --- Other Stores (Current Session Only) ---
-    // For Plans and Restaurants, we stick to the current session to avoid complexity for now
+    // For Restaurants, we stick to the current session to avoid complexity for now
     if (!hasAuthToken()) return;
-
-    // Plans
-    try {
-        const remotePlans = await apiCall(`/plans?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
-        if (remotePlans) {
-            for (const p of remotePlans) await idb.put(STORE_PLANS, p);
-            window.dispatchEvent(new Event('plans-updated'));
-        }
-    } catch (e) { console.warn("Failed to sync plans", e); }
 
     // Restaurants
     if (ENABLE_RESTAURANTS) {
@@ -662,17 +653,11 @@ export const getMealPlans = async (): Promise<MealPlan[]> => {
 export const upsertMealPlan = async (plan: MealPlan) => {
     await idb.put(STORE_PLANS, plan);
     window.dispatchEvent(new Event('plans-updated'));
-    if (hasAuthToken()) {
-        apiCall('/plans', 'POST', plan).catch(console.error);
-    }
 };
 
 export const deleteMealPlan = async (id: string) => {
     await idb.remove(STORE_PLANS, id);
     window.dispatchEvent(new Event('plans-updated'));
-    if (hasAuthToken()) {
-        apiCall(`/plans?id=${id}`, 'DELETE').catch(console.error);
-    }
 };
 
 // --- Settings ---

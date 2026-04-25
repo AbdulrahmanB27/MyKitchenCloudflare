@@ -11,6 +11,7 @@ interface ShoppingListProps {
   allTags: string[];
   pinnedTags: string[];
   onOpenRecipe: (recipeId: string) => void;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 type ViewMode = 'by-recipe' | 'combined';
@@ -31,7 +32,7 @@ const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () 
   <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
-const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinnedTags, onOpenRecipe }) => {
+const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinnedTags, onOpenRecipe, showToast }) => {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('combined');
@@ -145,7 +146,8 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
         await loadItems(); // Re-fetch to ensure sync
       } catch (error) {
         console.error("Failed to clear list", error);
-        alert("There was an error clearing the list.");
+        if (showToast) showToast("There was an error clearing the list.", 'error');
+        else alert("There was an error clearing the list.");
       }
     }
   };
@@ -225,7 +227,8 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 
   const handleCopy = async () => {
     if (sortedCombinedItems.length === 0) {
-        alert("List is empty");
+        if (showToast) showToast("List is empty", 'error');
+        else alert("List is empty");
         return;
     }
 
@@ -238,10 +241,12 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
 
     try {
         await navigator.clipboard.writeText(text);
-        alert('Ingredients copied to clipboard!');
+        if (showToast) showToast('Ingredients copied to clipboard!');
+        else alert('Ingredients copied to clipboard!');
     } catch (err) {
         console.error('Failed to copy', err);
-        alert('Failed to copy. Please allow clipboard access.');
+        if (showToast) showToast('Failed to copy. Please allow clipboard access.', 'error');
+        else alert('Failed to copy. Please allow clipboard access.');
     }
   };
 

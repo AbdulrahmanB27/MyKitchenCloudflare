@@ -102,6 +102,17 @@ export const getSavedSessions = (): { id: string, name: string, token: string, p
     } catch { return []; }
 };
 
+export const getAvailableIngredients = (): string[] => {
+    try {
+        const item = safeGetItem('available_ingredients');
+        return item ? JSON.parse(item) : [];
+    } catch { return []; }
+};
+
+export const saveAvailableIngredients = (ingredients: string[]) => {
+    safeSetItem('available_ingredients', JSON.stringify(ingredients));
+};
+
 let authCallback: (() => void) | null = null;
 export const setAuthCallback = (cb: () => void) => {
     authCallback = cb;

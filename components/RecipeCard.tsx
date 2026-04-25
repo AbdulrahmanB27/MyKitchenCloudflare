@@ -86,9 +86,11 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
             )}
         </div>
         
-        <p className="text-sm text-text-secondary dark:text-gray-400 line-clamp-2 mb-4 flex-1">
-            {recipe.description || "No description available."}
-        </p>
+        {recipe.description && (
+            <p className="text-sm text-text-secondary dark:text-gray-400 line-clamp-2 mb-4 flex-1">
+                {recipe.description}
+            </p>
+        )}
 
         <div className="flex items-center justify-between text-xs font-medium text-text-secondary dark:text-gray-500 pt-4 border-t border-border-thin dark:border-border-dark mt-auto">
             <div className="flex items-center gap-1.5">

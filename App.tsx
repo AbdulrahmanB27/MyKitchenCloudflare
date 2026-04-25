@@ -6,6 +6,7 @@ import * as db from './services/db';
 import { ENABLE_RESTAURANTS } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitize } from './utils/validation';
+import { checkIngredientMatch, isSeasoning } from './utils/ingredients';
 import RecipeCard from './components/RecipeCard';
 import RecipeDetail from './components/RecipeDetail';
 import RecipeForm from './components/RecipeForm';
@@ -378,11 +379,9 @@ const App: React.FC = () => {
 
   const checkMissingIngredients = async (currentRecipes: Recipe[]) => {
       try {
-          const [plans, shopping] = await Promise.all([
-              db.getMealPlans(),
-              db.getShoppingList()
-          ]);
-          
+          const plans = await db.getMealPlans();
+          const availableSet = new Set(db.getAvailableIngredients());
+
           const today = new Date();
           const datesToCheck = [
               today.toISOString().split('T')[0],
@@ -401,18 +400,25 @@ const App: React.FC = () => {
               
               if (!recipe) continue;
 
-              const recipeItemsInShopping = shopping.filter(item => 
-                  item.recipeId === recipe.id || 
-                  (recipe.mergedIds && item.recipeId && recipe.mergedIds.includes(item.recipeId))
+              let hasMissing = false;
+              let allIngredients: any[] = [...recipe.ingredients];
+              if (recipe.components) {
+                  recipe.components.forEach(c => allIngredients.push(...c.ingredients));
+              }
+
+              // Filter out optional and seasonings
+              const relevantIngredients = allIngredients.filter(ing => 
+                  !ing.optional && !isSeasoning(ing.item)
               );
 
-              // Heuristic for "missing":
-              // 1. No items in shopping list for this recipe
-              // 2. Or some items exist but are unchecked
-              const isMissing = recipeItemsInShopping.length === 0 || 
-                               recipeItemsInShopping.some(i => !i.isChecked);
+              for (const ing of relevantIngredients) {
+                  if (!checkIngredientMatch(ing.item, availableSet)) {
+                      hasMissing = true;
+                      break;
+                  }
+              }
 
-              if (isMissing) {
+              if (hasMissing) {
                   recipesWithMissing.add(recipe.id);
               }
           }
@@ -429,6 +435,7 @@ const App: React.FC = () => {
 
     try {
         const shopping = await db.getShoppingList();
+        const availableSet = new Set(db.getAvailableIngredients());
         let addedCount = 0;
 
         for (const recipe of upcomingMissingRecipes) {
@@ -444,7 +451,12 @@ const App: React.FC = () => {
             }
 
             for (const ing of allIngredients) {
-                // Check if this ingredient (by name) is already in the list for this recipe
+                // If it's a seasoning, optional, or we already have it available, SKIP it
+                if (ing.optional || isSeasoning(ing.item) || checkIngredientMatch(ing.item, availableSet)) {
+                    continue;
+                }
+
+                // Check if this ingredient (by name) is already in the shopping list for this recipe
                 const alreadyInList = existingItems.some(i => 
                     i.structured?.item.toLowerCase() === ing.item.toLowerCase()
                 );

@@ -254,7 +254,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             {sessions.map(s => (
                                 <React.Fragment key={s.id}>
                                     <div 
-                                        className={`w-full rounded-xl border flex items-center group transition-all mb-2 ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
+                                        className={`w-full rounded-xl border flex items-stretch group transition-all mb-2 overflow-hidden ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                     >
                                         <button 
                                             onClick={() => db.switchFamily(s.id)}
@@ -269,55 +269,58 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                             )}
                                         </button>
                                         
-                                        <div className="flex items-center">
-                                            <div className="w-px h-8 bg-border-thin dark:bg-border-dark mr-2 opacity-30 group-hover:opacity-100 transition-opacity"></div>
-                                            <div className="flex items-center pr-2 gap-1">
-                                                {s.id === db.getCurrentFamilyId() && (
-                                                    <>
-                                                        <button 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (activeDrawer === 'share') {
-                                                                    setActiveDrawer(null);
-                                                                } else {
-                                                                    setActiveDrawer('share');
-                                                                    setConfirmLeaveFamily(null);
-                                                                }
-                                                            }}
-                                                            className={`p-2 transition-colors ${activeDrawer === 'share' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                            title="Share Links"
-                                                        >
-                                                            <Share2 size={18} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (activeDrawer === 'password') {
-                                                                    setActiveDrawer(null);
-                                                                } else {
-                                                                    setActiveDrawer('password');
-                                                                    setConfirmLeaveFamily(null);
-                                                                }
-                                                            }}
-                                                            className={`p-2 transition-colors ${activeDrawer === 'password' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                            title="View Password"
-                                                        >
-                                                            {activeDrawer === 'password' ? <EyeOff size={18} /> : <Eye size={18} />}
-                                                        </button>
-                                                    </>
-                                                )}
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setConfirmLeaveFamily({ id: s.id, name: s.name });
-                                                        setActiveDrawer(null);
-                                                    }}
-                                                    className="p-2 text-text-secondary hover:text-red-500 transition-colors"
-                                                    title="Leave Family"
-                                                >
-                                                    <LogOut size={18} />
-                                                </button>
-                                            </div>
+                                        <div className="flex items-stretch">
+                                            {s.id === db.getCurrentFamilyId() && (
+                                                <>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (activeDrawer === 'share') {
+                                                                setActiveDrawer(null);
+                                                            } else {
+                                                                setActiveDrawer('share');
+                                                                setConfirmLeaveFamily(null);
+                                                            }
+                                                        }}
+                                                        className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'share' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                        title="Share Links"
+                                                    >
+                                                        <Share2 size={18} />
+                                                    </button>
+                                                    <div className="flex items-center">
+                                                        <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (activeDrawer === 'password') {
+                                                                setActiveDrawer(null);
+                                                            } else {
+                                                                setActiveDrawer('password');
+                                                                setConfirmLeaveFamily(null);
+                                                            }
+                                                        }}
+                                                        className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'password' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                        title="View Password"
+                                                    >
+                                                        {activeDrawer === 'password' ? <EyeOff size={18} /> : <Eye size={18} />}
+                                                    </button>
+                                                    <div className="flex items-center">
+                                                        <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConfirmLeaveFamily({ id: s.id, name: s.name });
+                                                    setActiveDrawer(null);
+                                                }}
+                                                className="px-5 text-red-500/80 hover:text-white transition-all bg-red-500/10 dark:bg-red-500/5 hover:bg-red-500 flex items-center justify-center"
+                                                title="Leave Family"
+                                            >
+                                                <LogOut size={20} />
+                                            </button>
                                         </div>
                                     </div>
 

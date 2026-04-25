@@ -1,7 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Recipe, Ingredient, RecipeCategory } from '../types';
 import { sanitize } from '../utils/validation';
+import { COMMON_SEASONINGS, normalize, isSeasoning, checkIngredientMatch } from '../utils/ingredients';
+import * as db from '../services/db';
 import { Search, Filter, AlertCircle, CheckCircle2, ChevronRight, ChefHat, X, UtensilsCrossed } from 'lucide-react';
 import Checkbox from './Checkbox';
 import SortMenu from './SortMenu';
@@ -12,20 +14,6 @@ interface RecommendationsProps {
   onOpenRecipe: (recipe: Recipe) => void;
 }
 
-const COMMON_SEASONINGS = new Set([
-  'salt', 'pepper', 'black pepper', 'kosher salt', 'sea salt', 'white pepper',
-  'water', 'ice', 'boiling water', 'cold water',
-  'oil', 'olive oil', 'vegetable oil', 'canola oil', 'coconut oil', 'cooking spray', 'sesame oil', 'avocado oil',
-  'butter', 'unsalted butter', 'salted butter', 'margarine', 'ghee',
-  'sugar', 'brown sugar', 'granulated sugar', 'honey', 'maple syrup', 'agave',
-  'flour', 'all-purpose flour', 'cornstarch', 'baking powder', 'baking soda',
-  'garlic powder', 'onion powder', 'paprika', 'smoked paprika', 'cumin', 'chili powder', 'cayenne', 'red pepper flakes',
-  'oregano', 'dried oregano', 'basil', 'dried basil', 'thyme', 'dried thyme', 'rosemary', 'dried rosemary', 'parsley', 'dried parsley',
-  'cinnamon', 'ground cinnamon', 'nutmeg', 'ginger', 'ground ginger', 'vanilla', 'vanilla extract',
-  'soy sauce', 'vinegar', 'white vinegar', 'apple cider vinegar', 'balsamic vinegar', 'rice vinegar',
-  'ketchup', 'mustard', 'dijon mustard', 'mayonnaise', 'hot sauce', 'sriracha', 'lemon juice', 'lime juice'
-]);
-
 type SortOption = 'relevance' | 'time' | 'rating' | 'calories' | 'name';
 
 const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, onOpenRecipe }) => {
@@ -35,15 +23,6 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
   const [showMissingOne, setShowMissingOne] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
   const [filterCategory, setFilterCategory] = useState<RecipeCategory | 'All'>('All');
-
-  // Helper: Normalize string
-  const normalize = (s: string) => s.trim().toLowerCase();
-
-  const isSeasoning = (name: string) => {
-    const norm = name.toLowerCase().replace(/[^a-z\s]/g, '').trim();
-    if (COMMON_SEASONINGS.has(norm)) return true;
-    return Array.from(COMMON_SEASONINGS).some(s => norm === s || norm === `${s}s`);
-  };
 
   // 1. Extract all unique ingredients from recipes (filtered by category)
   const allIngredientNames = useMemo(() => {
@@ -77,22 +56,6 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
           return true;
       });
   }, [allIngredientNames, ingredientSearch, ignoreSeasonings]);
-
-  // Helper to check if a recipe ingredient matches the user's selected set
-  const checkIngredientMatch = (recipeIngName: string, userSet: Set<string>) => {
-    const norm = normalize(recipeIngName);
-    
-    // 1. Direct match
-    if (userSet.has(norm)) return true;
-
-    // 2. Fuzzy match against all user items
-    // If user has "Chicken Breast", it should match recipe "Chicken"
-    // If user has "Chicken", it should match recipe "Chicken Breast"
-    for (const userItem of userSet) {
-        if (norm.includes(userItem) || userItem.includes(norm)) return true;
-    }
-    return false;
-  };
 
   const recommendations = useMemo(() => {
     if (selectedIngredients.size === 0) return [];
@@ -178,14 +141,25 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
 
   }, [recipes, selectedIngredients, ignoreSeasonings, showMissingOne, sortBy, filterCategory]);
 
+  useEffect(() => {
+      const saved = db.getAvailableIngredients();
+      if (saved && saved.length > 0) {
+          setSelectedIngredients(new Set(saved));
+      }
+  }, []);
+
   const toggleSelection = (name: string) => {
-      const next = new Set(selectedIngredients);
+      const next = new Set<string>(selectedIngredients);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       setSelectedIngredients(next);
+      db.saveAvailableIngredients(Array.from(next));
   };
 
-  const clearSelection = () => setSelectedIngredients(new Set());
+  const clearSelection = () => {
+      setSelectedIngredients(new Set());
+      db.saveAvailableIngredients([]);
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-white dark:bg-bg-dark">

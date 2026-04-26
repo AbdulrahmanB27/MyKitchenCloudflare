@@ -671,7 +671,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
 
                     {/* Actions */}
                     <div className="flex gap-3 w-full md:w-auto items-center">
-                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white font-medium py-2 px-6 rounded-xl transition-all group shadow-sm h-[50px] whitespace-nowrap">
+                        <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-forest-green hover:bg-green-900 text-white font-medium py-2 px-6 rounded-xl transition-all group shadow-sm h-[50px] whitespace-nowrap">
                             <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
                             <span className="text-sm">Start Cooking</span>
                         </button>
@@ -781,7 +781,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                          </div>
 
                          {/* Add to List Button */}
-                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm">
+                         <button onClick={addToShoppingList} className="w-full flex items-center justify-center gap-2 bg-forest-green hover:bg-green-900 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] shadow-sm">
                             <span className="material-symbols-outlined text-[20px]">shopping_cart</span> 
                             <span className="whitespace-nowrap">Add to List</span>
                         </button>
@@ -843,7 +843,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                                             <div className={`flex items-center justify-center size-10 rounded-full border-2 font-bold transition-colors shadow-sm ${
                                                                 optional 
                                                                     ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 text-blue-600' 
-                                                                    : 'bg-white dark:bg-card-dark border-green-700 dark:border-gray-600 text-gray-500 group-hover:border-forest-green group-hover:text-forest-green dark:group-hover:border-green-500 dark:group-hover:text-green-500'
+                                                                    : 'bg-white dark:bg-card-dark border-accent-herb dark:border-gray-600 text-gray-500 group-hover:border-forest-green group-hover:text-forest-green dark:group-hover:border-accent-herb dark:group-hover:text-accent-herb'
                                                             }`}>
                                                                 {optional ? <span className="text-[10px] uppercase">Opt</span> : globalStepCounter}
                                                             </div>
@@ -883,7 +883,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                                                             ? isOvertime
                                                                                 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 animate-pulse'
                                                                                 : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                                                                            : 'bg-forest-green/5 text-forest-green hover:bg-forest-green/10 dark:bg-green-700/10 dark:text-green-500 dark:hover:bg-green-700/20'
+                                                                            : 'bg-forest-green/5 text-forest-green hover:bg-forest-green/10 dark:bg-accent-herb/10 dark:text-accent-herb dark:hover:bg-accent-herb/20'
                                                                     }`}
                                                                 >
                                                                     {isRunning ? (
@@ -943,7 +943,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                 <ExternalLink size={16} />
                                 <span>Source:</span>
                                 {recipe.source?.url ? (
-                                    <a href={recipe.source.url} target="_blank" rel="noopener noreferrer" className="text-forest-green dark:text-green-500 hover:underline font-medium">
+                                    <a href={recipe.source.url} target="_blank" rel="noopener noreferrer" className="text-forest-green dark:text-accent-herb hover:underline font-medium">
                                         {recipe.source.name || 'Link'}
                                     </a>
                                 ) : (

@@ -875,7 +875,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                         maxLength={4}
                         autoFocus
                     />
-                    <button onClick={() => handleJoinSession()} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-forest-green dark:bg-green-700 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
+                    <button onClick={() => handleJoinSession()} disabled={joinCode.length !== 4 || loading} className="w-full py-4 bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50">
                         {loading ? <Loader className="animate-spin mx-auto" /> : 'Join'}
                     </button>
                 </div>
@@ -925,7 +925,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                                 <div className="flex gap-2">
                                     <button 
                                         onClick={() => setShowResults(!showResults)}
-                                        className={`p-2 rounded-lg shadow-sm transition-all ${showResults ? 'bg-forest-green dark:bg-green-700 text-white' : 'bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-secondary'}`}
+                                        className={`p-2 rounded-lg shadow-sm transition-all ${showResults ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black' : 'bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-secondary'}`}
                                     >
                                         <BarChart3 size={18} />
                                     </button>
@@ -1112,7 +1112,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                                             <span className="text-sm font-semibold text-text-secondary bg-bg-subtle dark:bg-white/5 px-3 py-1 rounded-full animate-pulse">
                                                 ✨ {selection.size} restaurants selected
                                             </span>
-                                            <button onClick={startSession} disabled={selection.size === 0} className="w-full bg-forest-green dark:bg-green-700 hover:bg-forest-green/90 text-white font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
+                                            <button onClick={startSession} disabled={selection.size === 0} className="w-full bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black font-display font-bold text-lg py-4 rounded-2xl shadow-lg transform transition hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-50">
                                                 Start Session
                                                 <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                                             </button>
@@ -1223,7 +1223,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                                                     <div className="grid gap-3 pt-2">
                                                         <button 
                                                             onClick={() => setShowResults(true)} 
-                                                            className="w-full py-3 bg-forest-green dark:bg-green-700 text-white rounded-xl font-bold hover:bg-forest-green/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-forest-green/20 dark:shadow-green-700/20"
+                                                            className="w-full py-3 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-herb-hover transition-all flex items-center justify-center gap-2 shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20"
                                                         >
                                                             <BarChart3 size={20} /> View Live Results
                                                         </button>
@@ -1395,7 +1395,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                                                     key={day.id}
                                                     type="button" 
                                                     onClick={() => toggleSchedDay(day.id)}
-                                                    className={`size-7 sm:size-9 shrink-0 rounded-full text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 shadow-md shadow-forest-green/30 dark:shadow-green-700/30' : 'bg-bg-subtle dark:bg-white/5 border-border-thin dark:border-border-dark text-gray-400 hover:border-forest-green/50 dark:hover:border-green-700/50'}`}
+                                                    className={`size-7 sm:size-9 shrink-0 rounded-full text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center border ${schedDays.has(day.id) ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb shadow-md shadow-forest-green/30 dark:shadow-accent-herb/30' : 'bg-bg-subtle dark:bg-white/5 border-border-thin dark:border-border-dark text-gray-400 hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
                                                 >
                                                     {day.label}
                                                 </button>
@@ -1608,7 +1608,7 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ onOpenMenu, showToast, 
                                 <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-sm font-bold text-text-secondary hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors">
                                     Cancel
                                 </button>
-                                <button type="submit" className="flex-1 sm:flex-none px-8 py-3 rounded-xl text-sm font-bold bg-forest-green dark:bg-green-700 text-white hover:bg-forest-green/90 shadow-lg shadow-forest-green/30 dark:shadow-green-700/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+                                <button type="submit" className="flex-1 sm:flex-none px-8 py-3 rounded-xl text-sm font-bold bg-forest-green dark:bg-accent-herb text-white dark:text-black hover:bg-gray-800 dark:hover:bg-herb-hover shadow-lg shadow-forest-green/30 dark:shadow-accent-herb/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
                                     {editingId ? 'Update Gem' : 'Save Gem'}
                                 </button>
                             </div>

@@ -26,7 +26,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const link = await context.env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
     if (!link) return new Response(JSON.stringify({ error: "Invalid link" }), { status: 404 });
     if (link.expires_at < Date.now()) return new Response(JSON.stringify({ error: "Link expired" }), { status: 403 });
-    if (link.type !== 'temporary') return new Response(JSON.stringify({ error: "Invalid link type" }), { status: 400 });
+    if (link.type !== 'temporary' && link.type !== 'permanent') return new Response(JSON.stringify({ error: "Invalid link type" }), { status: 400 });
 
     const family = await context.env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
     if (!family) return new Response(JSON.stringify({ error: "Family not found" }), { status: 404 });

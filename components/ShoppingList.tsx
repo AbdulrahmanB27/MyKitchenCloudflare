@@ -282,13 +282,13 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 <div className="flex gap-2 text-sm mt-1">
                     <button 
                          onClick={() => setViewMode('combined')}
-                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-bold' : 'text-text-secondary border-border-thin dark:border-gray-700 hover:border-forest-green dark:hover:border-green-600'}`}
+                         className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'combined' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' : 'text-text-secondary border-border-thin dark:border-gray-700'}`}
                     >
                         Combined
                     </button>
                     <button 
                         onClick={() => setViewMode('by-recipe')}
-                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-bold' : 'text-text-secondary border-border-thin dark:border-gray-700 hover:border-forest-green dark:hover:border-green-600'}`}
+                        className={`px-3 py-1 rounded-full border transition-colors ${viewMode === 'by-recipe' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' : 'text-text-secondary border-border-thin dark:border-gray-700'}`}
                     >
                         By Recipe
                     </button>
@@ -349,7 +349,7 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
             <button
               type="submit"
               disabled={!newItemItem.trim()}
-              className="px-6 py-2 rounded-lg bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 shadow-sm"
+              className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
             >
               <span className="material-symbols-outlined text-base">add</span>
               Add

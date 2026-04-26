@@ -19,7 +19,7 @@ const MissingIngredientsBanner: React.FC<MissingIngredientsBannerProps> = ({ mis
     : `Missing ingredients for ${missingRecipes.length} upcoming meals!`;
 
   return (
-    <div className="w-full bg-forest-green dark:bg-green-700 text-white py-2 px-4 shadow-lg flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+    <div className="w-full bg-forest-green dark:bg-accent-herb text-white dark:text-black py-2 px-4 shadow-lg flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
       <div className="flex items-center gap-3 overflow-hidden">
         <div className="bg-white/20 p-1.5 rounded-full shrink-0">
           <AlertCircle size={18} />

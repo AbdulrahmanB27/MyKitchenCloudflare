@@ -742,8 +742,9 @@ async function handleFamilyLinks(request: Request, env: Env) {
 
         const token = generateToken();
         const now = Date.now();
-        // permanent links effectively never expire (100 years)
-        const expiresAt = type === 'temporary' ? now + 24 * 60 * 60 * 1000 : (type === 'view' ? now + 365 * 24 * 60 * 60 * 1000 : now + 100 * 365 * 24 * 60 * 60 * 1000);
+        let expiresAt = now + 365 * 24 * 60 * 60 * 1000; // default 1 year for view
+        if (type === 'temporary') expiresAt = now + 24 * 60 * 60 * 1000;
+        if (type === 'permanent') expiresAt = now + 100 * 365 * 24 * 60 * 60 * 1000; // effectively never
 
         await env.DB.prepare(
             "INSERT INTO family_links (token, family_id, type, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
@@ -752,32 +753,16 @@ async function handleFamilyLinks(request: Request, env: Env) {
         return new Response(JSON.stringify({ success: true, token, type, expiresAt }), { headers: corsHeaders });
     }
 
-    // POST /api/family-links/resolve-permanent
-    if (request.method === "POST" && url.pathname === "/api/family-links/resolve-permanent") {
-        const body: any = await request.json();
-        const token = body.token;
-        if (!token) return errorResponse("Missing token", 400);
-
-        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
-        if (!link) return errorResponse("Invalid link", 404);
-        if (link.type !== 'permanent') return errorResponse("Invalid link type", 400);
-
-        const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
-        if (!family) return errorResponse("Family not found", 404);
-
-        return new Response(JSON.stringify({ success: true, familyName: family.name }), { headers: corsHeaders });
-    }
-
     // POST /api/family-links/join
     if (request.method === "POST" && url.pathname === "/api/family-links/join") {
         const body: any = await request.json();
         const token = body.token;
         if (!token) return errorResponse("Missing token", 400);
 
-        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
+        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").first();
         if (!link) return errorResponse("Invalid link", 404);
         if (link.expires_at < Date.now()) return errorResponse("Link expired", 403);
-        if (link.type !== 'temporary') return errorResponse("Invalid link type", 400);
+        if (link.type !== 'temporary' && link.type !== 'permanent') return errorResponse("Invalid link type", 400);
 
         const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
         if (!family) return errorResponse("Family not found", 404);

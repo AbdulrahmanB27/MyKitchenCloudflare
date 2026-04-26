@@ -46,8 +46,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const now = Date.now();
-    // permanent links effectively never expire (100 years)
-    const expiresAt = type === 'temporary' ? now + 24 * 60 * 60 * 1000 : (type === 'view' ? now + 365 * 24 * 60 * 60 * 1000 : now + 100 * 365 * 24 * 60 * 60 * 1000);
+    let expiresAt = now + 365 * 24 * 60 * 60 * 1000;
+    if (type === 'temporary') expiresAt = now + 24 * 60 * 60 * 1000;
+    if (type === 'permanent') expiresAt = now + 100 * 365 * 24 * 60 * 60 * 1000; // effectively never
 
     await context.env.DB.prepare(
         "INSERT INTO family_links (token, family_id, type, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"

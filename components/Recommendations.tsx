@@ -172,7 +172,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
             </button>
             <div>
                 <h1 className="text-2xl font-bold font-display text-text-main dark:text-white flex items-center gap-2">
-                    <ChefHat className="text-forest-green dark:text-green-500" /> What can I make?
+                    <ChefHat className="text-forest-green dark:text-accent-herb" /> What can I make?
                 </h1>
                 <p className="text-sm text-text-secondary">Select ingredients you have to find recipes.</p>
             </div>
@@ -234,7 +234,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                             onClick={() => setFilterCategory(cat as any)} 
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${
                                 filterCategory === cat 
-                                    ? 'bg-forest-green dark:bg-green-700 text-white font-black border-forest-green dark:border-green-700' 
+                                    ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black border-forest-green dark:border-accent-herb' 
                                     : 'bg-bg-subtle dark:bg-bg-dark text-text-secondary border-border-thin dark:border-border-dark hover:bg-bg-subtle dark:hover:bg-white/5'
                             }`}
                          >

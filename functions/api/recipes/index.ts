@@ -160,33 +160,33 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
             // Continue with recipe deletion even if image delete fails
         }
 
-    let tenantIds = (recipeData.tenantIds || []).filter((t: string) => t !== familyId);
-    if (!recipeData.tenantIds) { 
-        // Fallback for older rows
-        if (existing.tenant_id && existing.tenant_id !== familyId) {
-            tenantIds.push(existing.tenant_id);
-        }
-    }
-
-    const now = Date.now();
-
-    if (tenantIds.length > 0) {
-        // Partial delete: just remove this familyId from tenantIds
+    let tenantIds = recipeData.tenantIds || [];
+    
+    // If it's shared with multiple families, just remove this family's access
+    if (tenantIds.length > 1 && tenantIds.includes(familyId)) {
+        tenantIds = tenantIds.filter((t: string) => t !== familyId);
         recipeData.tenantIds = tenantIds;
+        
+        let newPrimaryTenantId = existing.tenant_id;
+        if (newPrimaryTenantId === familyId) {
+            newPrimaryTenantId = tenantIds[0];
+        }
+        
+        const now = Date.now();
         recipeData.updatedAt = now;
-        
-        // Also ensure tenant_id column matches one of the remaining arrays
-        let newPrimaryTenant = tenantIds[0];
-        
+        recipeData.tenantId = newPrimaryTenantId;
+
         await context.env.DB.prepare(
             "UPDATE recipes SET data = ?, updated_at = ?, tenant_id = ? WHERE id = ?"
-        ).bind(JSON.stringify(recipeData), now, newPrimaryTenant, id).run();
-        
+        ).bind(JSON.stringify(recipeData), now, newPrimaryTenantId, id).run();
+
         return new Response(JSON.stringify({ success: true, timestamp: now }));
     }
 
-    // Full Soft Delete (update data with tombstone and flag record)
+    const now = Date.now();
     const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now, tenantIds });
+
+    // Perform Soft Delete (update data with tombstone and flag record)
     await context.env.DB.prepare(
         "UPDATE recipes SET data = ?, updated_at = ?, name = 'Deleted' WHERE id = ?"
     ).bind(tombstone, now, id).run();

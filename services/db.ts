@@ -332,22 +332,9 @@ export const syncDown = async () => {
                 const activeVersions = versions.filter(v => !v.deleted);
                 const deletedVersions = versions.filter(v => v.deleted);
                 
-                // Get tenantIds from backend versions (ensuring we capture all tenantIds present in the synced JSON)
-                const backendTenantIds = activeVersions.flatMap(v => {
-                    const ids: string[] = [];
-                    if (v.tenantId) ids.push(v.tenantId);
-                    if (v.familyId) ids.push(v.familyId);
-                    if (v.tenantIds) ids.push(...v.tenantIds);
-                    return ids;
-                }).filter(Boolean) as string[];
-                
-                const deletedBackendTenantIds = new Set(deletedVersions.flatMap(v => {
-                    const ids: string[] = [];
-                    if (v.tenantId) ids.push(v.tenantId);
-                    if (v.familyId) ids.push(v.familyId);
-                    if (v.tenantIds) ids.push(...v.tenantIds);
-                    return ids;
-                }).filter(Boolean) as string[]);
+                // Get tenantIds from backend versions (use the array if it exists to preserve cross-post groups)
+                const backendTenantIds = activeVersions.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean) as string[];
+                const deletedBackendTenantIds = new Set(deletedVersions.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean) as string[]);
                 
                 // Also include local tenantIds if local version exists and has them
                 // But filter out any that were explicitly deleted on the backend
@@ -619,8 +606,8 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
         return;
     }
     
-    // Ensure the recipe is set to be shared. We do not overwrite familyId so it retains its origin.
-    const sharedRecipe = { ...recipe, shareToFamily: true };
+    // Ensure the recipe is set to be shared
+    const sharedRecipe = { ...recipe, shareToFamily: true, familyId: targetFamilyId };
 
     try {
         // Manual fetch with different token
@@ -802,15 +789,6 @@ export const generateFamilyLink = async (type: 'temporary' | 'view' | 'permanent
     try {
         const res = await apiCall('/family-links/generate', 'POST', { type });
         return { success: true, token: res.token };
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
-};
-
-export const resolvePermanentLink = async (token: string): Promise<{ success: boolean; familyName?: string; error?: string }> => {
-    try {
-        const res = await apiCall('/family-links/resolve-permanent', 'POST', { token });
-        return { success: true, familyName: res.familyName };
     } catch (e: any) {
         return { success: false, error: e.message };
     }

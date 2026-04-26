@@ -131,13 +131,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     };
 
     // Links State
-    const [generatedLinks, setGeneratedLinks] = useState<{ temp?: string, view?: string, permanent?: string }>({});
+
 
     const handleGenerateLink = async (type: 'temporary' | 'view' | 'permanent') => {
         if (type === 'permanent') {
             const familyName = db.getCurrentFamilyName();
-            const link = `${window.location.origin}/?join_family=${encodeURIComponent(familyName)}`;
-            setGeneratedLinks(prev => ({ ...prev, permanent: link }));
+            const link = `${window.location.origin}/?join_family=${encodeURIComponent(familyName || '')}`;
+            copyToClipboard(link);
             return;
         }
 
@@ -147,7 +147,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         if (res.success) {
             const queryParam = type === 'temporary' ? 'temp_join' : 'view_family';
             const link = `${window.location.origin}/?${queryParam}=${res.token}`;
-            setGeneratedLinks(prev => ({ ...prev, [type === 'temporary' ? 'temp' : type]: link }));
+            copyToClipboard(link);
         } else {
             setError(res.error || `Failed to generate ${type} link`);
         }
@@ -331,7 +331,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     setConfirmLeaveFamily({ id: s.id, name: s.name });
                                                     setActiveDrawer(null);
                                                 }}
-                                                className="px-5 text-rose-500 bg-rose-500/10 dark:bg-rose-500/20 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all relative border-l border-border-thin dark:border-border-dark"
+                                                className="px-5 text-red-500 bg-red-500/[0.06] dark:bg-red-500/[0.12] hover:bg-red-500 hover:text-white flex items-center justify-center transition-all relative border-l border-border-thin dark:border-white/5"
                                                 title="Leave Family"
                                             >
                                                 <LogOut size={20} />
@@ -389,12 +389,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                             <div className="font-bold text-xs text-text-main dark:text-white">Permanent Link</div>
                                                             <div className="text-[10px] text-text-secondary">Requires family password to join.</div>
                                                         </button>
-                                                        {generatedLinks.permanent && (
-                                                            <div className="flex gap-2">
-                                                                <input readOnly value={generatedLinks.permanent} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                                <button type="button" onClick={() => copyToClipboard(generatedLinks.permanent!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 )}
                                                 <div className="flex flex-col gap-1">
@@ -405,12 +399,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                         <div className="font-bold text-xs text-text-main dark:text-white">Temporary VIP Link</div>
                                                         <div className="text-[10px] text-text-secondary">Skips password. Expires in 24h.</div>
                                                     </button>
-                                                    {generatedLinks.temp && (
-                                                        <div className="flex gap-2">
-                                                            <input readOnly value={generatedLinks.temp} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                            <button type="button" onClick={() => copyToClipboard(generatedLinks.temp!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 <div className="flex flex-col gap-1">
                                                     <button 
@@ -420,12 +408,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                         <div className="font-bold text-xs text-text-main dark:text-white">Read-Only Link</div>
                                                         <div className="text-[10px] text-text-secondary">Public view of family recipes.</div>
                                                     </button>
-                                                    {generatedLinks.view && (
-                                                        <div className="flex gap-2">
-                                                            <input readOnly value={generatedLinks.view} className="text-xs flex-1 p-2 rounded bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark" />
-                                                            <button type="button" onClick={() => copyToClipboard(generatedLinks.view!)} className="text-xs px-2 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white">Copy</button>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -446,7 +428,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                             <div className="flex gap-2 border-b border-border-thin dark:border-border-dark mb-4 overflow-x-auto no-scrollbar">
                                                 <button type="button" onClick={() => setAdminAction('update')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'update' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Update Passwords</button>
                                                 <button type="button" onClick={() => setAdminAction('rename')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'rename' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Rename Family</button>
-                                                <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-rose-500 border-b-2 border-rose-500' : 'text-text-secondary hover:text-rose-500'}`}>Delete Family</button>
+                                                <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-red-500 border-b-2 border-red-500' : 'text-text-secondary hover:text-red-500'}`}>Delete Family</button>
                                             </div>
 
                                             <form onSubmit={handleAdminSubmit} className="space-y-4">
@@ -469,16 +451,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     </div>
                                                 )}
                                                 {adminAction === 'delete' && (
-                                                    <div className="p-3 bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200 text-xs rounded-lg border border-rose-200 dark:border-rose-900/50">
+                                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 text-xs rounded-lg border border-red-200 dark:border-red-900/50">
                                                         <strong>Warning:</strong> Deleting this family will permanently remove all associated recipes, reviews, and meal plans. This cannot be undone.
                                                     </div>
                                                 )}
 
                                                 <div className="pt-2 border-t border-border-thin dark:border-border-dark">
                                                     <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
-                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-rose-300 dark:border-rose-900 focus:border-rose-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
+                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-red-300 dark:border-red-900 focus:border-red-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
                                                     
-                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
+                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600'}`}>
                                                         {loading && <Loader size={14} className="animate-spin" />}
                                                         {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
                                                     </button>
@@ -499,7 +481,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                             className="w-full max-w-[280px] bg-white dark:bg-card-dark p-6 rounded-2xl shadow-2xl border border-border-thin dark:border-border-dark flex flex-col items-center text-center space-y-4"
                                             onClick={e => e.stopPropagation()}
                                         >
-                                            <div className="p-3 bg-rose-100 dark:bg-rose-500/20 rounded-full text-rose-500 dark:text-rose-400">
+                                            <div className="p-3 bg-red-100 dark:bg-red-500/20 rounded-full text-red-500 dark:text-red-400">
                                                 <ShieldAlert size={28} />
                                             </div>
                                             <div>
@@ -515,7 +497,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                         setConfirmLeaveFamily(null);
                                                         setRefreshTrigger(prev => prev + 1);
                                                     }}
-                                                    className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-rose-500/20 transition-all active:scale-95"
+                                                    className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20 transition-all active:scale-95"
                                                 >
                                                     Leave Family
                                                 </button>
@@ -538,7 +520,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
                                     <UserPlus size={18} /> Create New Family
                                 </button>
-                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors flex items-center justify-center gap-2 font-bold mt-2 border border-rose-100 dark:border-rose-500/20">
+                                <button onClick={() => db.logout()} className="w-full py-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2 font-bold mt-2 border border-red-100 dark:border-red-500/20">
                                     <LogOut size={18} /> Log Out All
                                 </button>
                             </div>
@@ -577,7 +559,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             {/* Turnstile Container */}
                             <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
 
-                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-green-700/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
                             </button>

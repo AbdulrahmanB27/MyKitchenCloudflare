@@ -94,7 +94,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ onClose, onExport, totalRecip
             </button>
             <button 
                 onClick={() => onExport(options)} 
-                className="px-5 py-2 bg-forest-green dark:bg-accent-herb hover:bg-black dark:hover:bg-herb-hover text-white dark:text-black text-sm font-bold rounded-lg shadow-lg shadow-black/10 transition-all flex items-center gap-2"
+                className="px-5 py-2 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-black/10 transition-all flex items-center gap-2"
             >
                 <Download size={16} />
                 Download JSON

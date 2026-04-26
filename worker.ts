@@ -599,52 +599,58 @@ async function handleImages(request: Request, env: Env) {
 
 // 8. Share (Public / Token based)
 async function handleShare(request: Request, env: Env) {
-    await ensureSchema(env);
-    const url = new URL(request.url);
+    try {
+        await ensureSchema(env);
+        const url = new URL(request.url);
 
-    // GET /api/share/recipe?recipeId=...&token=...
-    if (url.pathname === '/api/share/recipe') {
-        const recipeId = url.searchParams.get("recipeId");
-        const token = url.searchParams.get("token");
+        // GET /api/share/recipe?recipeId=...&token=...
+        if (url.pathname === '/api/share/recipe') {
+            const recipeId = url.searchParams.get("recipeId");
+            const token = url.searchParams.get("token");
 
-        if (!recipeId || !token) {
-            return errorResponse("Missing recipeId or token", 400);
+            if (!recipeId || !token) {
+                return errorResponse("Missing recipeId or token", 400);
+            }
+
+            // 1. Validate token
+            const share = await env.DB.prepare(
+                "SELECT * FROM recipe_share_links WHERE token = ? AND recipe_id = ? AND revoked_at IS NULL"
+            ).bind(token, recipeId).first();
+
+            if (!share) {
+                return errorResponse("Invalid or revoked share link", 404);
+            }
+
+            // 2. Fetch recipe
+            const recipe = await env.DB.prepare(
+                "SELECT data FROM recipes WHERE id = ?"
+            ).bind(recipeId).first();
+
+            if (!recipe) {
+                return errorResponse("Recipe not found", 404);
+            }
+
+            const recipeData = typeof recipe.data === 'string' ? JSON.parse(recipe.data) : recipe.data;
+            return jsonResponse(recipeData);
         }
 
-        // 1. Validate token
-        const share = await env.DB.prepare(
-            "SELECT * FROM recipe_share_links WHERE token = ? AND recipe_id = ? AND revoked_at IS NULL"
-        ).bind(token, recipeId).first();
+        // GET /api/share?id=... (Legacy/Public ID)
+        if (url.pathname === '/api/share') {
+            const id = url.searchParams.get("id");
+            if (!id) return errorResponse("Missing ID", 400);
 
-        if (!share) {
-            return errorResponse("Invalid or revoked share link", 404);
+            const result = await env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
+            if (!result) return errorResponse("Recipe not found", 404);
+
+            const data = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            return jsonResponse(data);
         }
 
-        // 2. Fetch recipe
-        const recipe = await env.DB.prepare(
-            "SELECT data FROM recipes WHERE id = ?"
-        ).bind(recipeId).first();
-
-        if (!recipe) {
-            return errorResponse("Recipe not found", 404);
-        }
-
-        const recipeData = JSON.parse(recipe.data);
-        return jsonResponse(recipeData);
+        return errorResponse("Not Found", 404);
+    } catch (e: any) {
+        console.error("Share handler error:", e);
+        return errorResponse(e.message || "Internal Server Error in Share Handler", 500);
     }
-
-    // GET /api/share?id=... (Legacy/Public ID)
-    if (url.pathname === '/api/share') {
-        const id = url.searchParams.get("id");
-        if (!id) return errorResponse("Missing ID", 400);
-
-        const result = await env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
-        if (!result) return errorResponse("Recipe not found", 404);
-
-        return jsonResponse(JSON.parse(result.data));
-    }
-
-    return errorResponse("Not Found", 404);
 }
 
 async function handleRecipeShare(request: Request, env: Env) {
@@ -762,7 +768,7 @@ async function handleFamilyLinks(request: Request, env: Env) {
         // Issue token
         const deviceToken = generateToken();
         await env.DB.prepare(
-            "INSERT INTO device_tokens (token, family_id, created_at, last_used) VALUES (?, ?, ?, ?)"
+            "INSERT INTO device_tokens (token, family_id, created_at, last_used_at) VALUES (?, ?, ?, ?)"
         ).bind(deviceToken, family.id, Date.now(), Date.now()).run();
 
         return new Response(JSON.stringify({ success: true, token: deviceToken, familyId: family.id, name: family.name }), { headers: corsHeaders });
@@ -798,30 +804,35 @@ async function handleFamilyLinks(request: Request, env: Env) {
 
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-        const url = new URL(request.url);
+        try {
+            const url = new URL(request.url);
 
-        if (request.method === "OPTIONS") {
-            return new Response(null, { headers: corsHeaders });
+            if (request.method === "OPTIONS") {
+                return new Response(null, { headers: corsHeaders });
+            }
+
+            // New Routes
+            if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
+            if (url.pathname.startsWith('/api/admin')) return handleAdmin(request, env);
+            
+            // Share Routes
+            if (url.pathname.startsWith('/api/share')) return handleShare(request, env);
+            if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return handleRecipeShare(request, env);
+            if (url.pathname.startsWith('/api/family-links')) return handleFamilyLinks(request, env);
+
+            // Updated Routes (now use token-based session)
+            if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
+            // Shopping list removed
+            if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
+            if (url.pathname.startsWith('/api/restaurants')) return handleRestaurants(request, env);
+            if (url.pathname.startsWith('/api/vote_sessions')) return handleVoteSessions(request, env);
+            if (url.pathname.startsWith('/api/votes')) return handleVotes(request, env);
+            if (url.pathname.startsWith('/api/images')) return handleImages(request, env);
+
+            return new Response("Not Found", { status: 404, headers: corsHeaders });
+        } catch (e: any) {
+            console.error("Top-level worker error:", e);
+            return errorResponse(e.message || "Internal Server Error", 500);
         }
-
-        // New Routes
-        if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
-        if (url.pathname.startsWith('/api/admin')) return handleAdmin(request, env);
-        
-        // Share Routes
-        if (url.pathname.startsWith('/api/share')) return handleShare(request, env);
-        if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return handleRecipeShare(request, env);
-        if (url.pathname.startsWith('/api/family-links')) return handleFamilyLinks(request, env);
-
-        // Updated Routes (now use token-based session)
-        if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
-        // Shopping list removed
-        if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
-        if (url.pathname.startsWith('/api/restaurants')) return handleRestaurants(request, env);
-        if (url.pathname.startsWith('/api/vote_sessions')) return handleVoteSessions(request, env);
-        if (url.pathname.startsWith('/api/votes')) return handleVotes(request, env);
-        if (url.pathname.startsWith('/api/images')) return handleImages(request, env);
-
-        return new Response("Not Found", { status: 404, headers: corsHeaders });
     }
 }

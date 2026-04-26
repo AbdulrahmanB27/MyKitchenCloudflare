@@ -36,7 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: "Recipe not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
     }
 
-    const recipeData = JSON.parse(recipe.data);
+    const recipeData = typeof recipe.data === 'string' ? JSON.parse(recipe.data) : recipe.data;
 
     // 3. Return recipe (view-only)
     return new Response(JSON.stringify(recipeData), { headers: { "Content-Type": "application/json" } });

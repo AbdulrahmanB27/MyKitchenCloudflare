@@ -264,7 +264,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
         return (
             <div className="flex items-start gap-3 w-full" onClick={() => handleToggleIngredient(globalIdx)}>
                  <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isChecked ? 'bg-forest-green dark:bg-accent-herb border-forest-green dark:border-accent-herb' : 'border-border-thin dark:border-border-dark'}`}>
-                    {isChecked && <Check size={14} className="text-white dark:text-black" />}
+                    {isChecked && <Check size={14} className="text-white" />}
                 </div>
                 <span className={`flex-1 cursor-pointer ${isChecked ? 'opacity-50 line-through' : ''}`}>
                     <span className="font-bold text-forest-green dark:text-accent-herb mr-1">{formatFraction(scaledAmount)} {ing.unit}</span>
@@ -342,7 +342,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
 
                         {/* Actions */}
                         <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center no-scrollbar">
-                            <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-forest-green dark:bg-accent-herb hover:bg-black dark:hover:bg-herb-hover text-white dark:text-black font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
+                            <button onClick={() => setIsCookMode(true)} className="flex items-center gap-2 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white font-medium py-2 px-4 rounded-xl transition-all group shadow-sm h-[60px] whitespace-nowrap">
                                 <Play size={24} fill="currentColor" />
                                 <span className="text-sm font-bold">Start Cooking</span>
                             </button>
@@ -367,7 +367,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                 </div>
                                 <button 
                                     onClick={handleAddToShoppingList}
-                                    className="w-full py-2.5 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg font-bold hover:bg-black dark:hover:bg-herb-hover transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                    className="w-full py-2.5 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
                                 >
                                     <ShoppingCart size={18} />
                                     <span>Add {checkedIngredients.size > 0 ? checkedIngredients.size : 'All'} to List</span>
@@ -457,7 +457,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
 
             {/* Toast Notification */}
             {toast.visible && (
-                <div className="fixed bottom-6 right-6 z-[100] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                <div className="fixed bottom-4 right-4 z-[100] bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in duration-300">
                     <Check size={20} className="text-green-400" />
                     <span className="font-medium text-sm">{toast.message}</span>
                 </div>

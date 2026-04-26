@@ -1025,7 +1025,7 @@ const App: React.FC = () => {
                                                  {familyFilter === filter && (
                                                      <motion.div
                                                          layoutId="activeFilter"
-                                                         className="absolute inset-0 bg-forest-green dark:bg-green-700 rounded-md shadow-sm -z-10"
+                                                         className="absolute inset-0 bg-forest-green dark:bg-accent-herb rounded-md shadow-sm -z-10"
                                                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                                      />
                                                  )}
@@ -1193,7 +1193,7 @@ const App: React.FC = () => {
                                     <div className="flex justify-between items-center gap-4">
                                         <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:w-auto sm:gap-2">
                                             {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-green-700 text-white border-transparent shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green'}`}>
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white border-transparent shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
                                                     {cat}
                                                 </button>
                                             ))}
@@ -1204,9 +1204,9 @@ const App: React.FC = () => {
                                         {availableTags.map(tag => {
                                             const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                             
-                                            let activeClass = "bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-black";
+                                            let activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
                                             if (tag === 'All') {
-                                                activeClass = "bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-black";
+                                                activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
                                             } else if (tag === 'Favorites') {
                                                 activeClass = "bg-forest-green dark:bg-card-dark text-white dark:text-accent-herb border-forest-green dark:border-border-dark";
                                             }
@@ -1235,7 +1235,7 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-full shadow-xl hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
                             <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
                         </button>
                     </div>
@@ -1324,7 +1324,7 @@ const App: React.FC = () => {
 
       {/* Toast Notification */}
       {toast.visible && (
-          <div className={`fixed bottom-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-forest-green dark:bg-green-800'}`}>
+          <div className={`fixed bottom-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-forest-green dark:bg-white dark:text-black'}`}>
               {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
               {toast.message}
           </div>

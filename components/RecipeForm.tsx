@@ -1484,7 +1484,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
           <div className="flex flex-col sm:flex-row gap-4 sm:items-center w-full sm:w-auto ml-auto">
               <div className="flex gap-3 w-full sm:w-auto">
                 <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-5 py-2 rounded-lg border border-border-thin dark:border-border-dark hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-black/10 hover:shadow-black/20 transition-all">
+                <button type="submit" disabled={isUploading || isSaving} className="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-black/10 hover:shadow-black/20 transition-all">
                     {isSaving ? <Loader size={18} className="animate-spin"/> : <Save size={18} />} 
                     Save
                 </button>
@@ -1508,7 +1508,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     />
                     <div className="flex justify-end gap-3">
                         <button onClick={() => setShowJsonModal(false)} className="px-4 py-2 rounded-lg text-text-secondary hover:bg-bg-subtle dark:hover:bg-white/5">Cancel</button>
-                        <button onClick={handleTextImport} className="px-4 py-2 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg font-bold transition-all">Import</button>
+                        <button onClick={handleTextImport} className="px-4 py-2 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg font-bold hover:opacity-90 transition-opacity">Import</button>
                     </div>
                 </div>
             </div>

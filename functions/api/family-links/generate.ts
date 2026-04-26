@@ -41,12 +41,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   try {
     const body: any = await context.request.json();
-    const type = body.type; // 'temporary' or 'view'
-    if (type !== 'temporary' && type !== 'view') return new Response("Invalid type", { status: 400 });
+    const type = body.type; // 'temporary', 'view', or 'permanent'
+    if (type !== 'temporary' && type !== 'view' && type !== 'permanent') return new Response("Invalid type", { status: 400 });
 
     const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const now = Date.now();
-    const expiresAt = type === 'temporary' ? now + 24 * 60 * 60 * 1000 : now + 365 * 24 * 60 * 60 * 1000;
+    // permanent links effectively never expire (100 years)
+    const expiresAt = type === 'temporary' ? now + 24 * 60 * 60 * 1000 : (type === 'view' ? now + 365 * 24 * 60 * 60 * 1000 : now + 100 * 365 * 24 * 60 * 60 * 1000);
 
     await context.env.DB.prepare(
         "INSERT INTO family_links (token, family_id, type, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"

@@ -32,8 +32,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   try {
     const familyId = payload.familyId;
-    // Return restaurants for this family only
-    const { results } = await context.env.DB.prepare("SELECT data, deleted FROM restaurants WHERE family_id = ? ORDER BY updated_at DESC").bind(familyId).all();
+    // Return restaurants for this family (and any cross-posted ones)
+    const { results } = await context.env.DB.prepare("SELECT data, deleted FROM restaurants WHERE family_id = ? OR data LIKE ? ORDER BY updated_at DESC").bind(familyId, `%"${familyId}"%`).all();
     const list = results.map((row: any) => {
         const data = JSON.parse(row.data);
         // Ensure the deleted flag from the column overrides the JSON blob (or is added)
@@ -55,8 +55,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const now = Date.now();
     r.updatedAt = now;
     
-    // Enforce family isolation
-    r.familyId = payload.familyId;
+    if (!r.tenantIds) r.tenantIds = [];
+    if (!r.tenantIds.includes(payload.familyId)) {
+        r.tenantIds.push(payload.familyId);
+    }
+    
+    // Enforce family isolation - default to primary payload family for column, but keep origin if cross-posting
+    if (!r.familyId) {
+        r.familyId = payload.familyId;
+    }
     
     // Ensure core fields map to columns for indexing if needed, but we mostly use 'data' JSON blob for app
     // We update columns to allow for easier querying in future

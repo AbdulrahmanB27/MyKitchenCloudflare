@@ -134,18 +134,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
 
     const handleGenerateLink = async (type: 'temporary' | 'view' | 'permanent') => {
-        if (type === 'permanent') {
-            const familyName = db.getCurrentFamilyName();
-            const link = `${window.location.origin}/?join_family=${encodeURIComponent(familyName || '')}`;
-            copyToClipboard(link);
-            return;
-        }
-
         setLoading(true);
         const res = await db.generateFamilyLink(type);
         setLoading(false);
         if (res.success) {
-            const queryParam = type === 'temporary' ? 'temp_join' : 'view_family';
+            let queryParam = type === 'temporary' ? 'temp_join' : 'view_family';
+            if (type === 'permanent') queryParam = 'perm_join';
             const link = `${window.location.origin}/?${queryParam}=${res.token}`;
             copyToClipboard(link);
         } else {
@@ -460,7 +454,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
                                                     <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-red-300 dark:border-red-900 focus:border-red-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
                                                     
-                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
+                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600'}`}>
                                                         {loading && <Loader size={14} className="animate-spin" />}
                                                         {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
                                                     </button>
@@ -559,7 +553,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             {/* Turnstile Container */}
                             <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
 
-                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-green-700/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
                             </button>

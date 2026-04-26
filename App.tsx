@@ -608,11 +608,24 @@ const App: React.FC = () => {
     const shareTokenParam = params.get('share');
     
     const joinFamilyNameParam = params.get('join_family');
+    const permJoinToken = params.get('perm_join');
     const tempJoinToken = params.get('temp_join');
     const viewFamilyToken = params.get('view_family');
 
     const handleLinks = async () => {
-        if (joinFamilyNameParam) {
+        if (permJoinToken) {
+            setIsLoadingLink(true);
+            const res = await db.resolvePermanentLink(permJoinToken);
+            setIsLoadingLink(false);
+            if (res.success && res.familyName) {
+                setAuthModalFamilyName(res.familyName);
+                setAuthModalView('login');
+                setShowAuthModal(true);
+            } else {
+                showToast(res.error || "Failed to resolve link", "error");
+            }
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (joinFamilyNameParam) {
             setAuthModalFamilyName(joinFamilyNameParam);
             setAuthModalView('login');
             setShowAuthModal(true);
@@ -1025,7 +1038,7 @@ const App: React.FC = () => {
                                                  {familyFilter === filter && (
                                                      <motion.div
                                                          layoutId="activeFilter"
-                                                         className="absolute inset-0 bg-forest-green dark:bg-accent-herb rounded-md shadow-sm -z-10"
+                                                         className="absolute inset-0 bg-forest-green dark:bg-green-700 rounded-md shadow-sm -z-10"
                                                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                                      />
                                                  )}
@@ -1055,19 +1068,19 @@ const App: React.FC = () => {
                                         <button
                                             key={family.id}
                                             onClick={() => setSelectedFamilyId(isActive ? null : family.id)}
-                                            className={`w-full text-left p-3 rounded-xl transition-all border group relative overflow-hidden ${
+                                             className={`w-full text-left p-3 rounded-xl transition-all border group relative overflow-hidden ${
                                                 isActive 
-                                                    ? 'ring-2 ring-forest-green dark:ring-accent-herb border-transparent shadow-md scale-[1.02]' 
+                                                    ? 'ring-2 ring-forest-green dark:ring-green-700 border-transparent shadow-md scale-[1.02]' 
                                                     : `${colorClass} hover:scale-[1.01] hover:shadow-sm`
                                             }`}
                                         >
-                                            <div className={`font-bold text-sm transition-colors ${isActive ? 'text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-white'}`}>
+                                            <div className={`font-bold text-sm transition-colors ${isActive ? 'text-forest-green dark:text-green-500' : 'text-text-main dark:text-white'}`}>
                                                 {family.name}
                                             </div>
                                             <div className="flex items-center gap-2 mt-1.5">
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                                                     isActive 
-                                                        ? 'bg-forest-green text-white dark:bg-accent-herb dark:text-black' 
+                                                        ? 'bg-forest-green text-white dark:bg-green-700' 
                                                         : 'bg-black/5 dark:bg-white/10 text-text-secondary dark:text-gray-400'
                                                 }`}>
                                                     {family.recipeCount} recipes
@@ -1075,7 +1088,7 @@ const App: React.FC = () => {
                                             </div>
                                             {isActive && (
                                                 <div className="absolute top-2 right-2">
-                                                    <Check size={14} className="text-forest-green dark:text-accent-herb" />
+                                                    <Check size={14} className="text-forest-green dark:text-green-500" />
                                                 </div>
                                             )}
                                         </button>
@@ -1193,7 +1206,7 @@ const App: React.FC = () => {
                                     <div className="flex justify-between items-center gap-4">
                                         <div className="grid grid-cols-4 gap-1.5 w-full sm:flex sm:w-auto sm:gap-2">
                                             {['All', 'Entrees', 'Sides', 'Desserts'].map(cat => (
-                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-white border-transparent shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary dark:text-text-secondary-dark hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green dark:hover:border-accent-herb'}`}>
+                                                <button key={cat} onClick={() => setSelectedCategory(cat as any)} className={`px-1 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center border ${selectedCategory === cat ? 'bg-forest-green dark:bg-green-700 text-white border-transparent shadow-md transform scale-105' : 'bg-white dark:bg-card-dark text-text-secondary hover:bg-gray-50 dark:hover:bg-card-hover border border-border-thin dark:border-border-dark hover:border-forest-green'}`}>
                                                     {cat}
                                                 </button>
                                             ))}
@@ -1204,9 +1217,9 @@ const App: React.FC = () => {
                                         {availableTags.map(tag => {
                                             const isActive = tag === 'All' ? (selectedTags.size === 0 && !filterFavorites) : (tag === 'Favorites' ? filterFavorites : selectedTags.has(tag));
                                             
-                                            let activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
+                                            let activeClass = "bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-black";
                                             if (tag === 'All') {
-                                                activeClass = "bg-forest-green dark:bg-accent-herb text-white dark:text-white border-forest-green dark:border-accent-herb";
+                                                activeClass = "bg-forest-green dark:bg-green-700 text-white border-forest-green dark:border-green-700 font-black";
                                             } else if (tag === 'Favorites') {
                                                 activeClass = "bg-forest-green dark:bg-card-dark text-white dark:text-accent-herb border-forest-green dark:border-border-dark";
                                             }
@@ -1235,7 +1248,7 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
+                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-full shadow-xl hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
                             <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
                         </button>
                     </div>
@@ -1324,7 +1337,7 @@ const App: React.FC = () => {
 
       {/* Toast Notification */}
       {toast.visible && (
-          <div className={`fixed bottom-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-forest-green dark:bg-white dark:text-black'}`}>
+          <div className={`fixed bottom-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-forest-green dark:bg-green-800'}`}>
               {toast.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
               {toast.message}
           </div>

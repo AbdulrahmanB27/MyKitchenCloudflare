@@ -160,12 +160,33 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
             // Continue with recipe deletion even if image delete fails
         }
 
-    let tenantIds = recipeData.tenantIds || [];
+    let tenantIds = (recipeData.tenantIds || []).filter((t: string) => t !== familyId);
+    if (!recipeData.tenantIds) { 
+        // Fallback for older rows
+        if (existing.tenant_id && existing.tenant_id !== familyId) {
+            tenantIds.push(existing.tenant_id);
+        }
+    }
 
     const now = Date.now();
-    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now, tenantIds });
 
-    // Perform Soft Delete (update data with tombstone and flag record)
+    if (tenantIds.length > 0) {
+        // Partial delete: just remove this familyId from tenantIds
+        recipeData.tenantIds = tenantIds;
+        recipeData.updatedAt = now;
+        
+        // Also ensure tenant_id column matches one of the remaining arrays
+        let newPrimaryTenant = tenantIds[0];
+        
+        await context.env.DB.prepare(
+            "UPDATE recipes SET data = ?, updated_at = ?, tenant_id = ? WHERE id = ?"
+        ).bind(JSON.stringify(recipeData), now, newPrimaryTenant, id).run();
+        
+        return new Response(JSON.stringify({ success: true, timestamp: now }));
+    }
+
+    // Full Soft Delete (update data with tombstone and flag record)
+    const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now, tenantIds });
     await context.env.DB.prepare(
         "UPDATE recipes SET data = ?, updated_at = ?, name = 'Deleted' WHERE id = ?"
     ).bind(tombstone, now, id).run();

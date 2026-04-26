@@ -554,7 +554,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                 <span className="material-symbols-outlined">{isFullscreen ? 'close_fullscreen' : 'fullscreen'}</span>
             </button>
             {/* Sidebar Toggle */}
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-2 rounded-lg transition-colors ${isSidebarOpen ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-text-main dark:text-white hover:bg-gray-200 dark:hover:bg-white/20'}`}>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-2 rounded-lg transition-colors ${isSidebarOpen ? 'bg-forest-green dark:bg-green-700 text-white' : 'bg-gray-100 dark:bg-white/10 text-text-main dark:text-white hover:bg-gray-200 dark:hover:bg-white/20'}`}>
                 <span className="material-symbols-outlined">{isSidebarOpen ? 'menu_open' : 'menu'}</span>
             </button>
         </div>
@@ -573,11 +573,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
         >
             <div className="w-80 h-full flex flex-col">
                 <div className="flex border-b border-border-thin dark:border-border-dark overflow-x-auto no-scrollbar flex-none">
-                    <button onClick={() => setActiveTab('ingredients')} className={`flex-1 min-w-[80px] py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary'}`}>Prep</button>
-                    <button onClick={() => setActiveTab('steps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'steps' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary'}`}>Steps</button>
-                    <button onClick={() => setActiveTab('tools')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tools' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary'}`}>Tools</button>
-                    <button onClick={() => setActiveTab('swaps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'swaps' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary'}`}>Swaps</button>
-                    <button onClick={() => setActiveTab('tips')} className={`flex-1 min-w-[50px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tips' ? 'border-forest-green dark:border-accent-herb text-forest-green dark:text-accent-herb' : 'border-transparent text-text-secondary'}`}>Tips</button>
+                    <button onClick={() => setActiveTab('ingredients')} className={`flex-1 min-w-[80px] py-3 text-sm font-bold border-b-2 ${activeTab === 'ingredients' ? 'border-forest-green dark:border-green-500 text-forest-green dark:text-green-500 font-black' : 'border-transparent text-text-secondary'}`}>Prep</button>
+                    <button onClick={() => setActiveTab('steps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'steps' ? 'border-forest-green dark:border-green-500 text-forest-green dark:text-green-500 font-black' : 'border-transparent text-text-secondary'}`}>Steps</button>
+                    <button onClick={() => setActiveTab('tools')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tools' ? 'border-forest-green dark:border-green-500 text-forest-green dark:text-green-500 font-black' : 'border-transparent text-text-secondary'}`}>Tools</button>
+                    <button onClick={() => setActiveTab('swaps')} className={`flex-1 min-w-[60px] py-3 text-sm font-bold border-b-2 ${activeTab === 'swaps' ? 'border-forest-green dark:border-green-500 text-forest-green dark:text-green-500 font-black' : 'border-transparent text-text-secondary'}`}>Swaps</button>
+                    <button onClick={() => setActiveTab('tips')} className={`flex-1 min-w-[50px] py-3 text-sm font-bold border-b-2 ${activeTab === 'tips' ? 'border-forest-green dark:border-green-500 text-forest-green dark:text-green-500 font-black' : 'border-transparent text-text-secondary'}`}>Tips</button>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
@@ -587,9 +587,9 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                 <button 
                                     key={index} 
                                     onClick={() => { setCurrentStep(index); /* Optional: auto-close sidebar on step select? */ }}
-                                    className={`w-full text-left p-3 rounded-lg text-sm transition-colors flex gap-3 group ${index === currentStep && !isFinished ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb border border-forest-green/10 dark:border-accent-herb/20' : 'hover:bg-gray-100 dark:hover:bg-white/5 border border-transparent'}`}
+                                    className={`w-full text-left p-3 rounded-lg text-sm transition-colors flex gap-3 group ${index === currentStep && !isFinished ? 'bg-forest-green/5 dark:bg-green-700/10 text-forest-green dark:text-green-500 border border-forest-green/10 dark:border-green-700/20' : 'hover:bg-gray-100 dark:hover:bg-white/5 border border-transparent'}`}
                                 >
-                                    <span className={`flex-none size-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${index === currentStep && !isFinished ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black' : 'bg-bg-subtle dark:bg-white/10 text-gray-500 group-hover:bg-gray-300 dark:group-hover:bg-gray-600'}`}>
+                                    <span className={`flex-none size-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${index === currentStep && !isFinished ? 'bg-forest-green dark:bg-green-700 text-white' : 'bg-bg-subtle dark:bg-white/10 text-gray-500 group-hover:bg-gray-300 dark:group-hover:bg-gray-600'}`}>
                                         {index + 1}
                                     </span>
                                     <div className="flex-1">
@@ -623,7 +623,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                  <div className="flex flex-col gap-2">
                                      {recipe.cookware.map((tool, i) => (
                                          <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-white/5 rounded border border-border-thin dark:border-border-dark">
-                                             <CookingPot size={16} className="text-forest-green dark:text-accent-herb" />
+                                             <CookingPot size={16} className="text-forest-green dark:text-green-500" />
                                              <span className="text-sm font-medium">{tool}</span>
                                          </div>
                                      ))}
@@ -693,7 +693,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             </div>
                             <h1 className="text-3xl md:text-4xl font-bold">All Done!</h1>
                             <p className="text-lg text-text-muted max-w-md mx-auto">You've completed this recipe. Bon appétit!</p>
-                            <button onClick={onClose} className="px-8 py-3 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-lg shadow-black/10">
+                            <button onClick={onClose} className="px-8 py-3 bg-forest-green hover:bg-forest-green/90 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-lg shadow-black/10">
                                 Exit Cook Mode
                             </button>
                         </div>
@@ -728,7 +728,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                             onClick={() => setIsTimerRunning(!isTimerRunning)}
                                             className={`size-10 rounded-full flex items-center justify-center transition-all ${
                                                 hasAlerted ? 'bg-red-500 text-white animate-pulse' : 
-                                                isTimerRunning ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-forest-green dark:bg-accent-herb text-white dark:text-black hover:scale-105 shadow-md'
+                                                isTimerRunning ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' : 'bg-forest-green dark:bg-green-700 text-white hover:scale-105 shadow-md font-bold'
                                             }`}
                                         >
                                             {isTimerRunning ? <Pause fill="currentColor" size={18} /> : <Play fill="currentColor" size={18} className="ml-0.5" />}
@@ -762,8 +762,8 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
 
                                         {/* Adjusters */}
                                         <div className="flex flex-col gap-0.5 border-l border-border-thin dark:border-border-dark pl-2">
-                                            <button onClick={() => addTime(60)} className="p-0.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors"><ChevronUp size={14} /></button>
-                                            <button onClick={() => addTime(-60)} className="p-0.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors"><ChevronDown size={14} /></button>
+                                            <button onClick={() => addTime(60)} className="p-0.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-text-secondary hover:text-forest-green dark:hover:text-green-500 transition-colors"><ChevronUp size={14} /></button>
+                                            <button onClick={() => addTime(-60)} className="p-0.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-text-secondary hover:text-forest-green dark:hover:text-green-500 transition-colors"><ChevronDown size={14} /></button>
                                         </div>
 
                                         {/* Reset */}
@@ -809,14 +809,14 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                             onChange={(e) => setNoteDraft(e.target.value)}
                                             autoFocus
                                         />
-                                        <button onClick={() => saveNote(currentStepData!.id)} className="p-2 bg-forest-green dark:bg-accent-herb text-white dark:text-black rounded-lg hover:scale-105 transition-transform">
+                                        <button onClick={() => saveNote(currentStepData!.id)} className="p-2 bg-forest-green dark:bg-green-700 text-white rounded-lg hover:scale-105 transition-transform">
                                             <Save size={20} />
                                         </button>
                                     </div>
                                 ) : (
                                     <button 
                                         onClick={() => startEditingNote(currentStepData!.id)}
-                                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${userNotes[currentStepData!.id] ? 'text-text-main dark:text-white bg-white dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-gray-700 w-full text-left' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                        className={`flex items-center gap-2 text-sm font-medium transition-colors ${userNotes[currentStepData!.id] ? 'text-text-main dark:text-white bg-white dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-gray-700 w-full text-left' : 'text-text-secondary hover:text-forest-green dark:hover:text-green-500'}`}
                                     >
                                         <Edit size={16} />
                                         {userNotes[currentStepData!.id] || "Add a private note to this step..."}
@@ -841,13 +841,13 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                 
                 <div className="flex flex-col items-center">
                     <div className="w-32 md:w-64 h-1.5 bg-bg-subtle dark:bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-forest-green dark:bg-accent-herb transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                        <div className="h-full bg-forest-green dark:bg-green-700 transition-all duration-300" style={{ width: `${progress}%` }}></div>
                     </div>
                 </div>
 
                 <button 
                     onClick={() => isFinished ? onClose() : setCurrentStep(Math.min(allSteps.length, currentStep + 1))}
-                    className={`px-6 py-3 rounded-xl font-bold text-white dark:text-black transition-all shadow-lg flex items-center gap-2 ${isFinished ? 'bg-green-600 hover:bg-green-700' : 'bg-forest-green dark:bg-accent-herb hover:scale-105'}`}
+                    className={`px-6 py-3 rounded-xl font-bold text-white transition-all shadow-lg flex items-center gap-2 ${isFinished ? 'bg-green-600 hover:bg-green-700' : 'bg-forest-green dark:bg-green-700 hover:scale-105'}`}
                 >
                     <span className="hidden md:inline">{isFinished ? 'Finish' : 'Next Step'}</span>
                     <span className="material-symbols-outlined">{isFinished ? 'check' : 'arrow_forward'}</span>

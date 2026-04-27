@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Moon, Sun, Monitor, FlaskConical, Palette } from 'lucide-react';
 import { AppSettings } from '../types';
 import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, ENABLE_VOICE_EXPERIMENTAL } from '../constants';
@@ -10,9 +10,32 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpdateSettings }) => {
+    const modalRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        const handleClickOutside = (e: MouseEvent) => {
+            if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [onClose]);
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-bg-dark rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative">
+            <div ref={modalRef} className="bg-white dark:bg-bg-dark rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative">
                 
                 {/* Header */}
                 <div className="p-4 border-b border-border-thin dark:border-border-dark flex justify-between items-center bg-bg-subtle dark:bg-card-dark">

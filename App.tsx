@@ -961,11 +961,11 @@ const App: React.FC = () => {
         <div className="px-4 py-6 flex items-center justify-center h-24">
             {!isSidebarCollapsed ? (
                 <div className="flex items-center justify-center overflow-hidden w-full">
-                    <div className="h-12 w-full shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/script.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/script.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
+                    <img src="/script-colored.png?v=6" alt="MyKitchen" className="h-12 object-contain" />
                 </div>
             ) : (
                 <div className="flex items-center justify-center w-full">
-                    <div className="w-10 h-10 shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/logo.png?v=4)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png?v=4)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
+                    <img src="/logo-colored.png?v=6" alt="MyKitchen" className="w-10 h-10 object-contain" />
                 </div>
             )}
         </div>

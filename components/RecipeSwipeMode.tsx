@@ -7,12 +7,14 @@ interface SwipeableRecipeCardProps {
     recipe: Recipe;
     onVote: (val: number) => void;
     onStartAnimating?: () => void;
+    isBackground?: boolean;
 }
 
 const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => void }, SwipeableRecipeCardProps>(({ 
     recipe, 
     onVote,
-    onStartAnimating
+    onStartAnimating,
+    isBackground = false
 }, ref) => {
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -22,7 +24,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     // Allow parent to trigger votes via ref
     React.useImperativeHandle(ref, () => ({
         triggerVote: (val: number) => {
-            if (!animating) finishVote(val);
+            if (!animating && !isBackground) finishVote(val);
         }
     }));
     
@@ -30,7 +32,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     const cardRef = useRef<HTMLDivElement>(null);
 
     const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
-        if (animating) return;
+        if (animating || isBackground) return;
         setIsDragging(true);
         const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
@@ -38,7 +40,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     };
 
     const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isDragging || animating) return;
+        if (!isDragging || animating || isBackground) return;
         
         const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
@@ -54,7 +56,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     };
 
     const handleTouchEnd = () => {
-        if (!isDragging || animating) return;
+        if (!isDragging || animating || isBackground) return;
         setIsDragging(false);
         
         const threshold = 100; 
@@ -71,6 +73,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     };
 
     const finishVote = (val: number) => {
+        if (isBackground) return;
         setAnimating(true);
         if (onStartAnimating) onStartAnimating();
         let endX = 0;
@@ -96,14 +99,17 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
     const rotation = offset.x / 15;
 
     return (
-        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div className={`absolute inset-0 flex items-center justify-center p-4 ${isBackground ? 'z-10' : 'z-20'} pointer-events-none`}>
             <div 
                 ref={cardRef}
-                className="w-full max-w-sm h-full max-h-[75vh] bg-white dark:bg-card-dark rounded-3xl shadow-2xl overflow-hidden relative touch-none select-none cursor-grab active:cursor-grabbing z-20 pointer-events-auto"
+                className={`w-full max-w-sm h-full max-h-[75vh] bg-white dark:bg-card-dark rounded-3xl shadow-2xl overflow-hidden relative select-none ${isBackground ? '' : 'cursor-grab active:cursor-grabbing pointer-events-auto touch-none'}`}
                 style={{ 
-                    transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
-                    transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
-                    opacity: result ? 0 : 1
+                    transform: isBackground 
+                        ? 'translateY(12px) scale(0.96)' 
+                        : `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
+                    transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.15), opacity 0.3s ease',
+                    opacity: isBackground ? 0.8 : (result ? 0 : 1),
+                    filter: isBackground ? 'brightness(0.9)' : 'none'
                 }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
@@ -114,15 +120,19 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
                 onMouseLeave={handleTouchEnd}
             >
                 {/* Overlay Indicators */}
-                <div className="absolute top-8 left-8 z-30 border-4 border-green-500 rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none bg-green-500/10 backdrop-blur-sm" style={{ opacity: opacityRight }}>
-                    <span className="text-green-500 font-extrabold text-3xl uppercase tracking-widest">Yum</span>
-                </div>
-                <div className="absolute top-8 right-8 z-30 border-4 border-red-500 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none bg-red-500/10 backdrop-blur-sm" style={{ opacity: opacityLeft }}>
-                    <span className="text-red-500 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
-                </div>
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 border-4 border-blue-400 rounded-lg px-4 py-1 transition-opacity pointer-events-none bg-blue-400/10 backdrop-blur-sm" style={{ opacity: opacitySkip }}>
-                    <span className="text-blue-400 font-extrabold text-3xl uppercase tracking-widest">Skip</span>
-                </div>
+                {!isBackground && (
+                    <>
+                        <div className="absolute top-8 left-8 z-30 border-4 border-green-500 rounded-lg px-4 py-1 transform -rotate-12 transition-opacity pointer-events-none bg-green-500/10 backdrop-blur-sm" style={{ opacity: opacityRight }}>
+                            <span className="text-green-500 font-extrabold text-3xl uppercase tracking-widest">Yum</span>
+                        </div>
+                        <div className="absolute top-8 right-8 z-30 border-4 border-red-500 rounded-lg px-4 py-1 transform rotate-12 transition-opacity pointer-events-none bg-red-500/10 backdrop-blur-sm" style={{ opacity: opacityLeft }}>
+                            <span className="text-red-500 font-extrabold text-3xl uppercase tracking-widest">Nope</span>
+                        </div>
+                        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 border-4 border-blue-400 rounded-lg px-4 py-1 transition-opacity pointer-events-none bg-blue-400/10 backdrop-blur-sm" style={{ opacity: opacitySkip }}>
+                            <span className="text-blue-400 font-extrabold text-3xl uppercase tracking-widest">Skip</span>
+                        </div>
+                    </>
+                )}
 
                 {/* Card Content */}
                 <div className="relative h-[50%] w-full bg-bg-subtle dark:bg-white/10 pointer-events-none">
@@ -297,7 +307,12 @@ const RecipeSwipeMode: React.FC<RecipeSwipeModeProps> = ({ recipes, onBack, onOp
                     <div className="w-full max-w-sm flex-1 flex flex-col items-center justify-center relative mb-24">
                         <div className="w-full aspect-[3/4.5] relative">
                             {swipeIndex + 1 < shuffledRecipes.current.length && (
-                                <div className="absolute inset-0 bg-white dark:bg-card-dark rounded-3xl shadow-xl transform scale-95 translate-y-4 opacity-50 border border-border-thin dark:border-border-dark"></div>
+                                <SwipeableRecipeCard 
+                                    key={shuffledRecipes.current[swipeIndex + 1].id + (swipeIndex + 1)} 
+                                    recipe={shuffledRecipes.current[swipeIndex + 1]} 
+                                    onVote={() => {}} 
+                                    isBackground
+                                />
                             )}
                             {shuffledRecipes.current[swipeIndex] && (
                                 <SwipeableRecipeCard 

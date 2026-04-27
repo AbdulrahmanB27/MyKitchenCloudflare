@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Moon, Sun, Monitor, FlaskConical, Palette } from 'lucide-react';
 import { AppSettings } from '../types';
+import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE } from '../constants';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -45,10 +46,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
                                 <Moon size={24} className="mb-2" />
                                 <span className="text-xs font-bold">Dark</span>
                             </button>
-                            {/* In the future, could add system preference sync */}
-                            <button className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-border-thin dark:border-border-dark text-text-secondary/50 cursor-not-allowed" title="Coming Soon">
+                            <button 
+                                onClick={() => onUpdateSettings({ ...settings, theme: 'system' })}
+                                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${settings.theme === 'system' ? 'border-forest-green bg-forest-green/5 dark:border-accent-herb dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'border-border-thin dark:border-border-dark text-text-secondary hover:bg-black/5 dark:hover:bg-white/5'}`}
+                            >
                                 <Monitor size={24} className="mb-2" />
                                 <span className="text-xs font-bold">System</span>
+                                {settings.theme === 'system' && (
+                                    <span className="text-[8px] uppercase mt-1 opacity-60">
+                                        Currently: {window.matchMedia('(prefers-color-scheme: dark)').matches ? 'Dark' : 'Light'}
+                                    </span>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -82,7 +90,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
                                     <p className="text-xs text-text-secondary pr-4">Play a "Tinder-esque" game to quickly decide what to cook from your recipes.</p>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                                    <input type="checkbox" className="sr-only peer" checked={!!settings.enableRecipeSwipe} onChange={(e) => onUpdateSettings({ ...settings, enableRecipeSwipe: e.target.checked })} />
+                                    <input type="checkbox" className="sr-only peer" checked={settings.enableRecipeSwipe ?? ENABLE_RECIPE_SWIPE} onChange={(e) => onUpdateSettings({ ...settings, enableRecipeSwipe: e.target.checked })} />
                                     <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-forest-green dark:peer-checked:bg-accent-herb"></div>
                                 </label>
                             </div>
@@ -92,7 +100,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
                                     <p className="text-xs text-text-secondary pr-4">Track your favorite restaurants, orders, and decide where to eat with friends.</p>
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                                    <input type="checkbox" className="sr-only peer" checked={!!settings.enableRestaurants} onChange={(e) => onUpdateSettings({ ...settings, enableRestaurants: e.target.checked })} />
+                                    <input type="checkbox" className="sr-only peer" checked={settings.enableRestaurants ?? ENABLE_RESTAURANTS} onChange={(e) => onUpdateSettings({ ...settings, enableRestaurants: e.target.checked })} />
                                     <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-forest-green dark:peer-checked:bg-accent-herb"></div>
                                 </label>
                             </div>
@@ -114,5 +122,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
         </div>
     );
 };
+
 
 export default SettingsModal;

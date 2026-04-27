@@ -1,9 +1,10 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck, Gamepad2, Play } from 'lucide-react';
 import { Recipe, AppSettings, RecipeCategory, SortOption, Review } from './types';
 import * as db from './services/db';
-import { ENABLE_RESTAURANTS } from './constants';
+import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitize } from './utils/validation';
 import { checkIngredientMatch, isSeasoning } from './utils/ingredients';
@@ -22,7 +23,6 @@ import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import CustomModal from './components/CustomModal';
 import SettingsModal from './components/SettingsModal';
 import RecipeSwipeMode from './components/RecipeSwipeMode';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck, Gamepad2, Play } from 'lucide-react';
 import Checkbox from './components/Checkbox';
 import MissingIngredientsBanner from './components/MissingIngredientsBanner';
 
@@ -87,7 +87,12 @@ const App: React.FC = () => {
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [pinnedTags, setPinnedTags] = useState<string[]>(['Dinner', 'Healthy', 'Quick']); // Defaults
-  const [settings, setSettings] = useState<AppSettings>({ theme: 'system', autoSync: true });
+  const [settings, setSettings] = useState<AppSettings>({ 
+      theme: 'system', 
+      autoSync: true,
+      enableRestaurants: ENABLE_RESTAURANTS,
+      enableRecipeSwipe: ENABLE_RECIPE_SWIPE
+  });
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingSyncIds, setPendingSyncIds] = useState<Set<string>>(new Set());
@@ -681,6 +686,29 @@ const App: React.FC = () => {
     const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', isDark);
   };
+
+  // React to system theme changes in real-time
+  useEffect(() => {
+    if (settings.theme !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => applyTheme('system');
+
+    // Modern browsers use addEventListener, older ones use addListener
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, [settings.theme]);
 
   const handleUpdateSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
@@ -1276,7 +1304,7 @@ const App: React.FC = () => {
       )}
 
       {isLoadingLink && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-bg-main/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-bg-white/80 dark:bg-bg-dark/80 backdrop-blur-sm">
               <div className="bg-white dark:bg-card-dark p-6 rounded-2xl shadow-xl border border-border-thin dark:border-border-dark flex flex-col items-center gap-4">
                   <Loader2 size={32} className="animate-spin text-forest-green dark:text-accent-herb" />
                   <p className="text-text-main dark:text-white font-medium">Validating link...</p>
@@ -1285,7 +1313,7 @@ const App: React.FC = () => {
       )}
 
       {publicFamilyView && !sharedRecipeId && (
-        <div className="fixed inset-0 z-[150] bg-bg-main dark:bg-bg-dark overflow-y-auto">
+        <div className="fixed inset-0 z-[150] bg-bg-white dark:bg-bg-dark overflow-y-auto">
             <div className="max-w-7xl mx-auto p-4 sm:p-8">
                 <div className="flex justify-between items-center mb-8 bg-white dark:bg-card-dark p-6 rounded-2xl border border-border-thin dark:border-border-dark shadow-sm">
                     <div>
@@ -1300,21 +1328,19 @@ const App: React.FC = () => {
                     </button>
                 </div>
 
-                {publicFamilyView.recipes.length === 0 ? (
+                {(!publicFamilyView.recipes || publicFamilyView.recipes.length === 0) ? (
                     <div className="text-center py-20 text-text-secondary rounded-2xl bg-white/50 dark:bg-card-dark/30">
+                        <UtensilsCrossed size={48} className="mx-auto mb-4 opacity-20" />
                         <p className="text-lg">No shared recipes found for this family.</p>
                     </div>
                 ) : (
-                    <div className={`grid ${settings.compactMobileView ? 'grid-cols-2' : 'grid-cols-1'} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6`}>
-                        {publicFamilyView.recipes.map(recipe => (
+                    <div className={`grid ${settings?.compactMobileView ? 'grid-cols-2 gap-3 sm:gap-6' : 'grid-cols-1 gap-6'} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-20`}>
+                        {publicFamilyView.recipes.filter(Boolean).map(recipe => (
                             <RecipeCard 
                                 key={recipe.id} 
                                 recipe={recipe} 
-                                compact={settings.compactMobileView}
+                                compact={settings?.compactMobileView}
                                 onClick={(r) => { 
-                                    // To view the recipe detail securely read-only without breaking state:
-                                    // We can use the existing PublicRecipeView but we might need a modified version or just set the app state to show it.
-                                    // It's easiest to navigate them to the share link variant.
                                     setSharedRecipeId(r.id);
                                 }} 
                                 onToggleFavorite={() => {}} 

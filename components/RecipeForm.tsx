@@ -1025,9 +1025,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-6">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm" onClick={onClose}></div>
-      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="relative w-full max-w-4xl bg-white dark:bg-card-dark rounded-2xl shadow-xl flex flex-col max-h-[90vh] border border-border-thin dark:border-border-dark">
+      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="relative w-full h-full sm:h-auto max-w-4xl bg-white dark:bg-card-dark sm:rounded-2xl shadow-xl flex flex-col sm:max-h-[90vh] border-x border-border-thin dark:border-border-dark overflow-hidden">
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-thin dark:border-border-dark">
           <h2 className="text-xl font-bold text-text-main dark:text-text-main-dark">{initialData ? 'Edit Recipe' : 'Add New Recipe'}</h2>
           <div className="flex items-center gap-1">

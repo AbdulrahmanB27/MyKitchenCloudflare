@@ -793,8 +793,8 @@ async function handleFamilyLinks(request: Request, env: Env) {
         const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
         if (!family) return errorResponse("Family not found", 404);
 
-        let query = "SELECT data FROM recipes WHERE is_archived = 0 AND (tenant_id = ? OR data LIKE ?)";
-        let params: any[] = [family.id, `%"${family.id}"%`];
+        let query = "SELECT data FROM recipes WHERE is_archived = 0 AND share_to_family = 1 AND (family_id = ? OR tenant_id = ? OR data LIKE ?)";
+        let params: any[] = [family.id, family.id, `%"${family.id}"%`];
 
         const { results } = await env.DB.prepare(query).bind(...params).all();
         

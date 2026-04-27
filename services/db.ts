@@ -1,7 +1,7 @@
 
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote, Review } from '../types';
 import * as idb from './idb';
-import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS, STORE_REVIEWS } from '../constants';
+import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, STORE_REVIEWS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
 const TEST_FAMILY_NAME = 'test';
@@ -76,36 +76,68 @@ export const safeClear = (): void => {
 
 // --- Auth & Session State ---
 
-export const getDeviceId = (): string => {
+export function getSavedSessions(): { id: string, name: string, token: string, password?: string, isAdmin?: boolean }[] {
+    try {
+        return JSON.parse(safeGetItem(STORAGE_KEY_SESSIONS) || '[]');
+    } catch { return []; }
+}
+
+export function getDeviceId(): string {
     let id = safeGetItem(STORAGE_KEY_DEVICE_ID);
     if (!id) {
         id = uuidv4();
         safeSetItem(STORAGE_KEY_DEVICE_ID, id);
     }
     return id;
-};
+}
 
-export const hasAuthToken = (): boolean => {
+export function hasAuthToken(): boolean {
     return !!safeGetItem(STORAGE_KEY_TOKEN);
-};
+}
 
-export const getCurrentFamilyId = (): string | null => {
+export function getCurrentFamilyId(): string | null {
     return safeGetItem(STORAGE_KEY_FAMILY_ID);
+}
+
+export function getCurrentFamilyName(): string {
+    return safeGetItem(STORAGE_KEY_FAMILY_NAME) || 'My Kitchen';
+}
+
+export const getRestaurants = async (): Promise<Restaurant[]> => {
+    const allRestaurants = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
+    const sessions = getSavedSessions();
+    const allowedTenants = sessions.map(s => s.id);
+
+    return allRestaurants.filter(r => {
+        // Keep private restaurants (not shared)
+        if (!r.familyId || r.familyId === 'private') return true;
+        
+        // Keep restaurants that belong to ANY logged-in family
+        if (allowedTenants.includes(r.familyId)) return true;
+        
+        return false;
+    });
 };
 
-export const getCurrentFamilyName = (): string => {
-    return safeGetItem(STORAGE_KEY_FAMILY_NAME) || 'My Kitchen';
-};
+export function getSettings(): Promise<AppSettings> {
+    return idb.getOne<AppSettings>(STORE_SETTINGS, 'config').then(s => 
+        s || { 
+            theme: 'system', 
+            autoSync: true, 
+            enableRecipeSwipe: ENABLE_RECIPE_SWIPE, 
+            enableRestaurants: ENABLE_RESTAURANTS, 
+            compactMobileView: false 
+        }
+    );
+}
+
+export function saveSettings(settings: AppSettings): Promise<void> {
+    return idb.put(STORE_SETTINGS, { id: 'config', ...settings });
+}
 
 export const getPinnedFamilyId = (): string | null => {
     // For now, same as current
     return getCurrentFamilyId();
-};
-
-export const getSavedSessions = (): { id: string, name: string, token: string, password?: string, isAdmin?: boolean }[] => {
-    try {
-        return JSON.parse(safeGetItem(STORAGE_KEY_SESSIONS) || '[]');
-    } catch { return []; }
 };
 
 export const getAvailableIngredients = (): string[] => {
@@ -693,16 +725,7 @@ export const deleteMealPlan = async (id: string) => {
     window.dispatchEvent(new Event('plans-updated'));
 };
 
-// --- Settings ---
-
-export const getSettings = async (): Promise<AppSettings> => {
-    const s = await idb.getOne<AppSettings>(STORE_SETTINGS, 'config');
-    return s || { theme: 'system', autoSync: true, enableRecipeSwipe: false, enableRestaurants: false, compactMobileView: false };
-};
-
-export const saveSettings = async (settings: AppSettings) => {
-    await idb.put(STORE_SETTINGS, { id: 'config', ...settings });
-};
+// --- Sync Queue ---
 
 export const getSyncQueue = async () => {
     return idb.getSyncQueue();
@@ -914,22 +937,6 @@ export const adminAction = async (action: 'update_passwords' | 'delete_family' |
 
 
 // --- Restaurants & Voting ---
-
-export const getRestaurants = async (): Promise<Restaurant[]> => {
-    const allRestaurants = await idb.getAll<Restaurant>(STORE_RESTAURANTS);
-    const sessions = getSavedSessions();
-    const allowedTenants = sessions.map(s => s.id);
-
-    return allRestaurants.filter(r => {
-        // Keep private restaurants (not shared)
-        if (!r.familyId || r.familyId === 'private') return true;
-        
-        // Keep restaurants that belong to ANY logged-in family
-        if (allowedTenants.includes(r.familyId)) return true;
-        
-        return false;
-    });
-};
 
 export const upsertRestaurant = async (r: Restaurant, options?: { localOnly?: boolean }) => {
     // If sharing to family, tag with current family ID locally immediately

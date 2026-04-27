@@ -13,24 +13,30 @@ export const COMMON_SEASONINGS = new Set([
 ]);
 
 export const normalize = (s: string) => {
+  if (!s) return '';
   let norm = s.trim().toLowerCase();
   
+  // Remove descriptors that interfere with grouping
+  const noise = ['large', 'small', 'medium', 'fresh', 'dried', 'frozen', 'clove', 'cloves', 'head', 'heads', 'bunch', 'bunches'];
+  const words = norm.split(/\s+/).filter(w => !noise.includes(w));
+  norm = words.join(' ');
+
   // Basic singularization
   if (norm.endsWith('ies')) {
       norm = norm.slice(0, -3) + 'y';
   } else if (norm.endsWith('es')) {
       // Avoid singularizing 'cheese', 'sauce', etc.
-      if (!['cheese', 'sauce', 'juice', 'puree', 'paste'].some(w => norm.endsWith(w))) {
+      if (!['cheese', 'sauce', 'juice', 'puree', 'paste', 'olive', 'vegetable', 'rice'].some(w => norm.endsWith(w))) {
           norm = norm.slice(0, -2);
       }
   } else if (norm.endsWith('s')) {
       // Avoid singularizing 'couscous', 'hummus', 'molasses', 'bass', 'grass', 'less'
-      if (!['ss', 'us', 'as', 'is'].some(suffix => norm.endsWith(suffix))) {
+      if (!['ss', 'us', 'as', 'is', 'less', 'moss'].some(suffix => norm.endsWith(suffix))) {
           norm = norm.slice(0, -1);
       }
   }
   
-  return norm;
+  return norm.trim();
 };
 
 export const isSeasoning = (name: string) => {

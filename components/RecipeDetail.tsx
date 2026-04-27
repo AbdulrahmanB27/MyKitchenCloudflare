@@ -461,7 +461,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   let globalStepCounter = 0;
 
   return (
-    <div className="recipe-detail-view w-full h-full bg-bg-white dark:bg-bg-dark overflow-y-auto animate-in fade-in duration-200">
+    <div className="recipe-detail-view w-full h-full bg-bg-white dark:bg-bg-dark overflow-y-auto animate-in fade-in duration-200 overscroll-contain pb-24">
         
         {/* Sticky Header */}
         <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-forest-green/20 dark:border-white/10 bg-white/95 dark:bg-bg-dark/95 backdrop-blur-md px-4 py-3 md:px-6">

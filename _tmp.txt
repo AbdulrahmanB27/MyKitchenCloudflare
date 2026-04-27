@@ -1,0 +1,87 @@
+18:const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+22:const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast, showAlert, showConfirm }) => {
+23:  const [currentStep, setCurrentStep] = useState(0);
+26:  const [activeTab, setActiveTab] = useState<'steps' | 'ingredients' | 'swaps' | 'tips' | 'tools'>('ingredients');
+27:  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+28:  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
+31:  const [timerSeconds, setTimerSeconds] = useState(0);
+32:  const [isTimerRunning, setIsTimerRunning] = useState(false);
+33:  const [isCountdown, setIsCountdown] = useState(false);
+34:  const [timerTarget, setTimerTarget] = useState<number | null>(null); // Original duration for reset (countdown) OR target for alert (stopwatch)
+35:  const [hasAlerted, setHasAlerted] = useState(false);
+38:  const [manualTimers, setManualTimers] = useState<{id: number, label: string, timeLeft: number, running: boolean}[]>([]);
+41:  const [userNotes, setUserNotes] = useState<Record<string, string>>({});
+42:  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+43:  const [noteDraft, setNoteDraft] = useState('');
+45:  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+46:  const [isFullscreen, setIsFullscreen] = useState(false);
+47:  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+49:  const speakText = (text: string) => {
+52:      const utterance = new SpeechSynthesisUtterance(text);
+57:  const getStepText = (inst: string | Instruction) => typeof inst === 'string' ? inst : inst.text;
+58:  const getStepTitle = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.title;
+59:  const getStepTimer = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.timer;
+60:  const getStepTip = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.tip;
+61:  const getStepOptional = (inst: string | Instruction) => typeof inst === 'string' ? false : inst.optional;
+62:  const getStepId = (inst: string | Instruction, index: number) => typeof inst === 'string' ? `step-${index}` : inst.id;
+63:  const getStepImage = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.image;
+66:  const allIngredients = React.useMemo(() => {
+67:      const formatIng = (ing: Ingredient | string) => {
+69:          const amt = ing.amount * scalingFactor;
+73:      const list: { txt: string, id: string, group: string, sub?: string }[] = [];
+90:  const allSteps = React.useMemo(() => {
+91:      const steps: { 
+119:              const baseId = `comp-${ci}-${i}`; // Fallback if no ID on instruction object
+138:  const [isListening, setIsListening] = useState(false);
+139:  const [lastCommand, setLastCommand] = useState<string | null>(null);
+140:  const recognitionRef = useRef<any>(null);
+141:  const isListeningRef = useRef(false);
+143:  const stateRef = useRef({ 
+158:  const initRecognition = () => {
+161:      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+164:      const recognition = new SpeechRecognition();
+170:          const lastResultIndex = event.results.length - 1;
+171:          const command = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
+177:          const { allSteps, allIngredients } = stateRef.current;
+195:              const { currentStep, isFinished } = stateRef.current;
+197:                  const stepTxt = allSteps[currentStep]?.txt;
+201:              const ings = allIngredients.map(i => i.txt).join('. ');
+206:              const minsMatch = command.match(/(\d+)/);
+208:                  const mins = parseInt(minsMatch[1], 10);
+215:              const minsMatch = command.match(/(\d+)/);
+217:                  const mins = parseInt(minsMatch[1], 10);
+246:          const recognition = initRecognition();
+257:    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+270:    const requestWakeLock = async () => {
+285:    const handleVisibilityChange = () => {
+303:    const savedNotes = db.safeGetItem(`user_mistakes_${recipe.id}`);
+315:    const step = allSteps[currentStep];
+316:    const stepText = step?.txt || '';
+327:        const match = stepText.match(/(\d+)\s*(?:minutes?|mins?|m)\b/i);
+356:               const next = prev - 1;
+365:               const next = prev + 1;
+380:      const interval = setInterval(() => {
+392:  const saveNote = (stepId: string) => {
+393:      const updated = { ...userNotes, [stepId]: noteDraft };
+400:  const startEditingNote = (stepId: string) => {
+405:  const notifyUser = () => {
+406:      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+418:  const requestNotificationPermission = () => {
+424:  const formatTime = (seconds: number) => {
+425:    const m = Math.floor(seconds / 60);
+426:    const s = seconds % 60;
+430:  const formatRingTime = (currentSeconds: number) => {
+431:    const now = Date.now();
+441:    const target = new Date(now + remaining * 1000);
+445:  const resetTimer = () => {
+455:  const addTime = (secondsToAdd: number) => {
+472:  const removeTimer = (id: number) => {
+476:  const toggleFullscreen = () => {
+482:      const h = () => setIsFullscreen(!!document.fullscreenElement);
+487:  const toggleIngredient = (id: string) => {
+488:    const next = new Set(checkedIngredients);
+495:  const isFinished = currentStep >= allSteps.length;
+496:  const currentStepData = !isFinished ? allSteps[currentStep] : null;
+497:  const progress = isFinished ? 100 : ((currentStep + 1) / allSteps.length) * 100;
+500:  const swapsList = allIngredients.filter(i => !!i.sub);
+501:  const tipsList = allSteps.filter(s => !!s.tip).map(s => s.tip!);

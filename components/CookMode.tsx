@@ -13,13 +13,14 @@ interface CookModeProps {
   showToast?: (message: string, type?: 'success' | 'error') => void;
   showAlert?: (title: string, message: string) => void;
   showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
+  enableExperimentalVoice?: boolean;
 }
 
 const CustomCheckbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
   <Checkbox checked={checked} onChange={onChange} size="md" />
 );
 
-const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast, showAlert, showConfirm }) => {
+const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1, showToast, showAlert, showConfirm, enableExperimentalVoice }) => {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Sidebar Tabs State
@@ -523,32 +524,39 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
             </div>
         </div>
         <div className="flex items-center gap-2">
-            {isSpeechSupported ? (
-                 <div className="relative flex items-center">
-                    {lastCommand && (
-                        <div className="absolute right-full mr-2 px-3 py-1 bg-forest-green/10 dark:bg-accent-herb/10 border border-forest-green/20 dark:border-accent-herb/20 rounded-lg text-[10px] font-bold text-forest-green dark:text-accent-herb whitespace-nowrap animate-in fade-in slide-in-from-right-2 duration-300">
-                             Hearing: "{lastCommand}"
+            {enableExperimentalVoice && (
+                <>
+                    {isSpeechSupported ? (
+                        <div className="relative flex items-center">
+                            {lastCommand && (
+                                <div className="absolute right-full mr-2 px-3 py-1 bg-forest-green/10 dark:bg-accent-herb/10 border border-forest-green/20 dark:border-accent-herb/20 rounded-lg text-[10px] font-bold text-forest-green dark:text-accent-herb whitespace-nowrap animate-in fade-in slide-in-from-right-2 duration-300">
+                                    Hearing: "{lastCommand}"
+                                </div>
+                            )}
+                            <div className="flex flex-col items-center">
+                                <button 
+                                    onClick={() => setIsListening(!isListening)} 
+                                    className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white'}`}
+                                    title={isListening ? "Listening for commands..." : "Enable Voice Commands (Experimental)"}
+                                >
+                                    {isListening ? <Mic size={20} /> : <MicOff size={20} />}
+                                </button>
+                                <span className="text-[7px] font-bold text-forest-green/60 dark:text-accent-herb/60 uppercase -mt-1 tracking-tighter">Exp</span>
+                            </div>
                         </div>
+                    ) : (
+                        <button 
+                            onClick={() => {
+                                if (showToast) showToast("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.", 'error');
+                                else if (showAlert) showAlert("Not Supported", "Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.");
+                            }} 
+                            className="p-2 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            title="Voice Commands Not Supported"
+                        >
+                            <MicOff size={20} className="opacity-50" />
+                        </button>
                     )}
-                    <button 
-                        onClick={() => setIsListening(!isListening)} 
-                        className={`p-2 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white'}`}
-                        title={isListening ? "Listening for commands..." : "Enable Voice Commands"}
-                    >
-                        {isListening ? <Mic size={20} /> : <MicOff size={20} />}
-                    </button>
-                 </div>
-            ) : (
-                <button 
-                    onClick={() => {
-                        if (showToast) showToast("Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.", 'error');
-                        else if (showAlert) showAlert("Not Supported", "Voice commands are not supported on this browser/device. Try opening the web app directly in Chrome.");
-                    }} 
-                    className="p-2 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    title="Voice Commands Not Supported"
-                >
-                    <MicOff size={20} className="opacity-50" />
-                </button>
+                </>
             )}
             <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-text-main dark:text-white">
                 <span className="material-symbols-outlined">{isFullscreen ? 'close_fullscreen' : 'fullscreen'}</span>

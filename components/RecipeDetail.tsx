@@ -19,6 +19,7 @@ interface RecipeDetailProps {
   showToast?: (message: string, type?: 'success' | 'error') => void;
   showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
   showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
+  enableExperimentalVoice?: boolean;
 }
 
 interface ActiveTimer {
@@ -27,7 +28,7 @@ interface ActiveTimer {
     notified: boolean;
 }
 
-const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, isCookMode, setIsCookMode, onEdit, onRefreshList, showToast, showAlert, showConfirm }) => {
+const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, onClose, isCookMode, setIsCookMode, onEdit, onRefreshList, showToast, showAlert, showConfirm, enableExperimentalVoice }) => {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -184,7 +185,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   const scalingFactor = (typeof currentServings === 'number' && currentServings > 0) ? (currentServings / originalServings) : 1;
 
   if (isCookMode) {
-      return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} />;
+      return <CookMode recipe={recipe} scalingFactor={scalingFactor} onClose={() => setIsCookMode(false)} showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} enableExperimentalVoice={enableExperimentalVoice} />;
   }
 
   const toggleIngredient = (id: string) => {

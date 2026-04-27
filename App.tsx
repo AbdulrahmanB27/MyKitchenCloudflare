@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck, Gamepad2, Play } from 'lucide-react';
 import { Recipe, AppSettings, RecipeCategory, SortOption, Review } from './types';
 import * as db from './services/db';
-import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE } from './constants';
+import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, ENABLE_VOICE_EXPERIMENTAL } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitize } from './utils/validation';
 import { checkIngredientMatch, isSeasoning } from './utils/ingredients';
@@ -91,7 +91,8 @@ const App: React.FC = () => {
       theme: 'system', 
       autoSync: true,
       enableRestaurants: ENABLE_RESTAURANTS,
-      enableRecipeSwipe: ENABLE_RECIPE_SWIPE
+      enableRecipeSwipe: ENABLE_RECIPE_SWIPE,
+      enableExperimentalVoice: ENABLE_VOICE_EXPERIMENTAL
   });
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -960,13 +961,12 @@ const App: React.FC = () => {
         <div className={`px-4 py-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-2'}`}>
             {!isSidebarCollapsed ? (
                 <div className="flex items-center gap-2 overflow-hidden w-full">
-                    <div className="w-12 h-12 shrink-0 bg-accent-herb" style={{ WebkitMaskImage: 'url(/logo.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
                     <div className="h-12 flex-1 w-full shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/script.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'left center', maskImage: 'url(/script.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'left center' }}></div>
                 </div>
             ) : (
-                <>
-                    <div className="w-10 h-10 shrink-0 bg-accent-herb mx-auto" style={{ WebkitMaskImage: 'url(/logo.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
-                </>
+                <div className="flex items-center justify-center w-full">
+                    <span className="material-symbols-outlined text-forest-green dark:text-accent-herb text-2xl">cooking</span>
+                </div>
             )}
         </div>
 
@@ -1168,6 +1168,7 @@ const App: React.FC = () => {
                 showToast={showToast}
                 showAlert={showAlert}
                 showConfirm={showConfirm}
+                enableExperimentalVoice={settings.enableExperimentalVoice}
             />
         ) : (
             <>

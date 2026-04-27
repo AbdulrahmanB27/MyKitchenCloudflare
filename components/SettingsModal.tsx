@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Moon, Sun, Monitor, FlaskConical, Palette } from 'lucide-react';
 import { AppSettings } from '../types';
-import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE } from '../constants';
+import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, ENABLE_VOICE_EXPERIMENTAL } from '../constants';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -101,6 +101,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
                                 </div>
                                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                                     <input type="checkbox" className="sr-only peer" checked={settings.enableRestaurants ?? ENABLE_RESTAURANTS} onChange={(e) => onUpdateSettings({ ...settings, enableRestaurants: e.target.checked })} />
+                                    <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-forest-green dark:peer-checked:bg-accent-herb"></div>
+                                </label>
+                            </div>
+                            <div className="bg-bg-subtle dark:bg-card-dark rounded-xl p-4 border border-border-thin dark:border-border-dark flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-sm font-bold text-text-main dark:text-white mb-1">Experimental Voice Commands</h4>
+                                    <p className="text-xs text-text-secondary pr-4">Control Cook Mode with your voice (Next, Back, Read Step, Start/Stop Timer).</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" className="sr-only peer" checked={settings.enableExperimentalVoice ?? ENABLE_VOICE_EXPERIMENTAL} onChange={(e) => onUpdateSettings({ ...settings, enableExperimentalVoice: e.target.checked })} />
                                     <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-forest-green dark:peer-checked:bg-accent-herb"></div>
                                 </label>
                             </div>

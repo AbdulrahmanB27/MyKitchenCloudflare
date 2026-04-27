@@ -186,6 +186,7 @@ export interface AppSettings {
   enableRecipeSwipe?: boolean;
   enableRestaurants?: boolean;
   compactMobileView?: boolean;
+  enableExperimentalVoice?: boolean;
 }
 
 export interface AppConfig {

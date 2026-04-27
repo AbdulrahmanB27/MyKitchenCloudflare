@@ -11,3 +11,4 @@ export const STORE_REVIEWS = 'reviews'; // New store
 // Feature Flags
 export const ENABLE_RESTAURANTS = false;
 export const ENABLE_RECIPE_SWIPE = false;
+export const ENABLE_VOICE_EXPERIMENTAL = false;

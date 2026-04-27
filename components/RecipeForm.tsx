@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe, Instruction, Ingredient } from '../types';
-import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check, GripVertical } from 'lucide-react';
+import { X, Plus, Save, Trash2, Upload, Clipboard, Image as ImageIcon, Lightbulb, Clock, RefreshCw, Users, Loader, CookingPot, AlertCircle, ArrowRightLeft, Scale, Activity, Link as LinkIcon, User, Lock, ChevronDown, Copy, Check, GripVertical, Camera } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty, isValidUrl } from '../utils/validation';
@@ -1213,9 +1213,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                  <label className={LABEL_CLASS}>Image</label>
                  <div className="flex gap-2">
                      <input type="text" value={formData.image || ''} onChange={e => handleChange('image', e.target.value)} className={INPUT_CLASS} placeholder="https://..." disabled={isUploading} />
-                     <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`}>
+                     <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors hidden sm:flex items-center justify-center ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`} title="Upload Image">
                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
                          {isUploading ? <Loader className="animate-spin text-forest-green dark:text-accent-herb" size={20} /> : <Upload size={20} className="text-forest-green dark:text-accent-herb" />}
+                     </label>
+                     <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors sm:hidden flex items-center justify-center ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`} title="Upload Image">
+                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                         {isUploading ? <Loader className="animate-spin text-forest-green dark:text-accent-herb" size={20} /> : <Upload size={20} className="text-forest-green dark:text-accent-herb" />}
+                     </label>
+                     <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors sm:hidden flex items-center justify-center ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`} title="Take Photo">
+                         <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                         {isUploading ? <Loader className="animate-spin text-forest-green dark:text-accent-herb" size={20} /> : <Camera size={20} className="text-forest-green dark:text-accent-herb" />}
                      </label>
                  </div>
              </div>
@@ -1391,9 +1399,17 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                  <div className="flex flex-col gap-2 w-full">
                                                      <div className="flex items-center gap-2 flex-1 min-w-0">
                                                          <input type="text" value={step.image} onChange={e => updateStepInBlock(block.id, step.id, 'image', e.target.value)} placeholder="Image URL..." className="w-full p-1.5 rounded border border-purple-200 bg-purple-50 dark:bg-purple-900/10 dark:border-purple-900/30 focus:border-purple-400 text-xs text-text-main dark:text-white" disabled={isUploading} />
-                                                         <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`}>
+                                                         <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors hidden sm:flex items-center justify-center ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`} title="Upload Image">
                                                              <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
                                                              {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
+                                                         </label>
+                                                         <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors sm:hidden flex items-center justify-center ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`} title="Upload Image">
+                                                             <input type="file" accept="image/*" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
+                                                             {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Upload size={16} className="text-purple-500 dark:text-purple-400" />}
+                                                         </label>
+                                                         <label className={`p-1.5 border border-purple-200 dark:border-purple-900/30 rounded cursor-pointer transition-colors sm:hidden flex items-center justify-center ${isUploading ? 'bg-purple-100 dark:bg-purple-900/20 cursor-not-allowed' : 'hover:bg-purple-100 dark:hover:bg-purple-900/20 bg-purple-50 dark:bg-purple-900/10'}`} title="Take Photo">
+                                                             <input type="file" accept="image/*" capture="environment" onChange={(e) => handleStepImageUpload(e, block.id, step.id)} className="hidden" disabled={isUploading} />
+                                                             {isUploading ? <Loader className="animate-spin text-purple-500 dark:text-purple-400" size={16} /> : <Camera size={16} className="text-purple-500 dark:text-purple-400" />}
                                                          </label>
                                                      </div>
                                                      {step.image && (

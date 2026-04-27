@@ -961,11 +961,11 @@ const App: React.FC = () => {
         <div className="px-4 py-6 flex items-center justify-center h-24">
             {!isSidebarCollapsed ? (
                 <div className="flex items-center justify-center overflow-hidden w-full">
-                    <img src="/script-colored.png?v=6" alt="MyKitchen" className="h-12 object-contain" />
+                    <img src={`${import.meta.env.BASE_URL}script-colored.png?v=6`} alt="MyKitchen" className="h-12 object-contain" />
                 </div>
             ) : (
                 <div className="flex items-center justify-center w-full">
-                    <img src="/logo-colored.png?v=6" alt="MyKitchen" className="w-10 h-10 object-contain" />
+                    <img src={`${import.meta.env.BASE_URL}logo-colored.png?v=6`} alt="MyKitchen" className="w-10 h-10 object-contain" />
                 </div>
             )}
         </div>

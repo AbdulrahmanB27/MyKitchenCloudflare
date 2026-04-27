@@ -253,6 +253,10 @@ async function handleAdmin(request: Request, env: Env) {
             }
         }
 
+        if (action === 'verify') {
+            return jsonResponse({ success: true });
+        }
+
         if (action === 'delete_family') {
             await env.DB.batch([
                 env.DB.prepare("DELETE FROM families WHERE id = ?").bind(session.familyId),

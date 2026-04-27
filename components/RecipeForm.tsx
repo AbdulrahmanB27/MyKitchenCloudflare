@@ -754,9 +754,16 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
              });
         }
 
-        // 4. Handle Primary Target (if not current family)
-        if (targetFamilyId !== 'private' && targetFamilyId !== currentFamilyId) {
-            promises.push(db.crossPostRecipe(recipe, targetFamilyId));
+        // 4. Handle Primary Target
+        if (targetFamilyId !== 'private') {
+            if (targetFamilyId !== currentFamilyId) {
+                promises.push(db.crossPostRecipe(recipe, targetFamilyId));
+            }
+            // Always update as the "last used" default for future recipes
+            db.switchFamily(targetFamilyId);
+        } else {
+            // If saved as private, the next one should also default to private
+            db.switchFamily('private');
         }
 
         // Wait for cross-posts and deletes
@@ -1013,7 +1020,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
   const getTargetFamilyName = () => {
       if (targetFamilyId === 'private') return 'Private (This Device)';
       const session = availableSessions.find(s => s.id === targetFamilyId);
-      if (session) return session.name + (session.id === currentFamilyId ? ' (Current)' : '');
+      if (session) return session.name;
       return 'Select Family';
   };
 
@@ -1107,9 +1114,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                                                  <Users size={16} />
                                                  <div className="flex flex-col">
                                                      <span className="text-sm font-bold">{s.name}</span>
-                                                     {s.id === currentFamilyId && <span className="text-[10px] text-text-secondary uppercase font-bold">Current</span>}
                                                  </div>
-                                                 {isPrimary && <span className="ml-auto text-xs font-bold text-forest-green dark:text-accent-herb">Primary</span>}
+                                                 {isPrimary && <Check size={14} className="ml-auto" />}
                                              </button>
                                              
                                              {targetFamilyId !== 'private' && !isPrimary && (
@@ -1188,8 +1194,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                <div className="col-span-2 md:col-span-1">
                    <label className={LABEL_CLASS}>Yield</label>
                    <div className="flex gap-2">
-                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className={`${INPUT_CLASS} w-20 text-center`} placeholder="1"/>
-                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-0`} placeholder="servings" />
+                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className={`${INPUT_CLASS} w-24 shrink-0 text-center`} placeholder="1" />
+                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-[120px]`} placeholder="servings" />
                    </div>
                </div>
              </div>

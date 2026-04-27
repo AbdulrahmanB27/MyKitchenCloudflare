@@ -127,8 +127,8 @@ export const setAuthCallback = (cb: () => void) => {
 
 // --- API Helper ---
 
-export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean }) => {
-    const token = safeGetItem(STORAGE_KEY_TOKEN);
+export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean, customToken?: string }) => {
+    const token = options?.customToken || safeGetItem(STORAGE_KEY_TOKEN);
 
     // Isolated test family bypass
     if (token === TEST_TOKEN) {
@@ -384,7 +384,8 @@ export const syncDown = async () => {
     if (!hasAuthToken()) return;
 
     // Restaurants
-    if (ENABLE_RESTAURANTS) {
+    const settings = await getSettings();
+    if (ENABLE_RESTAURANTS && settings.enableRestaurants !== false) {
         try {
             const remoteRest = await apiCall(`/restaurants?_t=${Date.now()}`, 'GET', undefined, { skipAuthRedirect: true });
             if (remoteRest) {
@@ -696,7 +697,7 @@ export const deleteMealPlan = async (id: string) => {
 
 export const getSettings = async (): Promise<AppSettings> => {
     const s = await idb.getOne<AppSettings>(STORE_SETTINGS, 'config');
-    return s || { theme: 'system', autoSync: true };
+    return s || { theme: 'system', autoSync: true, enableRecipeSwipe: false, enableRestaurants: false, compactMobileView: false };
 };
 
 export const saveSettings = async (settings: AppSettings) => {
@@ -785,9 +786,9 @@ export const registerFamily = async (familyName: string, password: string, admin
     }
 };
 
-export const generateFamilyLink = async (type: 'temporary' | 'view' | 'permanent'): Promise<{ success: boolean; token?: string; error?: string }> => {
+export const generateFamilyLink = async (type: 'temporary' | 'view' | 'permanent', customToken?: string): Promise<{ success: boolean; token?: string; error?: string }> => {
     try {
-        const res = await apiCall('/family-links/generate', 'POST', { type });
+        const res = await apiCall('/family-links/generate', 'POST', { type }, { customToken });
         return { success: true, token: res.token };
     } catch (e: any) {
         return { success: false, error: e.message };
@@ -855,13 +856,19 @@ export const getCurrentFamilyPassword = (): string | undefined => {
 };
 
 export const switchFamily = (familyId: string) => {
+    if (familyId === 'private') {
+        safeRemoveItem(STORAGE_KEY_TOKEN);
+        safeRemoveItem(STORAGE_KEY_FAMILY_ID);
+        safeRemoveItem(STORAGE_KEY_FAMILY_NAME);
+        return;
+    }
+
     const sessions = getSavedSessions();
     const session = sessions.find(s => s.id === familyId);
     if (session) {
         safeSetItem(STORAGE_KEY_TOKEN, session.token);
         safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
         safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
-        window.location.reload(); 
     }
 };
 
@@ -873,7 +880,11 @@ export const logout = (familyId?: string) => {
             safeRemoveItem(STORAGE_KEY_TOKEN);
             safeRemoveItem(STORAGE_KEY_FAMILY_ID);
             safeRemoveItem(STORAGE_KEY_FAMILY_NAME);
-            window.location.reload();
+            
+            // Pick next available
+            if (sessions.length > 0) {
+                switchFamily(sessions[0].id);
+            }
         }
     } else {
         safeClear(); 
@@ -883,9 +894,10 @@ export const logout = (familyId?: string) => {
 };
 
 // Generic admin action handler
-export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family', data: any) => {
+export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify', data: any, customToken?: string) => {
     // Isolated test family bypass
-    if (safeGetItem(STORAGE_KEY_TOKEN) === TEST_TOKEN) {
+    const token = customToken || safeGetItem(STORAGE_KEY_TOKEN);
+    if (token === TEST_TOKEN) {
         if (action === 'delete_family') {
             logout(TEST_FAMILY_ID);
         }
@@ -893,7 +905,7 @@ export const adminAction = async (action: 'update_passwords' | 'delete_family' |
     }
 
     try {
-        const res = await apiCall('/admin', 'POST', { action, ...data });
+        const res = await apiCall('/admin', 'POST', { action, ...data }, { customToken });
         return { success: true, ...res };
     } catch (e: any) {
         return { success: false, error: e.message };
@@ -992,7 +1004,8 @@ export const crossDeleteRestaurant = async (restaurantId: string, targetFamilyId
 };
 
 export const createVoteSession = async (subset?: Restaurant[], mode: 'list' | 'swipe' = 'list'): Promise<VoteSession | null> => {
-    if (!ENABLE_RESTAURANTS) return null;
+    const settings = await getSettings();
+    if (!ENABLE_RESTAURANTS || settings.enableRestaurants === false) return null;
     const restaurants = subset || await getRestaurants();
     try {
         const res = await apiCall('/vote_sessions', 'POST', { deviceId: getDeviceId(), restaurants, mode });

@@ -13,9 +13,11 @@ interface AuthModalProps {
     showToast?: (message: string, type?: 'success' | 'error') => void;
     showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
     showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
+    onBackup?: () => void;
+    onRestore?: () => void;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView = 'login', initialFamilyName = '', showToast, showAlert, showConfirm }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView = 'login', initialFamilyName = '', showToast, showAlert, showConfirm, onBackup, onRestore }) => {
     const INPUT_CLASS = "w-full p-3 rounded-xl border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
     const LABEL_CLASS = "block text-xs font-bold text-text-secondary uppercase mb-1";
 
@@ -25,9 +27,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [adminPassword, setAdminPassword] = useState('');
     
     // Admin Actions State
-    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'>('update');
+    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'|'backup'>('update');
     const [isAdminActionOpen, setIsAdminActionOpen] = useState(false);
     const adminActionDropdownRef = React.useRef<HTMLDivElement>(null);
+    const submitTypeRef = React.useRef<'backup'|'restore'|null>(null);
 
     const [newFamilyPassword, setNewFamilyPassword] = useState('');
     const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -44,12 +47,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     
     // UI Drawer State (Mutually Exclusive)
     const [activeDrawer, setActiveDrawer] = useState<'password' | 'share' | 'admin' | null>(null);
+    const [drawerFamilyId, setDrawerFamilyId] = useState<string | null>(null);
     
     // Turnstile
     const [turnstileToken, setTurnstileToken] = useState('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [confirmLeaveFamily, setConfirmLeaveFamily] = useState<{ id: string, name: string } | null>(null);
-    const quickShareFamily = activeDrawer === 'share' ? { id: db.getCurrentFamilyId() || '', name: db.getCurrentFamilyName() } : null;
+
+    const getDrawerSession = () => {
+        if (!drawerFamilyId) return null;
+        return sessions.find(s => s.id === drawerFamilyId) || null;
+    };
+
+    const quickShareFamily = activeDrawer === 'share' ? getDrawerSession() : null;
     const showPasswordInline = activeDrawer === 'password';
 
     useEffect(() => {
@@ -134,8 +144,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
 
     const handleGenerateLink = async (type: 'temporary' | 'view' | 'permanent') => {
+        const targetSession = getDrawerSession();
+        if (!targetSession) return;
+
         setLoading(true);
-        const res = await db.generateFamilyLink(type);
+        const res = await db.generateFamilyLink(type, targetSession.token);
         setLoading(false);
         if (res.success) {
             const queryParam = type === 'view' ? 'view_family' : 'temp_join';
@@ -160,10 +173,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         
         if (adminAction === 'view_password' || adminAction === 'links') return;
 
+        const targetSession = getDrawerSession();
+        if (!targetSession) return;
+
         setLoading(true);
         setError('');
 
-        let actionType: 'update_passwords' | 'delete_family' | 'rename_family' = 'update_passwords';
+        let actionType: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify' = 'update_passwords';
         let payload: any = { adminPassword };
 
         if (adminAction === 'update') {
@@ -175,20 +191,27 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         } else if (adminAction === 'rename') {
             actionType = 'rename_family';
             payload.newFamilyName = newFamilyName;
+        } else if (adminAction === 'backup') {
+            actionType = 'verify';
         }
 
-        const res = await db.adminAction(actionType, payload);
+        const res = await db.adminAction(actionType, payload, targetSession.token);
         
         setLoading(false);
         if (res.success) {
-            if (adminAction === 'delete') {
+            if (adminAction === 'backup') {
+                if (submitTypeRef.current === 'backup' && onBackup) {
+                    onBackup();
+                } else if (submitTypeRef.current === 'restore' && onRestore) {
+                    onRestore();
+                }
+                onClose();
+            } else if (adminAction === 'delete') {
                 if (showToast) showToast('Family deleted.');
-                db.logout(); // Use safe logout
+                db.logout(targetSession.id); // Log out specifically this one
                 onClose();
             } else if (adminAction === 'rename') {
                 if (showToast) showToast('Family renamed.');
-                // Update local storage name safely
-                db.safeSetItem('current_family_name', newFamilyName);
                 onSuccess(); // Trigger refresh
                 onClose();
             } else {
@@ -234,95 +257,94 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
                     {mode === 'switch' && (
                         <div className="space-y-3">
-                            <p className="text-sm text-text-secondary mb-2">Select a saved family session:</p>
+                            <div className="mb-4">
+                                <p className="text-sm text-text-secondary">Manage your family collections.</p>
+                                <p className="text-[11px] text-text-secondary/70 mt-1 italic">Note: Recipes from all joined kitchens are already combined in your view.</p>
+                            </div>
                             {sessions.map(s => (
                                 <React.Fragment key={s.id}>
                                     <div 
-                                        className={`w-full rounded-xl border flex items-stretch group transition-all mb-2 overflow-hidden ${s.id === db.getCurrentFamilyId() ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark hover:border-forest-green/50 dark:hover:border-accent-herb/50'}`}
+                                        className={`w-full rounded-xl border flex items-stretch group transition-all mb-2 overflow-hidden ${drawerFamilyId === s.id ? 'border-forest-green dark:border-accent-herb bg-white dark:bg-card-dark shadow-sm' : 'border-border-thin dark:border-border-dark bg-white dark:bg-card-dark'}`}
                                     >
-                                        <button 
-                                            onClick={() => db.switchFamily(s.id)}
-                                            className="flex-1 p-4 flex flex-col items-start text-left"
-                                        >
+                                        <div className="flex-1 p-4 flex flex-col items-start text-left">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-text-main dark:text-white">{s.name}</span>
-                                                {s.id === db.getCurrentFamilyId() && <CheckCircle size={14} className="text-forest-green dark:text-accent-herb"/>}
                                             </div>
-                                            {s.id === db.getCurrentFamilyId() && (
-                                                <span className="text-[10px] text-forest-green dark:text-accent-herb font-bold uppercase tracking-wider mt-0.5">Active Session</span>
-                                            )}
-                                        </button>
+                                        </div>
                                         
                                         <div className="flex items-stretch">
-                                            {s.id === db.getCurrentFamilyId() && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (activeDrawer === 'password' && drawerFamilyId === s.id) {
+                                                        setActiveDrawer(null);
+                                                        setDrawerFamilyId(null);
+                                                    } else {
+                                                        setActiveDrawer('password');
+                                                        setDrawerFamilyId(s.id);
+                                                        setConfirmLeaveFamily(null);
+                                                    }
+                                                }}
+                                                className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'password' && drawerFamilyId === s.id ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                title="View Password"
+                                            >
+                                                {activeDrawer === 'password' && drawerFamilyId === s.id ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                            <div className="flex items-center">
+                                                <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
+                                            </div>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (activeDrawer === 'share' && drawerFamilyId === s.id) {
+                                                        setActiveDrawer(null);
+                                                        setDrawerFamilyId(null);
+                                                    } else {
+                                                        setActiveDrawer('share');
+                                                        setDrawerFamilyId(s.id);
+                                                        setConfirmLeaveFamily(null);
+                                                    }
+                                                }}
+                                                className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'share' && drawerFamilyId === s.id ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                title="Share Links"
+                                            >
+                                                <Share2 size={18} />
+                                            </button>
+                                            
+                                            {s.isAdmin && (
                                                 <>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (activeDrawer === 'password') {
-                                                                setActiveDrawer(null);
-                                                            } else {
-                                                                setActiveDrawer('password');
-                                                                setConfirmLeaveFamily(null);
-                                                            }
-                                                        }}
-                                                        className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'password' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                        title="View Password"
-                                                    >
-                                                        {activeDrawer === 'password' ? <EyeOff size={18} /> : <Eye size={18} />}
-                                                    </button>
                                                     <div className="flex items-center">
                                                         <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
                                                     </div>
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (activeDrawer === 'share') {
+                                                            if (activeDrawer === 'admin' && drawerFamilyId === s.id) {
                                                                 setActiveDrawer(null);
+                                                                setDrawerFamilyId(null);
                                                             } else {
-                                                                setActiveDrawer('share');
+                                                                setActiveDrawer('admin');
+                                                                setDrawerFamilyId(s.id);
                                                                 setConfirmLeaveFamily(null);
                                                             }
                                                         }}
-                                                        className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'share' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                        title="Share Links"
+                                                        className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'admin' && drawerFamilyId === s.id ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
+                                                        title="Admin Settings"
                                                     >
-                                                        <Share2 size={18} />
+                                                        <Settings size={18} />
                                                     </button>
-                                                    
-                                                    {db.isCurrentFamilyAdmin() && (
-                                                        <>
-                                                            <div className="flex items-center">
-                                                                <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
-                                                            </div>
-                                                            <button 
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (activeDrawer === 'admin') {
-                                                                        setActiveDrawer(null);
-                                                                    } else {
-                                                                        setActiveDrawer('admin');
-                                                                        setConfirmLeaveFamily(null);
-                                                                    }
-                                                                }}
-                                                                className={`px-3 flex items-center justify-center transition-colors ${activeDrawer === 'admin' ? 'text-forest-green dark:text-accent-herb' : 'text-text-secondary hover:text-forest-green dark:hover:text-accent-herb'}`}
-                                                                title="Admin Settings"
-                                                            >
-                                                                <Settings size={18} />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    <div className="flex items-center">
-                                                        <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
-                                                    </div>
                                                 </>
                                             )}
+                                            <div className="flex items-center">
+                                                <div className="w-px h-6 bg-border-thin dark:bg-border-dark opacity-30"></div>
+                                            </div>
                                             <div className="w-px h-full bg-border-thin dark:bg-border-dark opacity-30"></div>
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setConfirmLeaveFamily({ id: s.id, name: s.name });
                                                     setActiveDrawer(null);
+                                                    setDrawerFamilyId(null);
                                                 }}
                                                 className="px-5 text-red-500 bg-red-500/[0.06] dark:bg-red-500/[0.12] hover:bg-red-500 hover:text-white flex items-center justify-center transition-all relative border-l border-border-thin dark:border-white/5"
                                                 title="Leave Family"
@@ -333,7 +355,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                     </div>
 
                                     {/* Inline Detail Drawers */}
-                                    {showPasswordInline && s.id === db.getCurrentFamilyId() && s.id !== 'private' && (
+                                    {showPasswordInline && s.id === drawerFamilyId && s.id !== 'private' && (
                                         <motion.div 
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
@@ -342,20 +364,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         >
                                             <div className="flex justify-between items-center">
                                                 <h4 className="text-xs font-bold text-text-secondary uppercase">Access Password</h4>
-                                                <button onClick={() => setActiveDrawer(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={14} /></button>
+                                                <button onClick={() => { setActiveDrawer(null); setDrawerFamilyId(null); }} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={14} /></button>
                                             </div>
                                             <div className="flex items-center gap-3 bg-bg-subtle dark:bg-white/5 p-3 rounded-lg border border-border-thin dark:border-border-dark">
                                                 <div className="font-mono text-base font-bold text-text-main dark:text-white tracking-wider flex-1 text-center">
-                                                    {db.getCurrentFamilyPassword() || 'Not stored securely'}
+                                                    {s.password || 'Not stored securely'}
                                                 </div>
                                                 <button 
-                                                    onClick={() => copyToClipboard(db.getCurrentFamilyPassword() || '')}
+                                                    onClick={() => copyToClipboard(s.password || '')}
                                                     className="text-[10px] font-bold px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-text-main dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                                                 >
                                                     Copy
                                                 </button>
                                             </div>
-                                            {!db.getCurrentFamilyPassword() && (
+                                            {!s.password && (
                                                 <p className="text-[10px] text-text-secondary leading-tight">Password not stored on this device. Log out & back in to save it.</p>
                                             )}
                                         </motion.div>
@@ -370,10 +392,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         >
                                             <div className="flex justify-between items-center">
                                                 <h4 className="text-sm font-bold text-text-main dark:text-white">Share "{quickShareFamily.name}"</h4>
-                                                <button onClick={() => setActiveDrawer(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
+                                                <button onClick={() => { setActiveDrawer(null); setDrawerFamilyId(null); }} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
                                             </div>
                                             <div className="grid grid-cols-1 gap-2">
-                                                {db.isCurrentFamilyAdmin() && (
+                                                {s.isAdmin && (
                                                     <div className="flex flex-col gap-1">
                                                         <button 
                                                             onClick={() => handleGenerateLink('permanent')}
@@ -406,7 +428,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         </motion.div>
                                     )}
 
-                                    {activeDrawer === 'admin' && s.id === db.getCurrentFamilyId() && (
+                                    {activeDrawer === 'admin' && s.id === drawerFamilyId && (
                                         <motion.div 
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
@@ -415,12 +437,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                         >
                                             <div className="flex justify-between items-center mb-4">
                                                 <h4 className="text-sm font-bold text-text-main dark:text-white">Admin Settings</h4>
-                                                <button onClick={() => setActiveDrawer(null)} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
+                                                <button onClick={() => { setActiveDrawer(null); setDrawerFamilyId(null); }} className="text-text-secondary hover:text-text-main dark:hover:text-white"><X size={16} /></button>
                                             </div>
                                             
                                             <div className="flex gap-2 border-b border-border-thin dark:border-border-dark mb-4 overflow-x-auto no-scrollbar">
                                                 <button type="button" onClick={() => setAdminAction('update')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'update' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Update Passwords</button>
                                                 <button type="button" onClick={() => setAdminAction('rename')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'rename' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Rename Family</button>
+                                                <button type="button" onClick={() => setAdminAction('backup')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'backup' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Backup & Restore</button>
                                                 <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-red-500 border-b-2 border-red-500' : 'text-text-secondary hover:text-red-500'}`}>Delete Family</button>
                                             </div>
 
@@ -449,14 +472,33 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     </div>
                                                 )}
 
+                                                {adminAction === 'backup' && (
+                                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 text-blue-800 dark:text-blue-300 text-xs rounded-lg border border-blue-200 dark:border-blue-900/30">
+                                                        Export all your data to a JSON file, or import an existing data file.
+                                                    </div>
+                                                )}
+
                                                 <div className="pt-2 border-t border-border-thin dark:border-border-dark">
                                                     <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">Current Admin Password</label>
-                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-red-300 dark:border-red-900 focus:border-red-500 outline-none mb-3 text-text-main dark:text-white" placeholder="Required to save changes" />
+                                                    <input required type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full p-2 text-sm rounded bg-white dark:bg-card-dark border border-red-300 dark:border-red-900 focus:border-red-500 outline-none mb-3 text-text-main dark:text-white" placeholder={adminAction === 'backup' ? "Required to verify identity" : "Required to save changes"} />
                                                     
-                                                    <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
-                                                        {loading && <Loader size={14} className="animate-spin" />}
-                                                        {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
-                                                    </button>
+                                                    {adminAction === 'backup' ? (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button type="submit" disabled={loading} onClick={() => submitTypeRef.current = 'backup'} className="w-full py-2 bg-text-main text-white dark:bg-white dark:text-black font-bold rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-black dark:hover:bg-gray-200">
+                                                                {loading && submitTypeRef.current === 'backup' && <Loader size={14} className="animate-spin" />}
+                                                                Backup Data
+                                                            </button>
+                                                            <button type="submit" disabled={loading} onClick={() => submitTypeRef.current = 'restore'} className="w-full py-2 bg-text-main text-white dark:bg-white dark:text-black font-bold rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-black dark:hover:bg-gray-200">
+                                                                {loading && submitTypeRef.current === 'restore' && <Loader size={14} className="animate-spin" />}
+                                                                Restore Data
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button type="submit" disabled={loading} className={`w-full py-2 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 ${adminAction === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover dark:text-black'}`}>
+                                                            {loading && <Loader size={14} className="animate-spin" />}
+                                                            {adminAction === 'delete' ? 'Permanently Delete' : 'Save Changes'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </form>
                                         </motion.div>

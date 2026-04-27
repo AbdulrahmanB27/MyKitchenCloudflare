@@ -183,6 +183,9 @@ export interface Vote {
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   autoSync: boolean;
+  enableRecipeSwipe?: boolean;
+  enableRestaurants?: boolean;
+  compactMobileView?: boolean;
 }
 
 export interface AppConfig {

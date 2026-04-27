@@ -12,12 +12,34 @@ export const COMMON_SEASONINGS = new Set([
   'ketchup', 'mustard', 'dijon mustard', 'mayonnaise', 'hot sauce', 'sriracha', 'lemon juice', 'lime juice'
 ]);
 
-export const normalize = (s: string) => s.trim().toLowerCase();
+export const normalize = (s: string) => {
+  let norm = s.trim().toLowerCase();
+  
+  // Basic singularization
+  if (norm.endsWith('ies')) {
+      norm = norm.slice(0, -3) + 'y';
+  } else if (norm.endsWith('es')) {
+      // Avoid singularizing 'cheese', 'sauce', etc.
+      if (!['cheese', 'sauce', 'juice', 'puree', 'paste'].some(w => norm.endsWith(w))) {
+          norm = norm.slice(0, -2);
+      }
+  } else if (norm.endsWith('s')) {
+      // Avoid singularizing 'couscous', 'hummus', 'molasses', 'bass', 'grass', 'less'
+      if (!['ss', 'us', 'as', 'is'].some(suffix => norm.endsWith(suffix))) {
+          norm = norm.slice(0, -1);
+      }
+  }
+  
+  return norm;
+};
 
 export const isSeasoning = (name: string) => {
-  const norm = name.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+  const norm = normalize(name).replace(/[^a-z\s]/g, '').trim();
   if (COMMON_SEASONINGS.has(norm)) return true;
-  return Array.from(COMMON_SEASONINGS).some(s => norm === s || norm === `${s}s`);
+  return Array.from(COMMON_SEASONINGS).some(s => {
+    const sNorm = normalize(s);
+    return norm === sNorm;
+  });
 };
 
 export const checkIngredientMatch = (recipeIngName: string, userSet: Set<string>) => {

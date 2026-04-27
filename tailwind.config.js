@@ -37,6 +37,7 @@ export default {
       fontFamily: {
         "sans": ["Inter", "sans-serif"],
         "display": ["Inter", "sans-serif"],
+        "script": ["Dancing Script", "cursive"],
       },
       boxShadow: {
         'minimal': '0 4px 20px rgba(0,0,0,0.03)',

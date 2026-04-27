@@ -20,7 +20,9 @@ import PublicRecipeView from './components/PublicRecipeView';
 import SortMenu from './components/SortMenu';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import CustomModal from './components/CustomModal';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck } from 'lucide-react';
+import SettingsModal from './components/SettingsModal';
+import RecipeSwipeMode from './components/RecipeSwipeMode';
+import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck, Gamepad2, Play } from 'lucide-react';
 import Checkbox from './components/Checkbox';
 import MissingIngredientsBanner from './components/MissingIngredientsBanner';
 
@@ -110,12 +112,14 @@ const App: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('name');
   
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
+  const [isRecipeSwipeMode, setIsRecipeSwipeMode] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCookMode, setIsCookMode] = useState(false);
   
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register' | 'switch'>('login');
   const [authModalFamilyName, setAuthModalFamilyName] = useState('');
   
@@ -545,7 +549,7 @@ const App: React.FC = () => {
             setPendingSyncIds(new Set(queue.map(q => q.id)));
             
             // Preload restaurants if enabled
-            if (ENABLE_RESTAURANTS) {
+            if (loadedSettings.enableRestaurants ?? ENABLE_RESTAURANTS) {
                 db.getRestaurants(); 
             }
 
@@ -672,18 +676,16 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Apply theme change
   const applyTheme = (theme: 'light' | 'dark' | 'system') => {
     const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', isDark);
   };
 
-  const toggleTheme = () => {
-    const isCurrentlyDark = document.documentElement.classList.contains('dark');
-    const newTheme: 'light' | 'dark' = isCurrentlyDark ? 'light' : 'dark';
-    const newSettings: AppSettings = { ...settings, theme: newTheme };
+  const handleUpdateSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
-    applyTheme(newTheme);
     db.saveSettings(newSettings);
+    applyTheme(newSettings.theme);
   };
 
   const toggleAutoSync = () => {
@@ -925,16 +927,18 @@ const App: React.FC = () => {
 
       {/* Sidebar */}
       <aside 
-        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}`}
+        className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}`}
       >
-        <div className={`p-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-3'}`}>
+        <div className={`px-4 py-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-2'}`}>
             {!isSidebarCollapsed ? (
-                <div className="flex items-center gap-3 overflow-hidden">
-                    <UtensilsCrossed className="size-8 text-accent-herb shrink-0" />
-                    <h1 className="text-xl sm:text-2xl font-black tracking-tightest text-text-main dark:text-white uppercase truncate">MyKitchen</h1>
+                <div className="flex items-center gap-2 overflow-hidden w-full">
+                    <div className="w-12 h-12 shrink-0 bg-accent-herb" style={{ WebkitMaskImage: 'url(/logo.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
+                    <div className="h-12 flex-1 w-full shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/script.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'left center', maskImage: 'url(/script.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'left center' }}></div>
                 </div>
             ) : (
-                <UtensilsCrossed className="size-8 text-accent-herb" />
+                <>
+                    <div className="w-10 h-10 shrink-0 bg-accent-herb mx-auto" style={{ WebkitMaskImage: 'url(/logo.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
+                </>
             )}
         </div>
 
@@ -982,7 +986,7 @@ const App: React.FC = () => {
                 </button>
                 
                 {/* Eat Out Module */}
-                {ENABLE_RESTAURANTS && (
+                {(settings.enableRestaurants ?? ENABLE_RESTAURANTS) && (
                     <button 
                         onClick={() => { setCurrentView('restaurants'); setIsMobileMenuOpen(false); setActiveRecipeId(null); }} 
                         className={`${NAV_BTN_BASE} ${currentView === 'restaurants' ? NAV_BTN_ACTIVE : NAV_BTN_INACTIVE} ${isSidebarCollapsed ? 'justify-center p-3' : ''}`}
@@ -1098,8 +1102,6 @@ const App: React.FC = () => {
         </nav>
         <div className={`p-4 border-t border-border-thin dark:border-border-dark flex items-center ${isSidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
             <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-4' : 'gap-1'}`}>
-                <button onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Import Recipes"><Upload size={isSidebarCollapsed ? 24 : 18} className="shrink-0" /></button>
-                <button onClick={() => setShowExportModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Backup/Export"><Download size={isSidebarCollapsed ? 24 : 18} className="shrink-0" /></button>
                 <button 
                     onClick={() => { setAuthModalView('switch'); setShowAuthModal(true); }} 
                     className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" 
@@ -1108,8 +1110,8 @@ const App: React.FC = () => {
                     <Users size={isSidebarCollapsed ? 24 : 18} className="shrink-0" />
                 </button>
             </div>
-            <button onClick={toggleTheme} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all">
-                {settings.theme === 'dark' ? <Sun size={isSidebarCollapsed ? 24 : 18} className="shrink-0"/> : <Moon size={isSidebarCollapsed ? 24 : 18} className="shrink-0"/>}
+            <button onClick={() => setShowSettingsModal(true)} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-white hover:bg-white dark:hover:bg-white/5 rounded-full transition-all" title="Settings">
+                <Settings size={isSidebarCollapsed ? 24 : 18} className="shrink-0"/>
             </button>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json" />
@@ -1144,7 +1146,7 @@ const App: React.FC = () => {
                 {currentView === 'planner' && <MealPlanner showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} allRecipes={recipes} />}
                 {currentView === 'shopping' && <ShoppingList showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} allTags={availableTags} pinnedTags={pinnedTags} onOpenRecipe={(id) => setActiveRecipeId(id)} />}
                 {currentView === 'recommendations' && <Recommendations showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} onOpenMenu={() => setIsMobileMenuOpen(true)} recipes={recipes} onOpenRecipe={(r) => setActiveRecipeId(r.id)} />}
-                {currentView === 'restaurants' && ENABLE_RESTAURANTS && <RestaurantList showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
+                {currentView === 'restaurants' && (settings.enableRestaurants ?? ENABLE_RESTAURANTS) && <RestaurantList showToast={showToast} showConfirm={showConfirm} showAlert={showAlert} onOpenMenu={() => setIsMobileMenuOpen(true)} />}
 
                 {currentView === 'recipes' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -1156,16 +1158,18 @@ const App: React.FC = () => {
                                 <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-text-secondary dark:text-text-secondary-dark group-focus-within:text-forest-green dark:group-focus-within:text-accent-herb transition-colors" size={18} />
                                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search for recipes..." className="w-full pl-8 pr-4 py-2 bg-transparent border-b border-border-thin dark:border-border-dark focus:border-forest-green dark:focus:border-accent-herb focus:ring-0 text-base text-text-main dark:text-white placeholder:text-text-secondary outline-none transition-all font-normal" />
                             </div>
-                            <SortMenu 
-                                currentSort={sortBy} 
-                                onSortChange={(val) => setSortBy(val as SortOption)} 
-                                options={[
-                                    { label: 'Name (A-Z)', value: 'name' },
-                                    { label: 'Fastest', value: 'time' },
-                                    { label: 'Top Rated', value: 'rating' },
-                                    { label: 'Lowest Calories', value: 'calories' }
-                                ]}
-                            />
+                            <div className="flex items-center gap-1">
+                                <SortMenu 
+                                    currentSort={sortBy} 
+                                    onSortChange={(val) => setSortBy(val as SortOption)} 
+                                    options={[
+                                        { label: 'Name (A-Z)', value: 'name' },
+                                        { label: 'Fastest', value: 'time' },
+                                        { label: 'Top Rated', value: 'rating' },
+                                        { label: 'Lowest Calories', value: 'calories' }
+                                    ]}
+                                />
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -1226,18 +1230,35 @@ const App: React.FC = () => {
                                         <p className="text-sm mt-2 opacity-70">Try adjusting your search or filters.</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+                                    <div className={`grid ${settings.compactMobileView ? 'grid-cols-2' : 'grid-cols-1'} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-20`}>
                                         {filteredRecipes.map(recipe => (
-                                            <RecipeCard key={recipe.id} recipe={recipe} onClick={(r) => setActiveRecipeId(r.id)} onToggleFavorite={handleToggleFavorite} />
+                                            <RecipeCard 
+                                                key={recipe.id} 
+                                                recipe={recipe} 
+                                                onClick={(r) => setActiveRecipeId(r.id)} 
+                                                onToggleFavorite={handleToggleFavorite} 
+                                                compact={settings.compactMobileView}
+                                            />
                                         ))}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="absolute bottom-8 right-8 size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group flex items-center justify-center z-30">
-                            <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
-                        </button>
+                        <div className="absolute bottom-8 right-8 flex flex-col gap-4 z-30">
+                            {settings.enableRecipeSwipe && (
+                                <button 
+                                    onClick={() => setIsRecipeSwipeMode(true)}
+                                    className="size-16 bg-white dark:bg-card-dark text-forest-green dark:text-accent-herb rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-all duration-300 group"
+                                    title="Game Mode"
+                                >
+                                    <Play size={28} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+                                </button>
+                            )}
+                            <button onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }} className="size-16 bg-forest-green dark:bg-accent-herb text-white rounded-full shadow-xl hover:bg-forest-green/90 dark:hover:bg-herb-hover hover:scale-105 transition-all duration-300 group flex items-center justify-center">
+                                <Plus size={32} className="group-hover:rotate-90 transition-transform duration-300" />
+                            </button>
+                        </div>
                     </div>
                 )}
             </>
@@ -1284,14 +1305,20 @@ const App: React.FC = () => {
                         <p className="text-lg">No shared recipes found for this family.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className={`grid ${settings.compactMobileView ? 'grid-cols-2' : 'grid-cols-1'} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6`}>
                         {publicFamilyView.recipes.map(recipe => (
-                            <RecipeCard key={recipe.id} recipe={recipe} onClick={(r) => { 
-                                // To view the recipe detail securely read-only without breaking state:
-                                // We can use the existing PublicRecipeView but we might need a modified version or just set the app state to show it.
-                                // It's easiest to navigate them to the share link variant.
-                                setSharedRecipeId(r.id);
-                            }} onToggleFavorite={() => {}} />
+                            <RecipeCard 
+                                key={recipe.id} 
+                                recipe={recipe} 
+                                compact={settings.compactMobileView}
+                                onClick={(r) => { 
+                                    // To view the recipe detail securely read-only without breaking state:
+                                    // We can use the existing PublicRecipeView but we might need a modified version or just set the app state to show it.
+                                    // It's easiest to navigate them to the share link variant.
+                                    setSharedRecipeId(r.id);
+                                }} 
+                                onToggleFavorite={() => {}} 
+                            />
                         ))}
                     </div>
                 )}
@@ -1299,8 +1326,19 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {showAuthModal && <AuthModal showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} />}
+      {showAuthModal && <AuthModal showToast={showToast} showAlert={showAlert} showConfirm={showConfirm} initialFamilyName={authModalFamilyName} initialView={authModalView} onClose={() => { setShowAuthModal(false); setPendingRecipeSave(null); }} onSuccess={handleAuthSuccess} onBackup={() => setShowExportModal(true)} onRestore={handleImportClick} />}
+      {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} settings={settings} onUpdateSettings={handleUpdateSettings} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} onExport={handleExport} totalRecipes={recipes.length} />}
+      {isRecipeSwipeMode && (
+          <RecipeSwipeMode 
+              recipes={filteredRecipes} 
+              onBack={() => setIsRecipeSwipeMode(false)}
+              onOpenRecipe={(id) => {
+                  setActiveRecipeId(id);
+                  setIsRecipeSwipeMode(false);
+              }}
+          />
+      )}
       {showDeleteModal && recipeToDelete && (
           <DeleteConfirmationModal 
               isOpen={showDeleteModal} 

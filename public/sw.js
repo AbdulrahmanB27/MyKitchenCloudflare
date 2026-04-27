@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'meal-prep-v1';
+const CACHE_NAME = 'meal-prep-v3';
 const ASSETS = [
   '/',
   '/index.html',

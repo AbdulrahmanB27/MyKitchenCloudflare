@@ -965,11 +965,7 @@ const App: React.FC = () => {
                 </div>
             ) : (
                 <div className="flex items-center justify-center w-full">
-                    <img 
-                        src="/logo.png" 
-                        alt="MyKitchen Logo" 
-                        className="w-10 h-10 object-contain"
-                    />
+                    <div className="w-10 h-10 shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/logo.png?v=4)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/logo.png?v=4)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
                 </div>
             )}
         </div>

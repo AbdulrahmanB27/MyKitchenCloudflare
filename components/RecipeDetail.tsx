@@ -244,13 +244,13 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
 
 
 
-  const getShareLinkUrl = async () => {
+  async function getShareLinkUrl() {
     const token = await db.shareRecipe(recipe.id);
     const baseUrl = window.location.href.split('?')[0];
     return `${baseUrl}?recipeId=${recipe.id}&share=${token}`;
   };
 
-  const handleLinkAction = async (action: 'copy' | 'share') => {
+  async function handleLinkAction(action: 'copy' | 'share') {
     try {
         const url = await getShareLinkUrl();
         if (action === 'copy') {
@@ -272,7 +272,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     }
   };
 
-  const handleTextAction = async (action: 'copy' | 'share') => {
+  async function handleTextAction(action: 'copy' | 'share') {
     const text = getRecipeText();
     if (action === 'copy') {
         navigator.clipboard.writeText(text);
@@ -292,18 +292,18 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     }
   };
 
-  const persistUpdate = async (updated: Recipe, localOnly = false) => {
+  async function persistUpdate(updated: Recipe, localOnly = false) {
       await db.upsertRecipe(updated, { localOnly });
       setRecipe(updated);
       onRefreshList();
   };
 
-  const toggleArchive = async () => {
+  async function toggleArchive() {
       const updated = { ...recipe, archived: !recipe.archived };
       await persistUpdate(updated);
   };
 
-  const toggleFavorite = async () => {
+  async function toggleFavorite() {
       const updated = { ...recipe, favorite: !recipe.favorite };
       await persistUpdate(updated, true); // Local only!
   };
@@ -349,7 +349,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
       );
   };
 
-  const addToShoppingList = async () => {
+  async function addToShoppingList() {
     // Only collect ingredients that are NOT checked off
     const itemsToAdd: Ingredient[] = [];
 
@@ -401,7 +401,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   const getInstructionImage = (inst: string | Instruction) => typeof inst === 'string' ? null : inst.image;
 
 
-  const handleRate = async (score: number) => {
+  async function handleRate(score: number) {
       const newReview: Review = {
           id: uuidv4(),
           targetId: recipe.id,

@@ -54,7 +54,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [confirmLeaveFamily, setConfirmLeaveFamily] = useState<{ id: string, name: string } | null>(null);
 
-    const getDrawerSession = () => {
+    const sessions = db.getSavedSessions();
+    function getDrawerSession() {
         if (!drawerFamilyId) return null;
         return sessions.find(s => s.id === drawerFamilyId) || null;
     };
@@ -98,7 +99,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         };
     }, [mode]);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
         
         const cleanFamilyName = sanitize(familyName);
@@ -119,7 +120,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
-    const handleRegister = async (e: React.FormEvent) => {
+    async function handleRegister(e: React.FormEvent) {
         e.preventDefault();
 
         const cleanFamilyName = sanitize(familyName);
@@ -143,7 +144,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     // Links State
 
 
-    const handleGenerateLink = async (type: 'temporary' | 'view' | 'permanent') => {
+    async function handleGenerateLink(type: 'temporary' | 'view' | 'permanent') {
         const targetSession = getDrawerSession();
         if (!targetSession) return;
 
@@ -159,7 +160,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
-    const copyToClipboard = (text: string) => {
+    function copyToClipboard(text: string) {
         navigator.clipboard.writeText(text);
         if (showToast) {
             showToast('Link copied to clipboard!');
@@ -168,7 +169,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
-    const handleAdminSubmit = async (e: React.FormEvent) => {
+    async function handleAdminSubmit(e: React.FormEvent) {
         e.preventDefault();
         
         if (adminAction === 'view_password' || adminAction === 'links') return;
@@ -223,7 +224,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         }
     };
 
-    const sessions = db.getSavedSessions(); // This uses safeGetItem now
+    
 
     return (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>

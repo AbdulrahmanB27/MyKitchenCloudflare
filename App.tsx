@@ -958,14 +958,18 @@ const App: React.FC = () => {
       <aside 
         className={`fixed md:relative inset-y-0 left-0 z-[100] transform transition-all duration-300 border-r border-border-thin dark:border-border-dark bg-sidebar-mint dark:bg-sidebar-dark flex flex-col ${isMobileMenuOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full md:translate-x-0'} ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}`}
       >
-        <div className={`px-4 py-6 flex items-center h-24 ${isSidebarCollapsed ? 'justify-center' : 'justify-start gap-2'}`}>
+        <div className="px-4 py-6 flex items-center justify-center h-24">
             {!isSidebarCollapsed ? (
-                <div className="flex items-center gap-2 overflow-hidden w-full">
-                    <div className="h-12 flex-1 w-full shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/script.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'left center', maskImage: 'url(/script.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'left center' }}></div>
+                <div className="flex items-center justify-center overflow-hidden w-full">
+                    <div className="h-12 w-full shrink-0 bg-forest-green dark:bg-accent-herb" style={{ WebkitMaskImage: 'url(/script.png)', WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: 'url(/script.png)', maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }}></div>
                 </div>
             ) : (
                 <div className="flex items-center justify-center w-full">
-                    <span className="material-symbols-outlined text-forest-green dark:text-accent-herb text-2xl">cooking</span>
+                    <img 
+                        src="/logo.png" 
+                        alt="MyKitchen Logo" 
+                        className="w-10 h-10 object-contain"
+                    />
                 </div>
             )}
         </div>

@@ -367,8 +367,13 @@ export const syncDown = async () => {
                 const backendActive = allFetchedRecipes.filter(r => r.id === id && !r.deleted);
                 const backendTenantIds = Array.from(new Set(backendActive.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean))) as string[];
 
-                if (activeVersions.length === 0 || (backendActive.length === 0 && local?.deleted)) {
-                    // It's deleted in all known versions
+                // Find the absolute latest version (deleted or active)
+                versions.sort((a, b) => b.updatedAt - a.updatedAt);
+                const absoluteLatest = versions[0];
+                
+                // If the absolute latest version is a tombstone, or there are no active versions left globally
+                if (absoluteLatest.deleted || (activeVersions.length === 0 && local?.deleted)) {
+                    // It's deleted in the latest known state
                     await idb.remove(STORE_RECIPES, id);
                 } else {
                     // Sort active versions by updatedAt desc to use latest data as base

@@ -10,6 +10,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 
 interface RecipeFormProps {
   initialData?: Recipe | null;
+  mergedSiblings?: Recipe[];
   onSave: (recipe: Recipe) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
@@ -33,7 +34,7 @@ interface InstructionBlock {
     steps: Instruction[];
 }
 
-const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, onClose }) => {
+const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [], onSave, onDelete, onClose }) => {
   const INPUT_CLASS = "w-full px-3 py-2 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
   const LABEL_CLASS = "block text-sm font-bold text-text-secondary mb-1 dark:text-accent-herb/80";
 
@@ -739,26 +740,41 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                     // Check if we have access to delete it
                     const session = availableSessions.find(s => s.id === oldTid);
                     if (session) {
-                        promises.push(db.crossDeleteRecipe(recipe.id, oldTid));
+                        const siblingToDelete = mergedSiblings.find(s => s.familyId === oldTid || (s.tenantIds && s.tenantIds.includes(oldTid)));
+                        const deleteId = siblingToDelete ? siblingToDelete.id : recipe.id;
+                        promises.push(db.crossDeleteRecipe(deleteId, oldTid));
                     }
                 }
             }
         });
 
         // 3. Sync to Additional Families
+        const oldTenantIdsSet = new Set<string>((initialData?.tenantIds || []) as string[]);
+        
         if (targetFamilyId !== 'private' && additionalSyncFamilyIds.size > 0) {
              additionalSyncFamilyIds.forEach(fid => {
                  if (fid !== targetFamilyId) {
-                     promises.push(db.crossPostRecipe(recipe, fid));
+                     // Check if this is a newly added family relation
+                     const isNewRelation = !oldTenantIdsSet.has(fid);
+                     if (isNewRelation) {
+                         // Create a truly distinct duplicate to ensure separate family databases do not overwrite each other's primary tenant routing
+                         const cloned = { 
+                             ...recipe, 
+                             id: uuidv4(), 
+                             familyId: fid, 
+                             tenantId: fid, 
+                             tenantIds: [fid],
+                             shareToFamily: true,
+                             updatedAt: Date.now()
+                         };
+                         promises.push(db.upsertRecipe(cloned));
+                     }
                  }
              });
         }
 
         // 4. Handle Primary Target
         if (targetFamilyId !== 'private') {
-            if (targetFamilyId !== currentFamilyId) {
-                promises.push(db.crossPostRecipe(recipe, targetFamilyId));
-            }
             // Always update as the "last used" default for future recipes
             db.switchFamily(targetFamilyId);
         } else {

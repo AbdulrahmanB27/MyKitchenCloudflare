@@ -833,11 +833,31 @@ const App: React.FC = () => {
   };
 
   const performSave = async (recipe: Recipe) => {
-      // Remove mergedIds before saving as it's a UI-only concept
+      // Restore mergedIds from editing state to update all siblings
+      const mergedIds = editingRecipe?.mergedIds || [recipe.id];
+      
       const recipeToSave = { ...recipe };
       delete recipeToSave.mergedIds;
+
+      // Update the base recipe and all its merged clone copies
+      const promises = mergedIds.map(async (id) => {
+          const sibling = recipes.find(r => r.id === id);
+          if (sibling) {
+               // Preserve the sibling's exact IDs and tenant ownership metadata, just update the content
+               const updatedSibling = {
+                   ...recipeToSave,
+                   id: sibling.id,
+                   familyId: sibling.familyId,
+                   tenantId: sibling.tenantId,
+                   tenantIds: sibling.tenantIds
+               };
+               await db.upsertRecipe(updatedSibling);
+          } else if (id === recipeToSave.id) {
+               await db.upsertRecipe(recipeToSave);
+          }
+      });
       
-      await db.upsertRecipe(recipeToSave);
+      await Promise.all(promises);
       await loadData();
       setIsFormOpen(false);
       setEditingRecipe(null);
@@ -866,11 +886,24 @@ const App: React.FC = () => {
     
     // Remove mergedIds before saving
     const recipeToSave = { ...recipe };
+    const mergedIds = recipe.mergedIds || [recipe.id];
     delete recipeToSave.mergedIds;
     
-    const updated = { ...recipeToSave, favorite: !recipeToSave.favorite };
-    // Pass localOnly: true to prevent syncing favorite status
-    await db.upsertRecipe(updated, { localOnly: true });
+    const newFavoriteStatus = !recipeToSave.favorite;
+
+    const promises = mergedIds.map(async (id) => {
+        const sibling = recipes.find(r => r.id === id);
+        if (sibling) {
+            const updated = { ...sibling, favorite: newFavoriteStatus };
+            delete updated.mergedIds;
+            await db.upsertRecipe(updated, { localOnly: true });
+        } else if (id === recipeToSave.id) {
+            const updated = { ...recipeToSave, favorite: newFavoriteStatus };
+            await db.upsertRecipe(updated, { localOnly: true });
+        }
+    });
+
+    await Promise.all(promises);
     await loadData();
   };
 
@@ -939,12 +972,10 @@ const App: React.FC = () => {
     const familyId = db.getCurrentFamilyId();
     const shouldShare = !!familyId && db.hasAuthToken();
 
-    const clonedId = uuidv4();
     const cloned: Recipe = {
         ...recipe,
-        id: clonedId,
         familyId: familyId || 'private',
-        tenantIds: familyId ? [familyId] : [],
+        tenantIds: familyId ? Array.from(new Set([...(recipe.tenantIds || []), familyId])) : [],
         tenantId: familyId || 'private',
         shareToFamily: shouldShare,
         source: {
@@ -955,7 +986,17 @@ const App: React.FC = () => {
         updatedAt: Date.now()
     };
     
+    // Ensure all authenticated sessions are synced
     await db.upsertRecipe(cloned);
+    
+    // Attempt to proactively cross-post to any other existing tenantIds if we have their session
+    if (cloned.tenantIds) {
+      cloned.tenantIds.forEach(tid => {
+        if (tid !== familyId && tid !== 'private') {
+           db.crossPostRecipe(cloned, tid).catch(() => {});
+        }
+      });
+    }
     setSharedRecipeId(null);
     setShareToken(null);
     window.history.replaceState({}, '', window.location.pathname);
@@ -1389,6 +1430,7 @@ const App: React.FC = () => {
       {(isFormOpen || editingRecipe) && (
         <RecipeForm 
             initialData={editingRecipe} 
+            mergedSiblings={editingRecipe?.mergedIds?.map(id => recipes.find(r => r.id === id)).filter(Boolean) as Recipe[] || []}
             onClose={() => { setIsFormOpen(false); setEditingRecipe(null); }} 
             onSave={handleSaveRecipe} 
             onDelete={handleDeleteRecipe}

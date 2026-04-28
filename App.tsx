@@ -860,7 +860,7 @@ const App: React.FC = () => {
                    id: sibling.id,
                    familyId: sibling.familyId,
                    tenantId: sibling.tenantId,
-                   tenantIds: sibling.tenantIds
+                   tenantIds: recipeToSave.tenantIds
                };
                await db.upsertRecipe(updatedSibling);
           } else if (id === recipeToSave.id) {

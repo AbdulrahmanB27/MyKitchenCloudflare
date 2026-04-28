@@ -100,6 +100,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
 
   // Toast State
   const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' }>({ message: '', visible: false, type: 'success' });
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
 
   // Draft Management
   const saveDraft = () => {
@@ -340,12 +341,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
         }
 
         if (hasDraft()) {
-            restoreDraft();
+            setShowDraftPrompt(true);
         }
     } else {
         loadRecipeData(initialData);
         if (hasDraft()) {
-            restoreDraft();
+            setShowDraftPrompt(true);
         }
     }
   }, [initialData, currentFamilyId, pinnedFamilyId]);
@@ -1065,6 +1066,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
               <button type="button" onClick={onClose} className="p-2 hover:bg-bg-subtle dark:hover:bg-white/10 rounded-full transition-colors"><X size={20} className="text-text-secondary" /></button>
           </div>
         </div>
+        
+        {showDraftPrompt && (
+          <div className="mx-4 md:mx-6 mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                  <h4 className="font-bold text-orange-800 dark:text-orange-300">Unsaved Changes Found</h4>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mt-0.5">You have an auto-saved draft for this recipe.</p>
+              </div>
+              <div className="flex w-full sm:w-auto gap-2">
+                  <button type="button" onClick={() => { clearDraft(); setShowDraftPrompt(false); }} className="flex-1 sm:flex-none px-4 py-2 border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 font-bold rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors text-sm">Discard</button>
+                  <button type="button" onClick={() => { restoreDraft(); setShowDraftPrompt(false); }} className="flex-1 sm:flex-none px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition-colors shadow-sm text-sm">Restore Draft</button>
+              </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-8 custom-scrollbar">
           <DragDropContext onDragEnd={onDragEnd}>
           {/* Basics */}

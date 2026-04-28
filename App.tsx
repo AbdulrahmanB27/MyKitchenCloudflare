@@ -839,10 +839,21 @@ const App: React.FC = () => {
       const recipeToSave = { ...recipe };
       delete recipeToSave.mergedIds;
 
+      const validFamilyIds = new Set<string>(recipeToSave.tenantIds || []);
+      if (recipeToSave.familyId) validFamilyIds.add(recipeToSave.familyId);
+
       // Update the base recipe and all its merged clone copies
       const promises = mergedIds.map(async (id) => {
           const sibling = recipes.find(r => r.id === id);
           if (sibling) {
+               const siblingFamily = sibling.familyId || 'private';
+               if (siblingFamily !== 'private' && !validFamilyIds.has(siblingFamily)) {
+                    // This sibling family was unchecked in the UI. RecipeForm already cross-deleted it remotely.
+                    // Delete it locally so it won't be re-uploaded and won't be merged anymore.
+                    await db.deleteRecipe(sibling.id, { keepReviews: true });
+                    return;
+               }
+
                // Preserve the sibling's exact IDs and tenant ownership metadata, just update the content
                const updatedSibling = {
                    ...recipeToSave,

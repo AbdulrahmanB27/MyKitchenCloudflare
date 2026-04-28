@@ -763,7 +763,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                              id: uuidv4(), 
                              familyId: fid, 
                              tenantId: fid, 
-                             tenantIds: [fid],
+                             tenantIds: recipe.tenantIds, // Share full list of synced tenants
                              shareToFamily: true,
                              updatedAt: Date.now()
                          };
@@ -1138,10 +1138,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                                                  <div className="pr-4 pl-2 h-full flex items-center">
                                                      <Checkbox 
                                                         checked={isSynced} 
-                                                        onChange={() => {
+                                                        onChange={(newChecked) => {
                                                             setAdditionalSyncFamilyIds(prev => {
                                                                 const next = new Set(prev);
-                                                                if (isSynced) next.delete(s.id);
+                                                                if (!newChecked) next.delete(s.id);
                                                                 else next.add(s.id);
                                                                 return next;
                                                             });

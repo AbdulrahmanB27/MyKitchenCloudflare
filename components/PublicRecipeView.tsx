@@ -10,9 +10,10 @@ interface PublicRecipeViewProps {
     recipeId: string;
     shareToken?: string | null;
     onClose: () => void;
+    onSave?: (recipe: Recipe) => void;
 }
 
-const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToken, onClose }) => {
+const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToken, onClose, onSave }) => {
     const [recipe, setRecipe] = useState<Recipe | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -348,6 +349,12 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                             </button>
                             <div className="h-8 w-[1px] bg-border-thin dark:bg-white/10 hidden md:block"></div>
                             <div className="flex gap-2 ml-auto md:ml-0">
+                                {onSave && (
+                                    <button onClick={() => onSave(recipe)} className="flex items-center justify-center gap-2 bg-text-main dark:bg-white text-white dark:text-black font-bold py-2 px-4 rounded-xl transition-all group h-[60px] shadow-sm ml-2.5">
+                                        <Copy size={20} className="text-white dark:text-black" />
+                                        <span className="text-sm font-bold whitespace-nowrap">Save to My Kitchen</span>
+                                    </button>
+                                )}
                                 <button onClick={() => setShowShareModal(true)} className="flex flex-col items-center justify-center gap-1 min-w-[64px] group">
                                     <div className="rounded-full bg-bg-subtle dark:bg-white/5 p-2.5 group-hover:bg-forest-green/10 dark:group-hover:bg-accent-herb/10 transition-colors">
                                         <Share size={20} className="text-text-main dark:text-white" />

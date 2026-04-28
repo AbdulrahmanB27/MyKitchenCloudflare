@@ -110,4 +110,4 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
   );
 };
 
-export default RecipeCard;
+export default React.memo(RecipeCard);

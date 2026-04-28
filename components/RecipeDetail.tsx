@@ -659,10 +659,11 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                 <p className="text-xs font-medium uppercase tracking-wide">Cook</p>
                             </div>
                         </div>
-                        <div className="flex min-w-[90px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-forest-green/20 dark:border-white/10 bg-white dark:bg-card-dark p-3 items-center text-center shadow-sm">
-                            <p className="text-text-main dark:text-white text-xl font-bold leading-tight">
-                                {originalServings} <span className="text-xs font-normal text-text-secondary dark:text-text-secondary-dark">{recipe.yieldUnit || 'srv'}</span>
-                            </p>
+                        <div className="flex min-w-[80px] flex-1 md:flex-none flex-col gap-1 rounded-xl border border-forest-green/20 dark:border-white/10 bg-white dark:bg-card-dark p-3 items-center text-center shadow-sm">
+                            <div className="text-text-main dark:text-white text-xl font-bold leading-tight flex flex-col items-center">
+                                <span>{originalServings}</span>
+                                <span className="text-[10px] sm:text-xs font-normal text-text-secondary dark:text-text-secondary-dark block mt-0.5">{recipe.yieldUnit || 'srv'}</span>
+                            </div>
                             <div className="flex items-center gap-1 text-forest-green dark:text-accent-herb">
                                 <span className="material-symbols-outlined text-[16px]">restaurant</span>
                                 <p className="text-xs font-medium uppercase tracking-wide">Yield</p>

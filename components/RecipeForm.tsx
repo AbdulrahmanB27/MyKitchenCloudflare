@@ -1194,8 +1194,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, onSave, onDelete, 
                <div className="col-span-2 md:col-span-1">
                    <label className={LABEL_CLASS}>Yield</label>
                    <div className="flex gap-2">
-                       <input type="number" value={getNumValue(formData.servings)} onChange={e => handleNumberChange('servings', e.target.value)} className={`${INPUT_CLASS} w-24 shrink-0 text-center`} placeholder="1" />
-                       <input type="text" value={formData.yieldUnit || ''} onChange={e => handleChange('yieldUnit', e.target.value)} className={`${INPUT_CLASS} flex-1 min-w-[120px]`} placeholder="servings" />
+                       <input 
+                           type="number" 
+                           value={getNumValue(formData.servings)} 
+                           onChange={e => handleNumberChange('servings', e.target.value)} 
+                           className="w-16 px-1 h-10 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all text-center shrink-0" 
+                           placeholder="1" 
+                       />
+                       <input 
+                           type="text" 
+                           value={formData.yieldUnit || ''} 
+                           onChange={e => handleChange('yieldUnit', e.target.value)} 
+                           className="flex-1 h-10 px-3 rounded-lg border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50 min-w-0" 
+                           placeholder="servings" 
+                       />
                    </div>
                </div>
              </div>

@@ -31,11 +31,17 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
     
     filteredRecipes.forEach(r => {
         r.ingredients.forEach(i => {
-            if (i.item) set.add(normalize(i.item));
+            if (i.item) {
+              const n = normalize(i.item);
+              if (n) set.add(n);
+            }
         });
         r.components?.forEach(c => {
             c.ingredients.forEach(i => {
-                if (i.item) set.add(normalize(i.item));
+                if (i.item) {
+                  const n = normalize(i.item);
+                  if (n) set.add(n);
+                }
             });
         });
     });

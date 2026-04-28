@@ -360,22 +360,14 @@ export const syncDown = async () => {
                     localMap.delete(id); // mark as processed
                 }
 
-                // Collect all tenantIds where this recipe exists AND is NOT deleted
                 const activeVersions = versions.filter(v => !v.deleted);
                 const deletedVersions = versions.filter(v => v.deleted);
                 
-                // Get tenantIds from backend versions (use the array if it exists to preserve cross-post groups)
-                const backendTenantIds = activeVersions.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean) as string[];
-                const deletedBackendTenantIds = new Set(deletedVersions.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean) as string[]);
-                
-                // Also include local tenantIds if local version exists and has them
-                // But filter out any that were explicitly deleted on the backend
-                const localTenantIds = (local && !local.deleted && local.tenantIds ? local.tenantIds : [])
-                    .filter(tid => !deletedBackendTenantIds.has(tid));
-                
-                const tenantIds = Array.from(new Set([...backendTenantIds, ...localTenantIds]));
+                // Trust the backend for tenantIds if we have active versions from backend
+                const backendActive = allFetchedRecipes.filter(r => r.id === id && !r.deleted);
+                const backendTenantIds = Array.from(new Set(backendActive.flatMap(v => v.tenantIds?.length ? v.tenantIds : (v.tenantId ? [v.tenantId] : [])).filter(Boolean))) as string[];
 
-                if (activeVersions.length === 0) {
+                if (activeVersions.length === 0 || (backendActive.length === 0 && local?.deleted)) {
                     // It's deleted in all known versions
                     await idb.remove(STORE_RECIPES, id);
                 } else {
@@ -383,7 +375,10 @@ export const syncDown = async () => {
                     activeVersions.sort((a, b) => b.updatedAt - a.updatedAt);
                     const latest = activeVersions[0];
                     
-                    // Create merged object
+                    // If we have backend versions, use their combined tenantIds. 
+                    // Otherwise keep whatever latest has (local edit overriding until sync).
+                    const tenantIds = backendActive.length > 0 ? backendTenantIds : (latest.tenantIds || [latest.familyId].filter(Boolean));
+                    
                     const merged: Recipe = {
                         ...latest,
                         tenantIds: tenantIds
@@ -393,15 +388,17 @@ export const syncDown = async () => {
                 }
             }
 
-            // Clean up hard-deleted shared recipes
-            // Any recipe left in `localMap` was NOT returned by any successful backend session.
+            // Clean up hard-deleted/unlinked shared recipes
             for (const [id, localRecipe] of localMap) {
                 if (localRecipe.shareToFamily) {
                     const relevantTenants = localRecipe.tenantIds?.length ? localRecipe.tenantIds : [localRecipe.familyId];
-                    // If we successfully fetched from ALL the families this recipe claims to belong to:
-                    const allRelevantTenantsFetched = relevantTenants.every(tid => !tid || successfulSessionIds.has(tid));
+                    // Which of the relevant tenants are we currently successfully connected to?
+                    const myRelevantTenants = relevantTenants.filter(tid => !tid || successfulSessionIds.has(tid));
                     
-                    if (allRelevantTenantsFetched && relevantTenants.some(tid => tid)) {
+                    // If we successfully checked >=1 tenant that this recipe claimed to belong to,
+                    // AND none of them returned the recipe (because it's in localMap),
+                    // it means it was deleted or unlinked remotely!
+                    if (myRelevantTenants.length > 0) {
                         await idb.remove(STORE_RECIPES, id);
                     }
                 }
@@ -497,7 +494,7 @@ export const getAllRecipes = async (): Promise<Recipe[]> => {
     }
     
     if (migrationNeeded) {
-        console.log("Migrating reviews...");
+        
         for (const r of recipes) {
             if ((r as any).reviews && Array.isArray((r as any).reviews) && (r as any).reviews.length > 0) {
                 const oldReviews = (r as any).reviews as any[];
@@ -606,12 +603,30 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
     
     if (options?.localOnly) return; 
 
-    if (hasAuthToken() && recipe.shareToFamily && (!recipe.familyId || recipe.familyId === currentFamilyId)) {
+    if (hasAuthToken() && recipe.shareToFamily) {
+        const targetFamilyId = recipe.familyId || currentFamilyId;
+        const sessions = getSavedSessions();
+        const targetSession = sessions.find(s => s.id === targetFamilyId);
+        
+        let customHeaders;
+        if (targetSession && targetFamilyId !== currentFamilyId) {
+             customHeaders = { 'Authorization': `Bearer ${targetSession.token}` };
+        }
+
         try {
-            await apiCall('/recipes', 'POST', recipe);
+            if (customHeaders) {
+                const res = await fetch(`${API_BASE}/recipes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...customHeaders },
+                    body: JSON.stringify(recipe)
+                });
+                if (!res.ok) throw new Error("Sync failed");
+            } else {
+                await apiCall('/recipes', 'POST', recipe);
+            }
         } catch (e) {
             // Queue for sync
-            await addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now() });
+            await addToSyncQueue({ id: recipe.id, action: 'upsert', data: recipe, store: STORE_RECIPES, timestamp: Date.now(), targetFamilyId });
         }
     }
 };
@@ -620,12 +635,33 @@ export const deleteRecipe = async (id: string, options?: { keepReviews?: boolean
     if (!options?.keepReviews) {
         await deleteReviewsForTarget(id);
     }
+    
+    const recipe = await getRecipe(id);
+    const targetFamilyId = recipe?.familyId || getCurrentFamilyId();
+    
     await idb.remove(STORE_RECIPES, id);
-    if (hasAuthToken()) {
+    
+    if (hasAuthToken() && recipe?.shareToFamily) {
+        const sessions = getSavedSessions();
+        const targetSession = sessions.find(s => s.id === targetFamilyId);
+        
+        let customHeaders;
+        if (targetSession && targetFamilyId !== getCurrentFamilyId()) {
+             customHeaders = { 'Authorization': `Bearer ${targetSession.token}` };
+        }
+
         try {
-            await apiCall(`/recipes?id=${id}`, 'DELETE');
+            if (customHeaders) {
+                const res = await fetch(`${API_BASE}/recipes?id=${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', ...customHeaders }
+                });
+                if (!res.ok) throw new Error("Sync failed");
+            } else {
+                await apiCall(`/recipes?id=${id}`, 'DELETE');
+            }
         } catch (e) {
-            await addToSyncQueue({ id, action: 'delete', store: STORE_RECIPES, timestamp: Date.now() });
+            await addToSyncQueue({ id, action: 'delete', store: STORE_RECIPES, timestamp: Date.now(), targetFamilyId });
         }
     }
 };

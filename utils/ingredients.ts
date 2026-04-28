@@ -17,23 +17,41 @@ export const normalize = (s: string) => {
   let norm = s.trim().toLowerCase();
   
   // Remove descriptors that interfere with grouping
-  const noise = ['large', 'small', 'medium', 'fresh', 'dried', 'frozen', 'clove', 'cloves', 'head', 'heads', 'bunch', 'bunches'];
+  const noise = ['large', 'small', 'medium', 'fresh', 'dried', 'frozen', 'clove', 'cloves', 'head', 'heads', 'bunch', 'bunches', 'piece', 'pieces'];
   const words = norm.split(/\s+/).filter(w => !noise.includes(w));
   norm = words.join(' ');
 
-  // Basic singularization
-  if (norm.endsWith('ies')) {
-      norm = norm.slice(0, -3) + 'y';
-  } else if (norm.endsWith('es')) {
-      // Avoid singularizing 'cheese', 'sauce', etc.
-      if (!['cheese', 'sauce', 'juice', 'puree', 'paste', 'olive', 'vegetable', 'rice'].some(w => norm.endsWith(w))) {
-          norm = norm.slice(0, -2);
-      }
-  } else if (norm.endsWith('s')) {
-      // Avoid singularizing 'couscous', 'hummus', 'molasses', 'bass', 'grass', 'less'
-      if (!['ss', 'us', 'as', 'is', 'less', 'moss'].some(suffix => norm.endsWith(suffix))) {
-          norm = norm.slice(0, -1);
-      }
+  if (!norm) return '';
+
+  const exceptions = new Set([
+     "hummus", "couscous", "molasses", "asparagus", "chorizo", "salt", "pepper", "water", "sugar", "flour", "milk", "butter", "oil", "rice"
+  ]);
+
+  if (exceptions.has(norm)) return norm;
+
+  // Simple pluralization logic
+  if (norm.endsWith('ies') || norm.endsWith('ves') || norm.endsWith('oes')) {
+    // Likely already plural
+  } else if (norm.endsWith('s') && !['ss', 'us', 'is', 'as'].some(suffix => norm.endsWith(suffix))) {
+    // Likely already plural
+  } else if (norm.endsWith('y')) {
+    // berry -> berries
+    const vowels = ['a', 'e', 'i', 'o', 'u'];
+    if (norm.length > 1 && !vowels.includes(norm[norm.length - 2])) {
+      norm = norm.slice(0, -1) + 'ies';
+    } else {
+      norm = norm + 's';
+    }
+  } else if (norm.endsWith('f')) {
+    // leaf -> leaves
+    norm = norm.slice(0, -1) + 'ves';
+  } else if (norm.endsWith('fe')) {
+    // knife -> knives
+    norm = norm.slice(0, -2) + 'ves';
+  } else if (['x', 'z', 'ch', 'sh'].some(suffix => norm.endsWith(suffix))) {
+    norm = norm + 'es';
+  } else {
+    norm = norm + 's';
   }
   
   return norm.trim();

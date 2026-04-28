@@ -170,7 +170,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
       recognition.onresult = (event: any) => {
           const lastResultIndex = event.results.length - 1;
           const command = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
-          console.log('Voice Command Heard:', command);
+          
           setLastCommand(command);
           setTimeout(() => setLastCommand(null), 3000);
 
@@ -405,7 +405,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
 
   const notifyUser = () => {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.play().catch(e => console.log('Audio play failed', e));
+      audio.play().catch(e => { /* ignored */ });
 
       if (Notification.permission === 'granted') {
           new Notification('Timer Done!', { body: `Step ${currentStep + 1} completed.` });

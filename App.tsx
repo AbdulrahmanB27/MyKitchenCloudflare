@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Moon, Sun, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Upload, Users, User, RefreshCw, Download, Loader2, UtensilsCrossed, LogOut, RefreshCcw, AlertCircle, Check, BookOpen, Sparkles, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, ShieldCheck, Gamepad2, Play } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, Cloud, CloudOff, Users, User, RefreshCw, Loader2, UtensilsCrossed, AlertCircle, Check, BookOpen, Calendar, ShoppingCart, Menu, X as CloseIcon, Archive, Refrigerator, Settings, Link as LinkIcon, Play } from 'lucide-react';
 import { Recipe, AppSettings, RecipeCategory, SortOption, Review } from './types';
 import * as db from './services/db';
 import { ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, ENABLE_VOICE_EXPERIMENTAL } from './constants';
@@ -597,7 +597,7 @@ const App: React.FC = () => {
     // Listen for visibility change to sync when app comes to foreground
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible' && navigator.onLine && db.hasAuthToken()) {
-            console.log("App foregrounded, syncing...");
+            
             db.retrySync();
             db.syncDown();
         }
@@ -935,12 +935,40 @@ const App: React.FC = () => {
   const syncStatus = getSyncStatus();
   const currentFamilyName = db.getCurrentFamilyName();
 
+  const handleSaveSharedRecipe = async (recipe: Recipe) => {
+    const familyId = db.getCurrentFamilyId();
+    const shouldShare = !!familyId && db.hasAuthToken();
+
+    const clonedId = uuidv4();
+    const cloned: Recipe = {
+        ...recipe,
+        id: clonedId,
+        familyId: familyId || 'private',
+        tenantIds: familyId ? [familyId] : [],
+        tenantId: familyId || 'private',
+        shareToFamily: shouldShare,
+        source: {
+            name: recipe.source?.name || 'Shared Link',
+            author: recipe.addedBy || recipe.source?.author
+        },
+        addedBy: 'Me',
+        updatedAt: Date.now()
+    };
+    
+    await db.upsertRecipe(cloned);
+    setSharedRecipeId(null);
+    setShareToken(null);
+    window.history.replaceState({}, '', window.location.pathname);
+    showToast("Recipe saved to My Kitchen!", 'success');
+    loadData();
+  };
+
   // --- Render ---
 
   if (loading) return <div className="flex items-center justify-center h-screen bg-background-light dark:bg-background-dark text-primary">Loading MyKitchen...</div>;
 
   if (sharedRecipeId) {
-      return <PublicRecipeView recipeId={sharedRecipeId} onClose={() => setSharedRecipeId(null)} />;
+      return <PublicRecipeView recipeId={sharedRecipeId} shareToken={shareToken} onClose={() => setSharedRecipeId(null)} onSave={handleSaveSharedRecipe} />;
   }
 
   return (
@@ -960,12 +988,75 @@ const App: React.FC = () => {
       >
         <div className="px-4 py-6 flex items-center justify-center h-24">
             {!isSidebarCollapsed ? (
-                <div className="flex items-center justify-center overflow-hidden w-full">
-                    <img src={`${import.meta.env.BASE_URL}script-colored.png?v=6`} alt="MyKitchen" className="h-12 object-contain" />
+                <div className="flex items-center justify-center overflow-hidden w-full relative h-[48px]">
+                    <div 
+                        className="absolute inset-0 m-auto h-12 w-full bg-forest-green dark:bg-accent-herb transition-opacity duration-300"
+                        style={{ 
+                            WebkitMaskImage: `url('${import.meta.env.BASE_URL}script.png')`, 
+                            WebkitMaskSize: 'contain', 
+                            WebkitMaskRepeat: 'no-repeat', 
+                            WebkitMaskPosition: 'center',
+                            maskImage: `url('${import.meta.env.BASE_URL}script.png')`, 
+                            maskSize: 'contain', 
+                            maskRepeat: 'no-repeat', 
+                            maskPosition: 'center'
+                        }}
+                    />
+                    <img 
+                        src={`${import.meta.env.BASE_URL}script.png`}
+                        alt="MyKitchen" 
+                        className="opacity-0 absolute inset-0 pointer-events-none w-0 h-0" 
+                        onError={(e) => {
+                            const mask = e.currentTarget.previousElementSibling as HTMLElement;
+                            if (mask) mask.style.opacity = '0';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.opacity = '1';
+                        }}
+                    />
+                    <div 
+                        className="flex items-center justify-center gap-2 absolute inset-0 m-auto transition-opacity duration-300 pointer-events-none" 
+                        style={{ opacity: 0 }}
+                    >
+                        <div className="flex items-center justify-center text-forest-green dark:text-accent-herb">
+                            <UtensilsCrossed size={32} strokeWidth={2.5} />
+                        </div>
+                        <span className="font-display font-black text-2xl tracking-tighter text-text-main dark:text-white mt-1">
+                            MYKITCHEN
+                        </span>
+                    </div>
                 </div>
             ) : (
-                <div className="flex items-center justify-center w-full">
-                    <img src={`${import.meta.env.BASE_URL}logo-colored.png?v=6`} alt="MyKitchen" className="w-10 h-10 object-contain" />
+                <div className="flex items-center justify-center w-full relative h-[40px]">
+                    <div 
+                        className="absolute inset-0 m-auto w-10 h-10 bg-forest-green dark:bg-accent-herb transition-opacity duration-300"
+                        style={{ 
+                            WebkitMaskImage: `url('${import.meta.env.BASE_URL}logo.png')`, 
+                            WebkitMaskSize: 'contain', 
+                            WebkitMaskRepeat: 'no-repeat', 
+                            WebkitMaskPosition: 'center',
+                            maskImage: `url('${import.meta.env.BASE_URL}logo.png')`, 
+                            maskSize: 'contain', 
+                            maskRepeat: 'no-repeat', 
+                            maskPosition: 'center'
+                        }}
+                    />
+                    <img 
+                        src={`${import.meta.env.BASE_URL}logo.png`}
+                        alt="MyKitchen" 
+                        className="opacity-0 absolute inset-0 pointer-events-none w-0 h-0" 
+                        onError={(e) => {
+                            const mask = e.currentTarget.previousElementSibling as HTMLElement;
+                            if (mask) mask.style.opacity = '0';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.opacity = '1';
+                        }}
+                    />
+                    <div 
+                        className="flex items-center justify-center absolute inset-0 m-auto text-forest-green dark:text-accent-herb transition-opacity pointer-events-none"
+                        style={{ opacity: 0 }}
+                    >
+                        <UtensilsCrossed size={28} strokeWidth={2.5} />
+                    </div>
                 </div>
             )}
         </div>

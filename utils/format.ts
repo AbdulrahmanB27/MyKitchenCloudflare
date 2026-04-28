@@ -37,37 +37,48 @@ export const normalizeIngredient = (input: string): string => {
   if (!input) return '';
   let name = input.toLowerCase().trim();
   
-  // Remove punctuation (keeping hyphens for things like "semi-sweet", but removing others)
-  // Remove . , ( ) [ ] { } ! ? * " '
+  // Remove punctuation
   name = name.replace(/[.,()\[\]{}!@#$%^&*;:<>?"']/g, "");
   // Normalize internal whitespace
   name = name.replace(/\s+/g, " ");
 
-  // Safety check for short words or specific exceptions
   if (name.length <= 2) return name; 
 
   const exceptions = new Set([
       "hummus", "couscous", "molasses", "news", "series", "species", "asparagus", 
-      "lens", "chaos", "bias", "canvas", "status", "campus", "virus", "chorizo", "oats", "grits"
+      "lens", "chaos", "bias", "canvas", "status", "campus", "virus", "chorizo", "oats", "grits",
+      "salt", "pepper", "water", "sugar", "flour", "milk", "butter", "oil", "rice"
   ]);
   if (exceptions.has(name)) return name;
 
-  // Standard Pluralization rules
-  if (name.endsWith('ies') && !name.endsWith('eies')) {
-      // berry -> berries
-      return name.slice(0, -3) + 'y';
+  // Simple pluralization logic
+  if (name.endsWith('ies') || name.endsWith('ves') || name.endsWith('oes')) {
+    return name;
   }
   
-  if (name.endsWith('oes')) {
-      // potato -> potatoes
-      return name.slice(0, -2);
+  if (name.endsWith('s') && !['ss', 'us', 'is', 'as'].some(suffix => name.endsWith(suffix))) {
+    return name;
   }
 
-  // Generic 's' removal
-  // Exclude 'ss' (glass), 'us' (fungus), 'is' (axis)
-  if (name.endsWith('s') && !name.endsWith('ss') && !name.endsWith('us') && !name.endsWith('is')) {
-      return name.slice(0, -1);
+  if (name.endsWith('y')) {
+    const vowels = ['a', 'e', 'i', 'o', 'u'];
+    if (name.length > 1 && !vowels.includes(name[name.length - 2])) {
+      return name.slice(0, -1) + 'ies';
+    }
+    return name + 's';
   }
 
-  return name;
+  if (name.endsWith('f')) {
+    return name.slice(0, -1) + 'ves';
+  }
+
+  if (name.endsWith('fe')) {
+    return name.slice(0, -2) + 'ves';
+  }
+
+  if (['x', 'z', 'ch', 'sh'].some(suffix => name.endsWith(suffix))) {
+    return name + 'es';
+  }
+
+  return name + 's';
 };

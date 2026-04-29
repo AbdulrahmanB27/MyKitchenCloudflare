@@ -181,7 +181,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         setError('');
 
         let actionType: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify' = 'update_passwords';
-        let payload: any = { adminPassword };
+        const payload: any = { adminPassword };
 
         if (adminAction === 'update') {
             actionType = 'update_passwords';

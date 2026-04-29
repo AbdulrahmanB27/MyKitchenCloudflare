@@ -70,7 +70,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
     const filteredRecipes = filterCategory === 'All' ? recipes : recipes.filter(r => r.category === filterCategory);
 
     filteredRecipes.forEach(recipe => {
-        let allIngredients: Ingredient[] = [...recipe.ingredients];
+        const allIngredients: Ingredient[] = [...recipe.ingredients];
         if (recipe.components) {
             recipe.components.forEach(c => allIngredients.push(...c.ingredients));
         }

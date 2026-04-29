@@ -48,7 +48,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const since = url.searchParams.get("since");
 
     let query = "SELECT data, updated_at FROM recipes WHERE share_to_family = 1 AND (tenant_id = ? OR data LIKE ?)";
-    let params: any[] = [familyId, `%"${familyId}"%`];
+    const params: any[] = [familyId, `%"${familyId}"%`];
 
     if (since) {
         query += " AND updated_at > ?";

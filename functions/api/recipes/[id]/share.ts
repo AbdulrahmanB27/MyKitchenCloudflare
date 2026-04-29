@@ -52,7 +52,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const jwtSecret = (context.env.JWT_SECRET || '').trim();
     // Auth is optional for sharing now
-    let authPayload = await checkAuth(context.request, jwtSecret);
+    const authPayload = await checkAuth(context.request, jwtSecret);
     
     // If not authenticated, use a default 'public' identity
     const familyId = authPayload ? (authPayload.familyId || 'default') : 'public';

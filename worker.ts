@@ -189,7 +189,7 @@ async function handleAuth(request: Request, env: Env) {
             let isValid = false;
 
             // 1. Check if it's the access password
-            let hash = await hashPassword(password, family.salt);
+            const hash = await hashPassword(password, family.salt);
             if (hash === family.password_hash) {
                 isValid = true;
             } else {
@@ -323,7 +323,7 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
     if (request.method === 'GET') {
         const since = url.searchParams.get("since");
         let query = "SELECT data, updated_at, family_id FROM recipes WHERE family_id = ?";
-        let params: any[] = [session.familyId];
+        const params: any[] = [session.familyId];
         
         if (since) {
             query += " AND updated_at > ?";
@@ -663,76 +663,81 @@ async function handleShare(request: Request, env: Env) {
 }
 
 async function handleRecipeShare(request: Request, env: Env) {
-    await ensureSchema(env);
-    const url = new URL(request.url);
-    // Path: /api/recipes/:id/share
-    const parts = url.pathname.split('/');
-    const recipeId = parts[3]; // "", "api", "recipes", "ID", "share" -> index 3
+    try {
+        await ensureSchema(env);
+        const url = new URL(request.url);
+        // Path: /api/recipes/:id/share
+        const parts = url.pathname.split('/');
+        const recipeId = parts[3]; // "", "api", "recipes", "ID", "share" -> index 3
 
-    if (!recipeId) return errorResponse("Missing Recipe ID", 400);
+        if (!recipeId) return errorResponse("Missing Recipe ID", 400);
 
-    if (request.method === 'POST') {
-        // Auth optional
-        const session = await getSession(request, env);
-        const familyId = session ? session.familyId : 'public';
+        if (request.method === 'POST') {
+            // Auth optional
+            const session = await getSession(request, env);
+            const familyId = session ? session.familyId : 'public';
 
-        // 1. Verify recipe exists
-        let recipe = await env.DB.prepare("SELECT id FROM recipes WHERE id = ?").bind(recipeId).first();
-        
-        if (!recipe) {
-            // Try to read body to see if client sent recipe data
-            try {
-                const body: any = await request.json();
-                if (body && body.id === recipeId) {
-                    const now = Date.now();
-                    // Insert recipe into DB so it can be shared
-                    await env.DB.prepare(
-                      "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
-                    ).bind(
-                      body.id, 
-                      familyId === 'public' ? 'public' : familyId, // Use 'public' or actual familyId
-                      body.name, 
-                      body.category, 
-                      0, // is_favorite
-                      0, // is_archived
-                      0, // share_to_family
-                      'global',
-                      JSON.stringify(body), 
-                      now
-                    ).run();
-                    
-                    recipe = { id: recipeId };
+            // 1. Verify recipe exists
+            let recipe = await env.DB.prepare("SELECT id FROM recipes WHERE id = ?").bind(recipeId).first();
+            
+            if (!recipe) {
+                // Try to read body to see if client sent recipe data
+                try {
+                    const body: any = await request.json();
+                    if (body && body.id === recipeId) {
+                        const now = Date.now();
+                        // Insert recipe into DB so it can be shared
+                        await env.DB.prepare(
+                          "INSERT INTO recipes (id, family_id, name, category, is_favorite, is_archived, share_to_family, tenant_id, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at"
+                        ).bind(
+                          body.id, 
+                          familyId === 'public' ? 'public' : familyId, // Use 'public' or actual familyId
+                          body.name, 
+                          body.category, 
+                          0, // is_favorite
+                          0, // is_archived
+                          0, // share_to_family
+                          'global',
+                          JSON.stringify(body), 
+                          now
+                        ).run();
+                        
+                        recipe = { id: recipeId };
+                    }
+                } catch (e) {
+                    // Ignore body parse errors or empty body
                 }
-            } catch (e) {
-                // Ignore body parse errors or empty body
             }
+            
+            if (!recipe) {
+                return errorResponse("Recipe not found", 404);
+            }
+
+            // 2. Check if share link already exists
+            const existing = await env.DB.prepare(
+                "SELECT token FROM recipe_share_links WHERE recipe_id = ? AND revoked_at IS NULL"
+            ).bind(recipeId).first();
+
+            if (existing) {
+                return jsonResponse({ token: existing.token, recipeId });
+            }
+
+            // 3. Generate new token
+            const token = generateToken(); // Use existing helper
+            const now = Date.now();
+
+            await env.DB.prepare(
+                "INSERT INTO recipe_share_links (token, family_id, recipe_id, created_at) VALUES (?, ?, ?, ?)"
+            ).bind(token, familyId, recipeId, now).run();
+
+            return jsonResponse({ token, recipeId });
         }
-        
-        if (!recipe) {
-            return errorResponse("Recipe not found", 404);
-        }
 
-        // 2. Check if share link already exists
-        const existing = await env.DB.prepare(
-            "SELECT token FROM recipe_share_links WHERE recipe_id = ? AND revoked_at IS NULL"
-        ).bind(recipeId).first();
-
-        if (existing) {
-            return jsonResponse({ token: existing.token, recipeId });
-        }
-
-        // 3. Generate new token
-        const token = generateToken(); // Use existing helper
-        const now = Date.now();
-
-        await env.DB.prepare(
-            "INSERT INTO recipe_share_links (token, family_id, recipe_id, created_at) VALUES (?, ?, ?, ?)"
-        ).bind(token, familyId, recipeId, now).run();
-
-        return jsonResponse({ token, recipeId });
+        return errorResponse("Method Not Allowed", 405);
+    } catch (e: any) {
+        console.error("handleRecipeShare error:", e);
+        return errorResponse(e.message || String(e), 500);
     }
-
-    return errorResponse("Method Not Allowed", 405);
 }
 
 // 9. Family Links
@@ -798,8 +803,8 @@ async function handleFamilyLinks(request: Request, env: Env) {
         const family = await env.DB.prepare("SELECT id, name FROM families WHERE id = ?").bind(link.family_id).first();
         if (!family) return errorResponse("Family not found", 404);
 
-        let query = "SELECT data FROM recipes WHERE is_archived = 0 AND share_to_family = 1 AND (family_id = ? OR tenant_id = ? OR data LIKE ?)";
-        let params: any[] = [family.id, family.id, `%"${family.id}"%`];
+        const query = "SELECT data FROM recipes WHERE is_archived = 0 AND share_to_family = 1 AND (family_id = ? OR tenant_id = ? OR data LIKE ?)";
+        const params: any[] = [family.id, family.id, `%"${family.id}"%`];
 
         const { results } = await env.DB.prepare(query).bind(...params).all();
         
@@ -823,34 +828,43 @@ export default {
             }
 
             // New Routes
-            if (url.pathname.startsWith('/api/auth')) return handleAuth(request, env);
-            if (url.pathname.startsWith('/api/admin')) return handleAdmin(request, env);
+            if (url.pathname.startsWith('/api/auth')) return await handleAuth(request, env);
+            if (url.pathname.startsWith('/api/admin')) return await handleAdmin(request, env);
             
             // Share Routes
-            if (url.pathname.startsWith('/api/share')) return handleShare(request, env);
-            if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return handleRecipeShare(request, env);
-            if (url.pathname.startsWith('/api/family-links')) return handleFamilyLinks(request, env);
+            if (url.pathname.startsWith('/api/share')) return await handleShare(request, env);
+            if (url.pathname.match(/^\/api\/recipes\/[^\/]+\/share$/)) return await handleRecipeShare(request, env);
+            if (url.pathname.startsWith('/api/family-links')) return await handleFamilyLinks(request, env);
 
             // Updated Routes (now use token-based session)
-            if (url.pathname.startsWith('/api/recipes')) return handleRecipes(request, env, ctx);
+            if (url.pathname.startsWith('/api/recipes')) return await handleRecipes(request, env, ctx);
             // Shopping list removed
-            if (url.pathname.startsWith('/api/plans')) return handlePlans(request, env);
-            if (url.pathname.startsWith('/api/restaurants')) return handleRestaurants(request, env);
-            if (url.pathname.startsWith('/api/vote_sessions')) return handleVoteSessions(request, env);
-            if (url.pathname.startsWith('/api/votes')) return handleVotes(request, env);
-            if (url.pathname.startsWith('/api/images')) return handleImages(request, env);
+            if (url.pathname.startsWith('/api/plans')) return await handlePlans(request, env);
+            if (url.pathname.startsWith('/api/restaurants')) return await handleRestaurants(request, env);
+            if (url.pathname.startsWith('/api/vote_sessions')) return await handleVoteSessions(request, env);
+            if (url.pathname.startsWith('/api/votes')) return await handleVotes(request, env);
+            if (url.pathname.startsWith('/api/images')) return await handleImages(request, env);
 
             // Default fallback for SPA (Single Page Application)
             // If the URL doesn't match an API route and we are in a worker that serves assets,
             // we should let Cloudflare handle it or serve index.html if it's a browser request.
             if (env.ASSETS) {
-                return env.ASSETS.fetch(request);
+                // If it's not an API request, return index.html for SPA routing
+                const indexUrl = new URL(url);
+                indexUrl.pathname = '/index.html';
+                const indexReq = new Request(indexUrl, request);
+                try {
+                    return await env.ASSETS.fetch(indexReq);
+                } catch (assetErr) {
+                    // Fallback to 404 if asset fetching fails
+                    return new Response("Not Found", { status: 404, headers: corsHeaders });
+                }
             }
 
             return new Response("Not Found", { status: 404, headers: corsHeaders });
         } catch (e: any) {
             const errorMsg = (e && e.message) || String(e);
-            console.error("Top-level worker error:", errorMsg);
+            console.error("Top-level worker error:", errorMsg, e.stack);
             return errorResponse(`Worker Error: ${errorMsg}`, 500);
         }
     }

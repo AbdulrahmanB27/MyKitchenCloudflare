@@ -45,6 +45,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   // Stopwatch Timers State: Map of step.id -> Timer Data
   const [activeTimers, setActiveTimers] = useState<{ [key: string]: ActiveTimer }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -460,8 +462,6 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
 
   // Calculate global step index for sequential numbering
   let globalStepCounter = 0;
-
-  const [imageError, setImageError] = useState(false);
 
   return (
     <div className="recipe-detail-view w-full h-full bg-bg-white dark:bg-bg-dark overflow-y-auto animate-in fade-in duration-200 overscroll-contain pb-24">

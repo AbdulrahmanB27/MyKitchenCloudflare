@@ -111,7 +111,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showT
               const recipe = allRecipes.find(r => r.id === plan.recipeId);
               if (recipe) {
                   // Add ingredients
-                  let allItems: Ingredient[] = [...recipe.ingredients];
+                  const allItems: Ingredient[] = [...recipe.ingredients];
                   if (recipe.components) {
                       recipe.components.forEach(c => allItems.push(...c.ingredients));
                   }

@@ -458,7 +458,7 @@ const App: React.FC = () => {
               if (!recipe) continue;
 
               let hasMissing = false;
-              let allIngredients: any[] = [...recipe.ingredients];
+              const allIngredients: any[] = [...recipe.ingredients];
               if (recipe.components) {
                   recipe.components.forEach(c => allIngredients.push(...c.ingredients));
               }
@@ -502,7 +502,7 @@ const App: React.FC = () => {
             );
             
             // Collect all ingredients from the recipe
-            let allIngredients = [...recipe.ingredients];
+            const allIngredients = [...recipe.ingredients];
             if (recipe.components) {
                 recipe.components.forEach(c => allIngredients.push(...c.ingredients));
             }

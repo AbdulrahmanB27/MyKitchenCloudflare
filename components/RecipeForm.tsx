@@ -595,7 +595,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
     const prep = parseTimeInput(prepTimeStr);
     const cook = parseTimeInput(cookTimeStr);
 
-    let recipeId = initialData?.id || uuidv4();
+    const recipeId = initialData?.id || uuidv4();
 
     return {
       ...formData as Recipe,

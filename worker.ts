@@ -773,7 +773,7 @@ async function handleFamilyLinks(request: Request, env: Env) {
         const token = body.token;
         if (!token) return errorResponse("Missing token", 400);
 
-        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").first();
+        const link = await env.DB.prepare("SELECT * FROM family_links WHERE token = ?").bind(token).first();
         if (!link) return errorResponse("Invalid link", 404);
         if (link.expires_at < Date.now()) return errorResponse("Link expired", 403);
         if (link.type !== 'temporary' && link.type !== 'permanent') return errorResponse("Invalid link type", 400);

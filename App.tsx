@@ -27,11 +27,12 @@ import Checkbox from './components/Checkbox';
 import MissingIngredientsBanner from './components/MissingIngredientsBanner';
 
 const getRecipeSignature = (r: Recipe) => {
+    if (!r) return "";
     const signatureObj = {
-        name: r.name,
-        description: r.description,
-        ingredients: r.ingredients,
-        instructions: r.instructions,
+        name: r.name || "",
+        description: r.description || "",
+        ingredients: r.ingredients || [],
+        instructions: r.instructions || [],
         prepTime: r.prepTime,
         prepTimeMax: r.prepTimeMax,
         cookTime: r.cookTime,
@@ -39,13 +40,13 @@ const getRecipeSignature = (r: Recipe) => {
         servings: r.servings,
         yieldUnit: r.yieldUnit,
         category: r.category,
-        tags: r.tags,
+        tags: r.tags || [],
         image: r.image,
         video: r.video,
         source: r.source,
         nutrition: r.nutrition,
         storageNotes: r.storageNotes,
-        cookware: r.cookware
+        cookware: r.cookware || []
     };
     return JSON.stringify(signatureObj);
 };
@@ -53,8 +54,13 @@ const getRecipeSignature = (r: Recipe) => {
 const mergeIdenticalRecipes = (recipesList: Recipe[]) => {
     const signatureMap = new Map<string, Recipe>();
     
+    if (!Array.isArray(recipesList)) return [];
+
     for (const r of recipesList) {
+        if (!r) continue;
         const sig = getRecipeSignature(r);
+        if (!sig) continue;
+        
         if (signatureMap.has(sig)) {
             const existing = signatureMap.get(sig)!;
             const allTenants = new Set([
@@ -542,13 +548,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
         try {
+            console.log("Initializing MyKitchen Dashboard...");
             const [loadedRecipes, loadedSettings] = await Promise.all([
-                db.getAllRecipes(),
-                db.getSettings()
+                db.getAllRecipes().catch(err => { console.error("IDB Recipes load failed", err); return []; }),
+                db.getSettings().catch(err => { console.error("IDB Settings load failed", err); return { theme: 'system', autoSync: true } as AppSettings; })
             ]);
-            const mergedRecipes = await loadData();
+            
             setSettings(loadedSettings);
             applyTheme(loadedSettings.theme);
+
+            const mergedRecipes = await loadData();
+            setRecipes(mergedRecipes);
             
             // Check queue initially
             const queue = await db.getSyncQueue();
@@ -559,16 +569,16 @@ const App: React.FC = () => {
                 db.getRestaurants(); 
             }
 
-            // Sync Process:
-            // 1. Push pending local changes
-            // 2. Pull remote changes
+            // Sync Process
             if (navigator.onLine && db.hasAuthToken()) {
+                console.log("Starting background sync...");
                 await db.retrySync();
                 db.syncDown();
             }
         } catch (e) {
-            console.error("Initialization failed", e);
+            console.error("CRITICAL: Initialization failed", e);
         } finally {
+            console.log("Initialization complete.");
             setLoading(false);
         }
     };
@@ -797,8 +807,8 @@ const App: React.FC = () => {
             case 'name': return a.name.localeCompare(b.name);
             case 'time': return ((a.prepTime || 0) + (a.cookTime || 0)) - ((b.prepTime || 0) + (b.cookTime || 0));
             case 'rating': 
-                const rateA = a.reviews?.length ? a.reviews.reduce((s, r) => s + r.rating, 0) / a.reviews.length : 0;
-                const rateB = b.reviews?.length ? b.reviews.reduce((s, r) => s + r.rating, 0) / b.reviews.length : 0;
+                const rateA = a.averageRating || 0;
+                const rateB = b.averageRating || 0;
                 return rateB - rateA;
             case 'calories': return (a.nutrition?.calories || 9999) - (b.nutrition?.calories || 9999);
             default: return a.name.localeCompare(b.name);
@@ -1017,7 +1027,12 @@ const App: React.FC = () => {
 
   // --- Render ---
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-background-light dark:bg-background-dark text-primary">Loading MyKitchen...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-bg-dark text-forest-green dark:text-accent-herb gap-4">
+      <Loader2 size={40} className="animate-spin" />
+      <span className="font-bold tracking-tight">Loading MyKitchen...</span>
+    </div>
+  );
 
   if (sharedRecipeId) {
       return <PublicRecipeView recipeId={sharedRecipeId} shareToken={shareToken} onClose={() => setSharedRecipeId(null)} onSave={handleSaveSharedRecipe} />;

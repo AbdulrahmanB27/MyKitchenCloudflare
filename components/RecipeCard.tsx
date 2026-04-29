@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Recipe } from '../types';
 import { Clock, Heart, Flame, Star, UtensilsCrossed } from 'lucide-react';
 
@@ -38,6 +38,8 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
     }
   };
 
+  const [imageError, setImageError] = useState(false);
+
   return (
     <div 
       onClick={() => onClick(recipe)}
@@ -48,12 +50,13 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
       className={`bg-white dark:bg-card-dark rounded-xl overflow-hidden shadow-card hover:shadow-hover transition-all duration-300 group cursor-pointer relative flex flex-col h-full hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb ${compact ? 'rounded-lg' : 'rounded-xl'}`}
     >
       <div className={`${compact ? 'aspect-square' : 'aspect-[4/3]'} relative overflow-hidden bg-bg-subtle dark:bg-white/10`}>
-        {recipe.image ? (
+        {recipe.image && !imageError ? (
           <img 
             src={recipe.image} 
             alt={recipe.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">

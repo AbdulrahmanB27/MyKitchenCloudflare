@@ -144,21 +144,6 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     if (!isAuthorized) {
         return new Response("Forbidden", { status: 403 });
     }
-        try {
-            if (!recipeData.id && existing.data) {
-                recipeData = JSON.parse(existing.data);
-            }
-            // Check if image is hosted by us (contains /api/images?key=)
-            if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
-                const key = recipeData.image.split('key=')[1];
-                if (key) {
-                    await context.env.IMAGES.delete(key);
-                }
-            }
-        } catch (imgError) {
-            console.error("Failed to delete associated image", imgError);
-            // Continue with recipe deletion even if image delete fails
-        }
 
     let tenantIds = recipeData.tenantIds || [];
     
@@ -181,6 +166,34 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
         ).bind(JSON.stringify(recipeData), now, newPrimaryTenantId, id).run();
 
         return new Response(JSON.stringify({ success: true, timestamp: now }));
+    }
+
+    // Full deletion/tombstone logic follows
+    try {
+        if (!recipeData.id && existing.data) {
+            recipeData = JSON.parse(existing.data);
+        }
+        // Check if image is hosted by us (contains /api/images?key=)
+        if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
+            const key = recipeData.image.split('key=')[1];
+            if (key) {
+                await context.env.IMAGES.delete(key);
+            }
+        }
+        
+        // Also check steps for images
+        if (recipeData.instructions) {
+            recipeData.instructions.forEach((block: any) => {
+                block.steps.forEach((step: any) => {
+                    if (step.image && step.image.includes('/api/images?key=')) {
+                        const sKey = step.image.split('key=')[1];
+                        if (sKey) context.env.IMAGES.delete(sKey);
+                    }
+                });
+            });
+        }
+    } catch (imgError) {
+        console.error("Failed to delete associated image", imgError);
     }
 
     const now = Date.now();

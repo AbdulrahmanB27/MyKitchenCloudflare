@@ -3,6 +3,7 @@ interface Env {
   DB: any;
   IMAGES: any;
   TURNSTILE_SECRET: string;
+  ASSETS: any;
   [key: string]: any; 
 }
 
@@ -90,6 +91,11 @@ let schemaInitialized = false;
 async function ensureSchema(env: Env) {
     if (schemaInitialized) return;
     try {
+        if (!env.DB) {
+            console.error("DB binding missing from env");
+            return;
+        }
+
         // 1. Create tables if they don't exist
         await env.DB.batch([
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS families (id TEXT PRIMARY KEY, name TEXT UNIQUE, password_hash TEXT, admin_password_hash TEXT, salt TEXT, created_at INTEGER)`),
@@ -103,8 +109,6 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS family_links (token TEXT PRIMARY KEY, family_id TEXT, type TEXT, created_at INTEGER, expires_at INTEGER)`)
         ]);
 
-        // 2. Perform Migrations (Add missing columns to existing tables)
-        // SQLite does not support IF NOT EXISTS in ALTER TABLE, so we run them and ignore specific errors.
         const migrations = [
             "ALTER TABLE recipes ADD COLUMN family_id TEXT",
             "ALTER TABLE recipes ADD COLUMN tenant_id TEXT DEFAULT 'global'",
@@ -117,14 +121,15 @@ async function ensureSchema(env: Env) {
                 await env.DB.prepare(query).run();
             } catch (e: any) {
                 // Ignore "duplicate column name" error (SQLITE_ERROR code 1 or text matching)
-                if (!e.message.includes("duplicate column name")) {
-                    console.error(`Migration failed (${query}):`, e.message);
+                const errorMsg = (e && e.message) || "";
+                if (!errorMsg.includes("duplicate column name")) {
+                    console.error(`Migration failed (${query}):`, errorMsg);
                 }
             }
         }
         schemaInitialized = true;
-    } catch (e) {
-        console.error("Schema init failed", e);
+    } catch (e: any) {
+        console.error("Schema init failed", (e && e.message) || e);
     }
 }
 
@@ -835,10 +840,18 @@ export default {
             if (url.pathname.startsWith('/api/votes')) return handleVotes(request, env);
             if (url.pathname.startsWith('/api/images')) return handleImages(request, env);
 
+            // Default fallback for SPA (Single Page Application)
+            // If the URL doesn't match an API route and we are in a worker that serves assets,
+            // we should let Cloudflare handle it or serve index.html if it's a browser request.
+            if (env.ASSETS) {
+                return env.ASSETS.fetch(request);
+            }
+
             return new Response("Not Found", { status: 404, headers: corsHeaders });
         } catch (e: any) {
-            console.error("Top-level worker error:", e);
-            return errorResponse(e.message || "Internal Server Error", 500);
+            const errorMsg = (e && e.message) || String(e);
+            console.error("Top-level worker error:", errorMsg);
+            return errorResponse(`Worker Error: ${errorMsg}`, 500);
         }
     }
 }

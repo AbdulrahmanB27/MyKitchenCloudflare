@@ -721,6 +721,27 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
             recipe.tenantIds = Array.from(newTenantIds);
         }
 
+        // NEW: Upload any base64 images to the server if we are saving to a shared family
+        if (targetFamilyId !== 'private') {
+            if (recipe.image && recipe.image.startsWith('data:')) {
+                try {
+                    const blob = await (await fetch(recipe.image)).blob();
+                    recipe.image = await db.uploadImage(blob);
+                } catch (e) { console.warn("Failed to upload base64 main image", e); }
+            }
+            
+            if (recipe.instructions) {
+                for (const step of recipe.instructions) {
+                    if (step.image && step.image.startsWith('data:')) {
+                        try {
+                            const blob = await (await fetch(step.image)).blob();
+                            step.image = await db.uploadImage(blob);
+                        } catch (e) { console.warn("Failed to upload base64 step image", e); }
+                    }
+                }
+            }
+        }
+
         const promises: Promise<any>[] = [];
 
         // 2. Handle Removals (Stop Syncing)
@@ -1523,7 +1544,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
         </div>
         <div className="p-4 border-t border-border-thin dark:border-border-dark flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-card-dark rounded-b-2xl">
           {/* Desktop-only icons in footer (bottom left) */}
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
               {!initialData && (
                   <>
                     <button type="button" onClick={handleImportClick} className="p-2 text-text-secondary hover:text-forest-green dark:hover:text-accent-herb transition-colors" title="Upload JSON File"><Upload size={20} /></button>

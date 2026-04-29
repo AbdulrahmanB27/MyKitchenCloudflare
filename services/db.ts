@@ -572,11 +572,17 @@ export const shareRecipe = async (recipeId: string): Promise<string> => {
 };
 
 export const getSharedRecipe = async (recipeId: string, token: string): Promise<Recipe> => {
-    const res = await fetch(`${API_BASE}/share/recipe?recipeId=${recipeId}&token=${token}`);
-    if (!res.ok) {
-        throw new Error("Recipe link is invalid or removed");
+    try {
+        const res = await fetch(`${API_BASE}/share/recipe?recipeId=${recipeId}&token=${token}`);
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ error: 'Recipe link is invalid or removed' }));
+            throw new Error(errorData.error || `Server responded with ${res.status}`);
+        }
+        return res.json();
+    } catch (e: any) {
+        console.error("getSharedRecipe failed:", e);
+        throw e;
     }
-    return res.json();
 };
 
 export const publishRecipe = async (recipe: Recipe) => {
@@ -809,7 +815,13 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
     
     if (!res.ok) throw new Error("Upload failed");
     const data = await res.json();
-    return data.url;
+    
+    // Convert relative URL to absolute URL to ensure it works across different origins/devices
+    const imageUrl = data.url.startsWith('/') 
+        ? `${window.location.origin}${data.url}` 
+        : data.url;
+        
+    return imageUrl;
 };
 
 // --- Auth ---

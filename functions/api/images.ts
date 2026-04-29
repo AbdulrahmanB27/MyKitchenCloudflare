@@ -41,6 +41,10 @@ export const onRequestGet = async (context: any) => {
   headers.set('etag', object.httpEtag);
   // Cache for 1 year
   headers.set('Cache-Control', 'public, max-age=31536000');
+  
+  // CORS headers
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
 
   return new Response(object.body, {
     headers,

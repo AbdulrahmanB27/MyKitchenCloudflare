@@ -461,6 +461,8 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   // Calculate global step index for sequential numbering
   let globalStepCounter = 0;
 
+  const [imageError, setImageError] = useState(false);
+
   return (
     <div className="recipe-detail-view w-full h-full bg-bg-white dark:bg-bg-dark overflow-y-auto animate-in fade-in duration-200 overscroll-contain pb-24">
         
@@ -593,16 +595,26 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                 
                 {/* Hero Image */}
                 <div className="w-full">
-                    <div 
-                        className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative group bg-gray-100 dark:bg-gray-900" 
-                        style={{ backgroundImage: `linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 50%), url("${recipe.image || ''}")` }}
-                    >
-                        {!recipe.image && (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-900">
+                    <div className="relative group overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg bg-gray-100 dark:bg-gray-900">
+                        {recipe.image && !imageError ? (
+                            <>
+                                <img 
+                                    src={recipe.image} 
+                                    alt={recipe.name}
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                    onError={() => setImageError(true)}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none"></div>
+                            </>
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-900 border border-border-thin dark:border-border-dark">
                                 <span className="material-symbols-outlined text-[64px]">restaurant_menu</span>
+                                <span className="mt-2 text-sm font-medium opacity-50 uppercase tracking-widest">{recipe.category}</span>
                             </div>
                         )}
-                        <div className="flex flex-col p-6 md:p-8 gap-2 z-10">
+                        
+                        <div className="absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-8 gap-2 z-10">
                             <div className="flex gap-2 mb-1">
                                 {availableSessions.length > 1 && recipe.shareToFamily && (
                                     <span className="px-2 py-1 rounded bg-primary/80 backdrop-blur-sm text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1">

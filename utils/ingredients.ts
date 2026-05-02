@@ -12,49 +12,75 @@ export const COMMON_SEASONINGS = new Set([
   'ketchup', 'mustard', 'dijon mustard', 'mayonnaise', 'hot sauce', 'sriracha', 'lemon juice', 'lime juice'
 ]);
 
+const SINGULAR_TO_PLURAL: Record<string, string> = {
+  'tomato': 'tomatoes',
+  'potato': 'potatoes',
+  'onion': 'onions',
+  'carrot': 'carrots',
+  'apple': 'apples',
+  'lemon': 'lemons',
+  'lime': 'limes',
+  'orange': 'oranges',
+  'strawberry': 'strawberries',
+  'blueberry': 'blueberries',
+  'raspberry': 'raspberries',
+  'berry': 'berries',
+  'mushroom': 'mushrooms',
+  'avocado': 'avocados',
+  'olive': 'olives',
+  'pepper': 'peppers',
+  'jalapeno': 'jalapenos',
+  'scallion': 'scallions',
+  'shallot': 'shallots',
+  'leek': 'leeks',
+  'radish': 'radishes',
+  'egg': 'eggs',
+  'sausage': 'sausages',
+  'burger': 'burgers',
+  'patty': 'patties',
+  'bean': 'beans',
+  'lentil': 'lentils',
+  'chickpea': 'chickpeas',
+  'pea': 'peas',
+  'nut': 'nuts',
+  'seed': 'seeds',
+  'almond': 'almonds',
+  'walnut': 'walnuts',
+  'pecan': 'pecans',
+  'noodle': 'noodles',
+  'tortilla': 'tortillas',
+  'bun': 'buns',
+  'roll': 'rolls',
+  'chip': 'chips',
+  'cracker': 'crackers',
+  'cookie': 'cookies',
+  'brownie': 'brownies',
+  'muffin': 'muffins',
+  'pancake': 'pancakes',
+  'waffle': 'waffles',
+  'slice': 'slices',
+  'piece': 'pieces',
+  'clove': 'cloves',
+  'sprig': 'sprigs',
+  'leaf': 'leaves'
+};
+
 export const normalize = (s: string) => {
   if (!s) return '';
   let norm = s.trim().toLowerCase();
   
   // Remove descriptors that interfere with grouping
   const noise = ['large', 'small', 'medium', 'fresh', 'dried', 'frozen', 'clove', 'cloves', 'head', 'heads', 'bunch', 'bunches', 'piece', 'pieces'];
-  const words = norm.split(/\s+/).filter(w => !noise.includes(w));
-  norm = words.join(' ');
+  let words = norm.split(/\s+/).filter(w => !noise.includes(w));
+  
+  if (words.length === 0) words = norm.split(/\s+/);
 
-  if (!norm) return '';
-
-  const exceptions = new Set([
-     "hummus", "couscous", "molasses", "asparagus", "chorizo", "salt", "pepper", "water", "sugar", "flour", "milk", "butter", "oil", "rice"
-  ]);
-
-  if (exceptions.has(norm)) return norm;
-
-  // Simple pluralization logic
-  if (norm.endsWith('ies') || norm.endsWith('ves') || norm.endsWith('oes')) {
-    // Likely already plural
-  } else if (norm.endsWith('s') && !['ss', 'us', 'is', 'as'].some(suffix => norm.endsWith(suffix))) {
-    // Likely already plural
-  } else if (norm.endsWith('y')) {
-    // berry -> berries
-    const vowels = ['a', 'e', 'i', 'o', 'u'];
-    if (norm.length > 1 && !vowels.includes(norm[norm.length - 2])) {
-      norm = norm.slice(0, -1) + 'ies';
-    } else {
-      norm = norm + 's';
-    }
-  } else if (norm.endsWith('f')) {
-    // leaf -> leaves
-    norm = norm.slice(0, -1) + 'ves';
-  } else if (norm.endsWith('fe')) {
-    // knife -> knives
-    norm = norm.slice(0, -2) + 'ves';
-  } else if (['x', 'z', 'ch', 'sh'].some(suffix => norm.endsWith(suffix))) {
-    norm = norm + 'es';
-  } else {
-    norm = norm + 's';
+  const lastWord = words[words.length - 1];
+  if (SINGULAR_TO_PLURAL[lastWord]) {
+    words[words.length - 1] = SINGULAR_TO_PLURAL[lastWord];
   }
   
-  return norm.trim();
+  return words.join(' ');
 };
 
 export const isSeasoning = (name: string) => {

@@ -33,6 +33,59 @@ export const formatFraction = (amount: number): string => {
   return parseFloat(amount.toFixed(2)).toString();
 };
 
+const SINGULAR_TO_PLURAL: Record<string, string> = {
+  'tomato': 'tomatoes',
+  'potato': 'potatoes',
+  'onion': 'onions',
+  'carrot': 'carrots',
+  'apple': 'apples',
+  'lemon': 'lemons',
+  'lime': 'limes',
+  'orange': 'oranges',
+  'strawberry': 'strawberries',
+  'blueberry': 'blueberries',
+  'raspberry': 'raspberries',
+  'berry': 'berries',
+  'mushroom': 'mushrooms',
+  'avocado': 'avocados',
+  'olive': 'olives',
+  'pepper': 'peppers',
+  'jalapeno': 'jalapenos',
+  'scallion': 'scallions',
+  'shallot': 'shallots',
+  'leek': 'leeks',
+  'radish': 'radishes',
+  'egg': 'eggs',
+  'sausage': 'sausages',
+  'burger': 'burgers',
+  'patty': 'patties',
+  'bean': 'beans',
+  'lentil': 'lentils',
+  'chickpea': 'chickpeas',
+  'pea': 'peas',
+  'nut': 'nuts',
+  'seed': 'seeds',
+  'almond': 'almonds',
+  'walnut': 'walnuts',
+  'pecan': 'pecans',
+  'noodle': 'noodles',
+  'tortilla': 'tortillas',
+  'bun': 'buns',
+  'roll': 'rolls',
+  'chip': 'chips',
+  'cracker': 'crackers',
+  'cookie': 'cookies',
+  'brownie': 'brownies',
+  'muffin': 'muffins',
+  'pancake': 'pancakes',
+  'waffle': 'waffles',
+  'slice': 'slices',
+  'piece': 'pieces',
+  'clove': 'cloves',
+  'sprig': 'sprigs',
+  'leaf': 'leaves'
+};
+
 export const normalizeIngredient = (input: string): string => {
   if (!input) return '';
   let name = input.toLowerCase().trim();
@@ -44,41 +97,14 @@ export const normalizeIngredient = (input: string): string => {
 
   if (name.length <= 2) return name; 
 
-  const exceptions = new Set([
-      "hummus", "couscous", "molasses", "news", "series", "species", "asparagus", 
-      "lens", "chaos", "bias", "canvas", "status", "campus", "virus", "chorizo", "oats", "grits",
-      "salt", "pepper", "water", "sugar", "flour", "milk", "butter", "oil", "rice"
-  ]);
-  if (exceptions.has(name)) return name;
-
-  // Simple pluralization logic
-  if (name.endsWith('ies') || name.endsWith('ves') || name.endsWith('oes')) {
-    return name;
-  }
-  
-  if (name.endsWith('s') && !['ss', 'us', 'is', 'as'].some(suffix => name.endsWith(suffix))) {
-    return name;
-  }
-
-  if (name.endsWith('y')) {
-    const vowels = ['a', 'e', 'i', 'o', 'u'];
-    if (name.length > 1 && !vowels.includes(name[name.length - 2])) {
-      return name.slice(0, -1) + 'ies';
+  const words = name.split(' ');
+  if (words.length > 0) {
+    const lastWord = words[words.length - 1];
+    if (SINGULAR_TO_PLURAL[lastWord]) {
+      words[words.length - 1] = SINGULAR_TO_PLURAL[lastWord];
     }
-    return name + 's';
+    name = words.join(' ');
   }
 
-  if (name.endsWith('f')) {
-    return name.slice(0, -1) + 'ves';
-  }
-
-  if (name.endsWith('fe')) {
-    return name.slice(0, -2) + 'ves';
-  }
-
-  if (['x', 'z', 'ch', 'sh'].some(suffix => name.endsWith(suffix))) {
-    return name + 'es';
-  }
-
-  return name + 's';
+  return name;
 };

@@ -295,10 +295,10 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 </div>
             </div>
             
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               <button 
                 onClick={handleCopy}
-                className="px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-2 flex-grow sm:flex-grow-0"
                 title="Copy Ingredients"
               >
                 <span className="material-symbols-outlined text-base">content_copy</span>
@@ -306,14 +306,14 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
               </button>
               <button 
                 onClick={clearPurchased}
-                className="px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-gray-300 text-sm font-medium hover:bg-bg-subtle dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-2 flex-grow sm:flex-grow-0"
               >
                 <span className="material-symbols-outlined text-base">check_circle</span>
                 Clear Purchased
               </button>
               <button 
                 onClick={clearAll}
-                className="px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
               >
                 <span className="material-symbols-outlined text-base">delete</span>
                 Clear All
@@ -322,22 +322,39 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
           </div>
 
           {/* Add Item Form */}
-          <form onSubmit={addItem} className="flex flex-col sm:flex-row flex-wrap gap-2">
-            <div className="flex gap-2 flex-1 min-w-0">
+          <form onSubmit={addItem} className="flex flex-col gap-2">
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={newItemAmount}
                 onChange={(e) => setNewItemAmount(e.target.value)}
                 placeholder="Amt"
-                className="w-16 sm:w-20 px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+                className="w-[30%] sm:w-20 px-3 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
               <input
                 type="text"
                 value={newItemUnit}
                 onChange={(e) => setNewItemUnit(e.target.value)}
                 placeholder="Unit"
-                className="w-20 sm:w-24 px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+                className="w-[30%] sm:w-24 px-3 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
+              <input
+                type="text"
+                value={newItemItem}
+                onChange={(e) => setNewItemItem(e.target.value)}
+                placeholder="Item (e.g. Flour)"
+                className="flex-1 min-w-0 hidden sm:block px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
+              />
+              <button
+                type="submit"
+                disabled={!newItemItem.trim()}
+                className="hidden sm:flex px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center gap-2 shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                Add
+              </button>
+            </div>
+            <div className="flex gap-2 sm:hidden">
               <input
                 type="text"
                 value={newItemItem}
@@ -345,15 +362,15 @@ const ShoppingList: React.FC<ShoppingListProps> = ({ onOpenMenu, allTags, pinned
                 placeholder="Item (e.g. Flour)"
                 className="flex-1 min-w-0 px-4 py-2 rounded-lg bg-white dark:bg-card-dark border border-border-thin dark:border-border-dark text-text-main dark:text-white focus:outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all"
               />
+              <button
+                type="submit"
+                disabled={!newItemItem.trim()}
+                className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                Add
+              </button>
             </div>
-            <button
-              type="submit"
-              disabled={!newItemItem.trim()}
-              className="px-6 py-2 rounded-lg bg-forest-green dark:bg-accent-herb text-white dark:text-black font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
-            >
-              <span className="material-symbols-outlined text-base">add</span>
-              Add
-            </button>
           </form>
 
           {items.length === 0 && (

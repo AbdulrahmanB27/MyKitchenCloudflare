@@ -646,7 +646,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             {swapsList.map((ing, i) => (
                                 <div key={i} className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                                     <p className="text-xs font-bold text-green-800 dark:text-green-300 uppercase mb-1">{ing.txt.split(' ').slice(2).join(' ')}</p>
-                                    <p className="text-sm text-green-900 dark:text-green-100">{ing.sub}</p>
+                                    <p className="text-sm text-green-900 dark:text-green-100 break-words min-w-0">{ing.sub}</p>
                                 </div>
                             ))}
                             {swapsList.length === 0 && <p className="text-sm text-text-muted">No substitutions available.</p>}
@@ -657,7 +657,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             {tipsList.map((tip, i) => (
                                 <div key={i} className="flex gap-2">
                                     <Lightbulb size={16} className="text-yellow-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm whitespace-pre-wrap">{tip}</p>
+                                    <p className="text-sm whitespace-pre-wrap flex-1 min-w-0 break-words">{tip}</p>
                                 </div>
                             ))}
                             {tipsList.length === 0 && <p className="text-sm text-text-muted">No tips for specific steps.</p>}
@@ -717,7 +717,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                 {currentStepData?.title && (
                                     <h2 className="text-2xl font-bold text-forest-green dark:text-accent-herb">{currentStepData.title}</h2>
                                 )}
-                                <p className="text-2xl md:text-4xl font-medium leading-relaxed md:leading-snug">
+                                <p className="text-2xl md:text-4xl font-medium leading-relaxed md:leading-snug break-words min-w-0">
                                     {currentStepData?.txt}
                                 </p>
                                 {currentStepData?.image && (
@@ -801,7 +801,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                             {currentStepData?.tip && (
                                 <div className="flex items-start gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-xl max-w-md w-full mx-auto">
                                     <Lightbulb className="text-yellow-600 shrink-0" />
-                                    <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">{currentStepData.tip}</p>
+                                    <p className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap flex-1 min-w-0 break-words">{currentStepData.tip}</p>
                                 </div>
                             )}
 

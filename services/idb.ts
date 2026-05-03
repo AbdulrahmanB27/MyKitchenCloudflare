@@ -1,6 +1,7 @@
 
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant } from '../types';
 import { DB_NAME, DB_VERSION, STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, STORE_REVIEWS } from '../constants';
+import { recursiveUnescape } from '../utils/recursiveUnescape';
 
 const STORE_SYNC_QUEUE = 'sync_queue';
 
@@ -79,11 +80,11 @@ const getStore = async (storeName: string, mode: IDBTransactionMode): Promise<ID
 export const getAll = async <T>(storeName: string): Promise<T[]> => {
   const store = await getStore(storeName, 'readonly');
   if (!store) {
-      return Array.from(memoryDB[storeName]?.values() || []) as T[];
+      return recursiveUnescape(Array.from(memoryDB[storeName]?.values() || [])) as T[];
   }
   return new Promise((resolve, reject) => {
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => resolve(recursiveUnescape(req.result));
     req.onerror = () => reject(req.error);
   });
 };
@@ -91,11 +92,12 @@ export const getAll = async <T>(storeName: string): Promise<T[]> => {
 export const getOne = async <T>(storeName: string, id: string): Promise<T | undefined> => {
     const store = await getStore(storeName, 'readonly');
     if (!store) {
-        return memoryDB[storeName]?.get(id) as T | undefined;
+        const item = memoryDB[storeName]?.get(id);
+        return item ? recursiveUnescape(item) as T : undefined;
     }
     return new Promise((resolve, reject) => {
       const req = store.get(id);
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => resolve(req.result ? recursiveUnescape(req.result) : undefined);
       req.onerror = () => reject(req.error);
     });
 };
@@ -105,12 +107,12 @@ export const getAllByIndex = async <T>(storeName: string, indexName: string, val
   if (!store) {
       // Memory fallback: filter manually
       const all = Array.from(memoryDB[storeName]?.values() || []) as any[];
-      return all.filter(item => item[indexName] === value) as T[];
+      return recursiveUnescape(all.filter(item => item[indexName] === value)) as T[];
   }
   return new Promise((resolve, reject) => {
     const index = store.index(indexName);
     const req = index.getAll(value);
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => resolve(recursiveUnescape(req.result));
     req.onerror = () => reject(req.error);
   });
 };

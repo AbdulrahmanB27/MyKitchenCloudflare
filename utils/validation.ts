@@ -4,17 +4,34 @@
  */
 export function sanitize(text: string): string {
   if (!text) return '';
-  return text.trim()
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return text.trim();
 }
 
 /**
  * Validates that a string is not empty.
  */
+export function unescapeHTML(str: string): string {
+    if (!str) return str;
+    let decoded = str;
+    let prev = '';
+    while (decoded !== prev) {
+      prev = decoded;
+      decoded = decoded
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&#x27;/g, "'");
+    }
+    if (decoded.match(/^https?:\/\/[^/]+\/api\/images\?(.*)$/)) {
+        decoded = decoded.replace(/^https?:\/\/[^/]+\/api\/images\?(.*)$/, '/api/images?$1');
+    }
+    
+    return decoded;
+}
+
 export function isNotEmpty(text: string | undefined): boolean {
   return !!text && text.trim().length > 0;
 }

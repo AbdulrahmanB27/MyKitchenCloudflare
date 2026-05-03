@@ -816,12 +816,7 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
     if (!res.ok) throw new Error("Upload failed");
     const data = await res.json();
     
-    // Convert relative URL to absolute URL to ensure it works across different origins/devices
-    const imageUrl = data.url.startsWith('/') 
-        ? `${window.location.origin}${data.url}` 
-        : data.url;
-        
-    return imageUrl;
+    return data.url;
 };
 
 // --- Auth ---

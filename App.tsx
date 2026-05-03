@@ -327,7 +327,7 @@ const App: React.FC = () => {
           setShowExportModal(false);
           return;
         }
-        if (isFormOpen) {
+        if (isFormOpen || editingRecipe) {
           setIsFormOpen(false);
           setEditingRecipe(null);
           return;
@@ -349,7 +349,7 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [showDeleteModal, showAuthModal, showExportModal, isFormOpen, activeRecipeId, isMobileMenuOpen, currentView]);
+  }, [showDeleteModal, showAuthModal, showExportModal, isFormOpen, editingRecipe, activeRecipeId, isMobileMenuOpen, currentView]);
 
   // --- History Management for Hardware Back Button ---
   const isPoppingState = useRef(false);

@@ -441,7 +441,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                             {tip && (
                                                                 <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/10 text-yellow-800 dark:text-yellow-200 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 text-sm font-medium">
                                                                     <Lightbulb size={16} className="shrink-0 mt-0.5" />
-                                                                    <span>{tip}</span>
+                                                                    <span className="flex-1 min-w-0 break-words whitespace-pre-wrap">{tip}</span>
                                                                 </div>
                                                             )}
                                                             {stepImage && (

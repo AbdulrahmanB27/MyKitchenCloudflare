@@ -362,22 +362,7 @@ async function handleRecipes(request: Request, env: Env, ctx: ExecutionContext) 
         const id = url.searchParams.get("id");
         if (!id) return errorResponse("Missing ID", 400);
         
-        // Image Deletion Logic
-        try {
-            const existing = await env.DB.prepare("SELECT data FROM recipes WHERE id = ?").bind(id).first();
-            if (existing) {
-                const recipeData = JSON.parse(existing.data);
-                if (recipeData.image && recipeData.image.includes('/api/images?key=')) {
-                    const key = recipeData.image.split('key=')[1];
-                    if (key) {
-                        // Fire and forget image deletion
-                        ctx.waitUntil(env.IMAGES.delete(key));
-                    }
-                }
-            }
-        } catch (e) {
-            console.error("Image deletion error", e);
-        }
+        // Deleted "Image Deletion Logic" to prevent wiping out images shared by other recipes (content-addressed hashing makes them globally deduplicated).
 
         const now = Date.now();
         const tombstone = JSON.stringify({ id, deleted: true, updatedAt: now });

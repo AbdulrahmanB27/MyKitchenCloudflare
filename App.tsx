@@ -1314,7 +1314,7 @@ const App: React.FC = () => {
             />
         )}
         
-        {activeRecipeId && !editingRecipe ? (
+        {activeRecipeId ? (
             <RecipeDetail 
                 recipeId={activeRecipeId}
                 mergedTenantIds={recipes.find(r => r.id === activeRecipeId)?.tenantIds}

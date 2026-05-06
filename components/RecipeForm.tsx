@@ -766,7 +766,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                     // Check if we have access to delete it
                     const session = availableSessions.find(s => s.id === oldTid);
                     if (session) {
-                        const siblingToDelete = validSiblings.find(s => s.familyId === oldTid || (s.tenantIds && s.tenantIds.includes(oldTid)));
+                        const siblingToDelete = validSiblings.find(s => s.familyId === oldTid || s.tenantId === oldTid);
                         const deleteId = siblingToDelete ? siblingToDelete.id : recipe.id;
                         promises.push(db.crossDeleteRecipe(deleteId, oldTid));
                     }

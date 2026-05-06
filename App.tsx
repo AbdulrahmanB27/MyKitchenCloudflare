@@ -854,7 +854,7 @@ const App: React.FC = () => {
 
       // Update the base recipe and all its merged clone copies
       const promises = mergedIds.map(async (id) => {
-          const sibling = recipes.find(r => r.id === id);
+          const sibling = await db.getRecipe(id);
           if (sibling) {
                const siblingFamily = sibling.familyId || 'private';
                if (siblingFamily !== 'private' && !validFamilyIds.has(siblingFamily)) {
@@ -913,7 +913,7 @@ const App: React.FC = () => {
     const newFavoriteStatus = !recipeToSave.favorite;
 
     const promises = mergedIds.map(async (id) => {
-        const sibling = recipes.find(r => r.id === id);
+        const sibling = await db.getRecipe(id);
         if (sibling) {
             const updated = { ...sibling, favorite: newFavoriteStatus };
             delete updated.mergedIds;

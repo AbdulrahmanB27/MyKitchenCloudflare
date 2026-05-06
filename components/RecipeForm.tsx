@@ -752,6 +752,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
             oldTenantIds.add(oldFamilyId);
         }
 
+        // Fetch real siblings to correctly target cross-deletions
+        const realSiblings = await Promise.all((initialData?.mergedIds || []).map(id => db.getRecipe(id)));
+        const validSiblings = realSiblings.filter(Boolean) as Recipe[];
+
         oldTenantIds.forEach((oldTid: string) => {
             // If it was in a tenant that is NO LONGER the target AND NOT in additional syncs (or if moving to private)
             if (targetFamilyId === 'private' || (oldTid !== targetFamilyId && !additionalSyncFamilyIds.has(oldTid))) {
@@ -762,7 +766,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                     // Check if we have access to delete it
                     const session = availableSessions.find(s => s.id === oldTid);
                     if (session) {
-                        const siblingToDelete = mergedSiblings.find(s => s.familyId === oldTid || (s.tenantIds && s.tenantIds.includes(oldTid)));
+                        const siblingToDelete = validSiblings.find(s => s.familyId === oldTid || (s.tenantIds && s.tenantIds.includes(oldTid)));
                         const deleteId = siblingToDelete ? siblingToDelete.id : recipe.id;
                         promises.push(db.crossDeleteRecipe(deleteId, oldTid));
                     }

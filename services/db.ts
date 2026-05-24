@@ -11,7 +11,7 @@ const TEST_FAMILY_ID = 'test-family-id';
 const TEST_TOKEN = 'mock-test-token-isolated';
 
 // Detect Capacitor environments / localhost non-web hosts
-const isCapacitorActive = (): boolean => {
+export const isCapacitorActive = (): boolean => {
     if (typeof window === 'undefined' || !window.location) return false;
     // Check for native Capacitor global variable or if protocol is native webview (capacitor:// or app://)
     const isCap = !!(window as any).Capacitor || window.location.protocol === 'capacitor:' || window.location.protocol === 'app:';

@@ -60,13 +60,19 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
     reviews: []
   });
 
+  const currentFamilyId = db.getCurrentFamilyId();
+  const pinnedFamilyId = db.getPinnedFamilyId();
+
   // Sharing State
-  const [targetFamilyId, setTargetFamilyId] = useState<string>('private');
+  const [targetFamilyId, setTargetFamilyId] = useState<string>(() => {
+    if (db.isCapacitorActive()) return 'private';
+    const activeId = db.getCurrentFamilyId() || db.getPinnedFamilyId();
+    if (activeId) return activeId;
+    return 'private';
+  });
   // syncToFamily removed - derived from targetFamilyId !== 'private'
   const [additionalSyncFamilyIds, setAdditionalSyncFamilyIds] = useState<Set<string>>(new Set());
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
-  const currentFamilyId = db.getCurrentFamilyId();
-  const pinnedFamilyId = db.getPinnedFamilyId();
   
   // Custom Dropdown State
   const [isFamilySelectorOpen, setIsFamilySelectorOpen] = useState(false);
@@ -1129,20 +1135,24 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                      {isFamilySelectorOpen && (
                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-card-dark rounded-xl shadow-xl border border-border-thin dark:border-border-dark overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
                              <div className="py-1">
-                                 <button
-                                    type="button"
-                                    onClick={() => { 
-                                        setTargetFamilyId('private'); 
-                                        setAdditionalSyncFamilyIds(new Set());
-                                        setIsFamilySelectorOpen(false); 
-                                    }}
-                                    className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
-                                 >
-                                     <Lock size={16} />
-                                     <span className="text-sm font-bold">Private (This Device)</span>
-                                     {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
-                                 </button>
-                                 <div className="h-px bg-border-thin dark:border-border-dark mx-3 my-1"></div>
+                                 {db.isCapacitorActive() && (
+                                     <>
+                                         <button
+                                            type="button"
+                                            onClick={() => { 
+                                                setTargetFamilyId('private'); 
+                                                setAdditionalSyncFamilyIds(new Set());
+                                                setIsFamilySelectorOpen(false); 
+                                            }}
+                                            className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${targetFamilyId === 'private' ? 'bg-forest-green/5 dark:bg-accent-herb/10 text-forest-green dark:text-accent-herb' : 'text-text-main dark:text-text-main-dark'}`}
+                                         >
+                                             <Lock size={16} />
+                                             <span className="text-sm font-bold">Private (This Device)</span>
+                                             {targetFamilyId === 'private' && <Check size={14} className="ml-auto" />}
+                                         </button>
+                                         <div className="h-px bg-border-thin dark:border-border-dark mx-3 my-1"></div>
+                                     </>
+                                 )}
                                  {availableSessions.map(s => {
                                      const isPrimary = targetFamilyId === s.id;
                                      const isSynced = additionalSyncFamilyIds.has(s.id);

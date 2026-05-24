@@ -99,10 +99,79 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         };
     }, [mode]);
 
+    function parsePotentialInvite(input: string): { token: string; origin?: string; type?: 'join' | 'view' } | null {
+        const trimmed = input.trim();
+        if (!trimmed) return null;
+        
+        if (trimmed.includes('temp_join=') || trimmed.includes('join_family=') || trimmed.includes('view_family=')) {
+            try {
+                let urlString = trimmed;
+                if (!trimmed.startsWith('http') && !trimmed.startsWith('//')) {
+                    urlString = 'https://' + trimmed;
+                }
+                const urlObj = new URL(urlString);
+                const token = urlObj.searchParams.get('temp_join') || urlObj.searchParams.get('join_family') || urlObj.searchParams.get('view_family');
+                const type = urlObj.searchParams.get('view_family') ? 'view' : 'join';
+                const origin = urlObj.origin;
+                if (token) {
+                    return { token, origin, type };
+                }
+            } catch (e) {
+                const match = trimmed.match(/(?:temp_join|join_family|view_family)=([^&]+)/);
+                if (match && match[1]) {
+                    const type = trimmed.includes('view_family=') ? 'view' : 'join';
+                    return { token: match[1], type };
+                }
+            }
+        }
+        return null;
+    }
+
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
         
         const cleanFamilyName = sanitize(familyName);
+        
+        // Check if either field contains an invite link or token
+        const inviteInfo = parsePotentialInvite(cleanFamilyName) || parsePotentialInvite(password);
+        if (inviteInfo) {
+            setLoading(true);
+            setError('');
+            try {
+                if (inviteInfo.origin && inviteInfo.origin.startsWith('http')) {
+                    window.localStorage.setItem('backend_server_url', inviteInfo.origin);
+                }
+                
+                if (inviteInfo.type === 'view') {
+                    const data = await db.fetchPublicFamily(inviteInfo.token);
+                    setLoading(false);
+                    if (data) {
+                        onSuccess();
+                        onClose();
+                        window.location.replace(`${window.location.pathname}?view_family=${inviteInfo.token}`);
+                    } else {
+                        setError('Public view link is invalid or expired');
+                    }
+                    return;
+                }
+
+                const res = await db.useFamilyJoinLink(inviteInfo.token);
+                setLoading(false);
+                if (res.success) {
+                    if (showToast) showToast('Joined family successfully!', 'success');
+                    onSuccess();
+                    onClose();
+                    window.location.replace(window.location.pathname);
+                } else {
+                    setError(res.error || 'Failed to join family link');
+                }
+            } catch (err: any) {
+                setLoading(false);
+                setError(err.message || 'An error occurred while joining');
+            }
+            return;
+        }
+
         if (!isNotEmpty(cleanFamilyName)) {
             setError('Family name is required');
             return;
@@ -118,7 +187,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         } else {
             setError(res.error || 'Login failed');
         }
-    };
+    }
 
     async function handleRegister(e: React.FormEvent) {
         e.preventDefault();
@@ -572,7 +641,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             <div>
                                 <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Access Password</label>
                                 <div className="relative">
-                                    <input required type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password" />
+                                    <input required type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password or paste invite link" />
                                     <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowPassword(!showPassword)}>
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>

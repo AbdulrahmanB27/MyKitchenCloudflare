@@ -991,6 +991,12 @@ const App: React.FC = () => {
 
   const handleSaveSharedRecipe = async (recipe: Recipe) => {
     const familyId = db.getCurrentFamilyId();
+    if (!db.isCapacitorActive() && (!familyId || !db.hasAuthToken())) {
+        showAlert("Authentication Required", "Please log in or join a kitchen library to save recipes on desktop browsers.");
+        setAuthModalView('login');
+        setShowAuthModal(true);
+        return;
+    }
     const shouldShare = !!familyId && db.hasAuthToken();
 
     const cloned: Recipe = {
@@ -1201,7 +1207,7 @@ const App: React.FC = () => {
                         
                         <div className="px-3 py-2">
                                      <div className="flex bg-gray-200 dark:bg-black/40 rounded-lg p-1 relative">
-                                         {['all', 'mine', 'family'].map((filter) => (
+                                         {(db.isCapacitorActive() ? ['all', 'mine', 'family'] : ['all', 'family']).map((filter) => (
                                              <button 
                                                 key={filter}
                                                 onClick={() => setFamilyFilter(filter as any)} 
@@ -1279,7 +1285,7 @@ const App: React.FC = () => {
                          <button onClick={() => setShowArchived(!showArchived)} className={`${NAV_BTN_BASE} justify-center p-3 ${showArchived ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Archived">
                             <Archive size={isSidebarCollapsed ? 24 : 20} className="shrink-0" />
                          </button>
-                         <button onClick={() => setFamilyFilter(familyFilter === 'all' ? 'mine' : 'all')} className={`${NAV_BTN_BASE} justify-center p-3 ${familyFilter !== 'all' ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Family Filter">
+                         <button onClick={() => setFamilyFilter(db.isCapacitorActive() ? (familyFilter === 'all' ? 'mine' : 'all') : (familyFilter === 'all' ? 'family' : 'all'))} className={`${NAV_BTN_BASE} justify-center p-3 ${familyFilter !== 'all' ? 'text-forest-green dark:text-accent-herb' : ''}`} title="Family Filter">
                             <Users size={isSidebarCollapsed ? 24 : 20} className="shrink-0" />
                          </button>
                     </>

@@ -1474,7 +1474,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                                                      </div>
                                                      {step.image && (
                                                          <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border-thin dark:border-border-dark mt-1">
-                                                             <img src={step.image} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                                             <img src={db.resolveImageUrl(step.image)} alt="Step preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                                              <button 
                                                                  type="button" 
                                                                  onClick={() => updateStepInBlock(block.id, step.id, 'image', '')}

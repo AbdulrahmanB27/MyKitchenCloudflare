@@ -599,7 +599,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                         {recipe.image && !imageError ? (
                             <>
                                 <img 
-                                    src={recipe.image} 
+                                    src={db.resolveImageUrl(recipe.image)} 
                                     alt={recipe.name}
                                     className="absolute inset-0 w-full h-full object-cover"
                                     referrerPolicy="no-referrer"
@@ -886,7 +886,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
                                                             )}
                                                             {stepImage && (
                                                                 <div className="mt-2 rounded-xl overflow-hidden border border-border-thin dark:border-border-dark shadow-sm">
-                                                                    <img src={stepImage} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
+                                                                    <img src={db.resolveImageUrl(stepImage)} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
                                                                 </div>
                                                             )}
                                                             {timerDuration !== undefined && timerDuration !== null && (

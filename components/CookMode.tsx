@@ -722,7 +722,7 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
                                 </p>
                                 {currentStepData?.image && (
                                     <div className="mt-6 rounded-2xl overflow-hidden border-2 border-border-thin dark:border-border-dark shadow-lg max-w-2xl mx-auto">
-                                        <img src={currentStepData.image} alt="Step image" className="w-full h-auto object-cover max-h-[400px]" referrerPolicy="no-referrer" />
+                                        <img src={db.resolveImageUrl(currentStepData.image)} alt="Step image" className="w-full h-auto object-cover max-h-[400px]" referrerPolicy="no-referrer" />
                                     </div>
                                 )}
                             </div>

@@ -269,7 +269,7 @@ const MealPlanner: React.FC<MealPlannerProps> = ({ onOpenMenu, allRecipes, showT
                                 onClick={() => selectRecipe(recipe)}
                                 className="w-full text-left p-3 hover:bg-bg-subtle dark:hover:bg-white/5 rounded-lg flex items-center gap-3 transition-colors"
                             >
-                                <div className="size-10 rounded bg-bg-subtle dark:bg-white/10 bg-cover bg-center shrink-0" style={{ backgroundImage: `url("${recipe.image}")` }}></div>
+                                <div className="size-10 rounded bg-bg-subtle dark:bg-white/10 bg-cover bg-center shrink-0" style={{ backgroundImage: `url("${db.resolveImageUrl(recipe.image || '')}")` }}></div>
                                 <div>
                                     <div className="font-bold text-sm text-text-main dark:text-white">{recipe.name}</div>
                                     <div className="text-xs text-text-secondary">{recipe.category} • {(recipe.prepTime || 0) + (recipe.cookTime || 0)}m</div>

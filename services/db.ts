@@ -10,7 +10,65 @@ const TEST_ADMIN_PASSWORD = 'testadmin';
 const TEST_FAMILY_ID = 'test-family-id';
 const TEST_TOKEN = 'mock-test-token-isolated';
 
-const API_BASE = '/api';
+// Detect Capacitor environments / localhost non-web hosts
+const isCapacitorActive = (): boolean => {
+    if (typeof window === 'undefined' || !window.location) return false;
+    // Check for native Capacitor global variable or if protocol is native webview (capacitor:// or app://)
+    const isCap = !!(window as any).Capacitor || window.location.protocol === 'capacitor:' || window.location.protocol === 'app:';
+    return isCap;
+};
+
+// Returns the live backend URL base for standard requests
+const getApiBase = (): string => {
+    if (isCapacitorActive()) {
+        try {
+            const saved = window.localStorage.getItem('backend_server_url');
+            if (saved) {
+                return `${saved.replace(/\/+$/, '')}/api`;
+            }
+        } catch (e) {}
+        // Fallback production URL of the deployed app
+        return 'https://ais-pre-wcezktn6y3u7ylhpagfte7-108186802350.us-east1.run.app/api';
+    }
+    return '/api';
+};
+
+const API_BASE = getApiBase();
+
+// Function to resolve relative URL or relative image URL (like /api/images?key=...) to an absolute URL
+export const resolveImageUrl = (url?: string): string => {
+    if (!url) return '';
+    // Already absolute or base64 URL
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+        return url;
+    }
+    
+    let host = '';
+    if (isCapacitorActive()) {
+        try {
+            const saved = window.localStorage.getItem('backend_server_url');
+            if (saved) {
+                host = saved;
+            }
+        } catch (e) {}
+        if (!host) {
+            host = 'https://ais-pre-wcezktn6y3u7ylhpagfte7-108186802350.us-east1.run.app';
+        }
+    } else {
+        host = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+    }
+    
+    host = host.replace(/\/+$/, '');
+    const cleanPath = url.startsWith('/') ? url : '/' + url;
+    return `${host}${cleanPath}`;
+};
+
+// Proactively record the current production origin if we are accessed via a standard, non-localhost Web URL
+if (typeof window !== 'undefined' && window.location && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !isCapacitorActive()) {
+    try {
+        window.localStorage.setItem('backend_server_url', window.location.origin);
+    } catch (e) {}
+}
 const STORAGE_KEY_TOKEN = 'family_auth_token';
 const STORAGE_KEY_SESSIONS = 'family_sessions';
 const STORAGE_KEY_DEVICE_ID = 'device_id';

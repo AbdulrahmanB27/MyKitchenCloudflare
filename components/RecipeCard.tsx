@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Recipe } from '../types';
 import { Clock, Heart, Flame, Star, UtensilsCrossed } from 'lucide-react';
+import { resolveImageUrl } from '../services/db';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -52,7 +53,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, onToggleFavori
       <div className={`${compact ? 'aspect-square' : 'aspect-[4/3]'} relative overflow-hidden bg-bg-subtle dark:bg-white/10`}>
         {recipe.image && !imageError ? (
           <img 
-            src={recipe.image} 
+            src={resolveImageUrl(recipe.image)} 
             alt={recipe.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"

@@ -303,7 +303,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                     <div className="w-full">
                         <div 
                             className="bg-cover bg-center flex flex-col justify-end overflow-hidden rounded-2xl min-h-[300px] md:min-h-[400px] shadow-lg relative bg-bg-subtle dark:bg-white/10" 
-                            style={{ backgroundImage: `linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 50%), url("${recipe.image || ''}")` }}
+                            style={{ backgroundImage: `linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 50%), url("${db.resolveImageUrl(recipe.image || '')}")` }}
                         >
                             <div className="flex flex-col p-6 md:p-8 gap-2 z-10">
                                 <div className="flex gap-2 mb-1">
@@ -446,7 +446,7 @@ const PublicRecipeView: React.FC<PublicRecipeViewProps> = ({ recipeId, shareToke
                                                             )}
                                                             {stepImage && (
                                                                 <div className="mt-2 rounded-xl overflow-hidden border border-border-thin dark:border-border-dark shadow-sm">
-                                                                    <img src={stepImage} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
+                                                                    <img src={db.resolveImageUrl(stepImage)} alt="Step image" className="w-full h-auto object-cover max-h-[300px]" referrerPolicy="no-referrer" />
                                                                 </div>
                                                             )}
                                                         </div>

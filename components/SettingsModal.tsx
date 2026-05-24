@@ -147,7 +147,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, settings, onUpda
 
                 {/* Footer */}
                 <div className="p-4 border-t border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark flex justify-end">
-                    <button onClick={onClose} className="px-6 py-2 bg-text-main dark:bg-white text-white dark:text-black font-bold rounded-lg hover:bg-black dark:hover:bg-gray-200 transition-colors">
+                    <button onClick={onClose} className="px-6 py-2 bg-forest-green dark:bg-active-green text-white dark:text-white border border-transparent dark:border-border-sage font-bold rounded-lg hover:bg-forest-green/90 dark:hover:bg-active-green/80 transition-colors">
                         Done
                     </button>
                 </div>

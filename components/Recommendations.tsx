@@ -320,7 +320,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({ onOpenMenu, recipes, 
                                 onClick={() => onOpenRecipe(recipe)}
                                 className="bg-white dark:bg-card-dark rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300"
                             >
-                                <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${recipe.image || ''}")` }}>
+                                <div className="h-32 w-full bg-cover bg-center relative" style={{ backgroundImage: `url("${db.resolveImageUrl(recipe.image || '')}")` }}>
                                     {!recipe.image && (
                                         <div className="absolute inset-0 bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568] flex items-center justify-center">
                                             <UtensilsCrossed size={32} strokeWidth={1.5} />

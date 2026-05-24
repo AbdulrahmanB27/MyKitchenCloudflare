@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Recipe } from '../types';
 import { X, ArrowRight, Heart, ChefHat, CheckCircle } from 'lucide-react';
 import { isNotEmpty } from '../utils/validation';
+import { resolveImageUrl } from '../services/db';
 
 interface SwipeableRecipeCardProps { 
     recipe: Recipe;
@@ -137,7 +138,7 @@ const SwipeableRecipeCard = React.forwardRef<{ triggerVote: (val: number) => voi
                 {/* Card Content */}
                 <div className="relative h-[50%] w-full bg-bg-subtle dark:bg-white/10 pointer-events-none">
                     {recipe.image ? (
-                        <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${recipe.image}")` }} />
+                        <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${resolveImageUrl(recipe.image)}")` }} />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 dark:bg-[#2d333f] text-gray-400 dark:text-[#4a5568]">
                             <ChefHat size={64} strokeWidth={1.5} className="mb-2" />

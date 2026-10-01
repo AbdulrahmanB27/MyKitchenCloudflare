@@ -77,7 +77,8 @@ async function getSession(request: Request, env: Env): Promise<{ familyId: strin
     try {
         const result = await env.DB.prepare("SELECT family_id FROM device_tokens WHERE token = ?").bind(token).first();
         if (result) {
-            // Async update last_used could go here
+            // Asynchronously update last_used_at timestamp to keep session active
+            env.DB.prepare("UPDATE device_tokens SET last_used_at = ? WHERE token = ?").bind(Date.now(), token).run().catch(() => {});
             return { familyId: result.family_id };
         }
     } catch (e) {
@@ -106,7 +107,8 @@ async function ensureSchema(env: Env) {
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS vote_sessions (id TEXT PRIMARY KEY, access_code TEXT, data TEXT, created_at INTEGER, ended_at INTEGER, active INTEGER DEFAULT 1)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (id TEXT PRIMARY KEY, session_id TEXT, restaurant_id TEXT, device_id TEXT, vote_value INTEGER, created_at INTEGER)`),
             env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_share_links (token TEXT PRIMARY KEY, family_id TEXT, recipe_id TEXT, created_at INTEGER, revoked_at INTEGER)`),
-            env.DB.prepare(`CREATE TABLE IF NOT EXISTS family_links (token TEXT PRIMARY KEY, family_id TEXT, type TEXT, created_at INTEGER, expires_at INTEGER)`)
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS family_links (token TEXT PRIMARY KEY, family_id TEXT, type TEXT, created_at INTEGER, expires_at INTEGER)`),
+            env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (key TEXT PRIMARY KEY, content_type TEXT, data BLOB, size INTEGER, created_at INTEGER)`)
         ]);
 
         const migrations = [
@@ -300,6 +302,116 @@ async function handleAdmin(request: Request, env: Env) {
 
             await env.DB.prepare("UPDATE families SET name = ? WHERE id = ?").bind(newFamilyName, session.familyId).run();
             return jsonResponse({ success: true, newName: newFamilyName });
+        }
+
+        if (action === 'image_stats') {
+            // Find all active recipes
+            const { results: recipeRows } = await env.DB.prepare(
+                "SELECT data FROM recipes WHERE name != 'Deleted'"
+            ).all();
+
+            const activeKeys = new Set<string>();
+            for (const row of recipeRows) {
+                try {
+                    const data = typeof (row as any).data === 'string' ? JSON.parse((row as any).data) : (row as any).data;
+                    if (data?.image) {
+                        const m = data.image.match(/key=([a-zA-Z0-9._-]+)/);
+                        if (m) activeKeys.add(m[1]);
+                        else if (/^[a-f0-9]{32,64}\.[a-z0-9]+$/i.test(data.image)) activeKeys.add(data.image);
+                    }
+                    if (Array.isArray(data?.instructions)) {
+                        for (const step of data.instructions) {
+                            if (step?.image) {
+                                const m = step.image.match(/key=([a-zA-Z0-9._-]+)/);
+                                if (m) activeKeys.add(m[1]);
+                                else if (/^[a-f0-9]{32,64}\.[a-z0-9]+$/i.test(step.image)) activeKeys.add(step.image);
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            const { results: d1Images } = await env.DB.prepare("SELECT key, size, created_at FROM images").all();
+            const storedD1Keys = new Set<string>((d1Images || []).map((r: any) => String(r.key)));
+
+            const orphanedKeys: string[] = [];
+            for (const key of storedD1Keys) {
+                if (!activeKeys.has(key)) {
+                    orphanedKeys.push(key);
+                }
+            }
+
+            return jsonResponse({
+                success: true,
+                totalImages: storedD1Keys.size,
+                activeRecipesWithImages: activeKeys.size,
+                orphanedCount: orphanedKeys.length,
+                orphanedKeys: orphanedKeys.slice(0, 100)
+            });
+        }
+
+        if (action === 'cleanup_images') {
+            // Find all active recipes
+            const { results: recipeRows } = await env.DB.prepare(
+                "SELECT data FROM recipes WHERE name != 'Deleted'"
+            ).all();
+
+            const activeKeys = new Set<string>();
+            for (const row of recipeRows) {
+                try {
+                    const data = typeof (row as any).data === 'string' ? JSON.parse((row as any).data) : (row as any).data;
+                    if (data?.image) {
+                        const m = data.image.match(/key=([a-zA-Z0-9._-]+)/);
+                        if (m) activeKeys.add(m[1]);
+                        else if (/^[a-f0-9]{32,64}\.[a-z0-9]+$/i.test(data.image)) activeKeys.add(data.image);
+                    }
+                    if (Array.isArray(data?.instructions)) {
+                        for (const step of data.instructions) {
+                            if (step?.image) {
+                                const m = step.image.match(/key=([a-zA-Z0-9._-]+)/);
+                                if (m) activeKeys.add(m[1]);
+                                else if (/^[a-f0-9]{32,64}\.[a-z0-9]+$/i.test(step.image)) activeKeys.add(step.image);
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            const { results: d1Images } = await env.DB.prepare("SELECT key FROM images").all();
+            let deletedCount = 0;
+
+            for (const img of (d1Images || [])) {
+                const key = (img as any).key;
+                if (!activeKeys.has(key)) {
+                    await env.DB.prepare("DELETE FROM images WHERE key = ?").bind(key).run();
+                    if (env.IMAGES) {
+                        try { await env.IMAGES.delete(key); } catch (e) {}
+                    }
+                    deletedCount++;
+                }
+            }
+
+            // Also check R2 if available and listable
+            if (env.IMAGES && typeof (env.IMAGES as any).list === 'function') {
+                try {
+                    const listed = await (env.IMAGES as any).list({ limit: 500 });
+                    if (listed && Array.isArray(listed.objects)) {
+                        for (const obj of listed.objects) {
+                            if (!activeKeys.has(obj.key)) {
+                                await env.IMAGES.delete(obj.key);
+                                deletedCount++;
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Also clean up old tombstones
+            try {
+                await env.DB.prepare("DELETE FROM recipes WHERE name = 'Deleted'").run();
+            } catch (e) {}
+
+            return jsonResponse({ success: true, deletedCount });
         }
 
     } catch (e: any) {
@@ -544,21 +656,76 @@ async function handleVotes(request: Request, env: Env) {
     return errorResponse("Method Not Allowed", 405);
 }
 
-// 7. Images (Shared Bucket, no strict family segregation on GET for simplicity, but POST requires auth)
+// Helper: Determine Image MIME Type
+function getImageMimeType(key: string, fileType?: string): string {
+    if (fileType && fileType.startsWith('image/')) return fileType;
+    const ext = key.split('.').pop()?.toLowerCase();
+    if (ext === 'png') return 'image/png';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'gif') return 'image/gif';
+    if (ext === 'svg') return 'image/svg+xml';
+    return 'image/jpeg';
+}
+
+// 7. Images (Dual R2 & D1 Storage with fallback resilience)
 async function handleImages(request: Request, env: Env) {
+    await ensureSchema(env);
     const url = new URL(request.url);
-    const key = url.searchParams.get('key');
 
     if (request.method === 'GET') {
-        if (!key) return errorResponse('Missing key', 400);
-        const object = await env.IMAGES.get(key);
-        if (!object) return errorResponse('Image not found', 404);
+        const rawKey = url.searchParams.get('key') || url.pathname.replace(/^\/api\/images\/?/, '');
+        if (!rawKey) return errorResponse('Missing image key', 400);
+
+        // Sanitize key
+        const key = decodeURIComponent(rawKey).trim().replace(/^\/+/, '').split('?')[0].split('#')[0];
+        if (!key) return errorResponse('Invalid image key', 400);
+
+        let body: any = null;
+        let contentType = '';
+        let etag = '';
+
+        // 1. Try R2 if available
+        if (env.IMAGES) {
+            try {
+                const object = await env.IMAGES.get(key);
+                if (object) {
+                    body = object.body;
+                    etag = object.httpEtag;
+                    contentType = object.httpMetadata?.contentType || '';
+                }
+            } catch (err) {
+                console.warn("R2 image get warning:", err);
+            }
+        }
+
+        // 2. Fallback to D1 database if not found in R2 or R2 unavailable
+        if (!body && env.DB) {
+            try {
+                const row: any = await env.DB.prepare("SELECT content_type, data FROM images WHERE key = ?").bind(key).first();
+                if (row && row.data) {
+                    body = row.data;
+                    contentType = row.content_type || '';
+                    etag = `W/"d1-${key}"`;
+                }
+            } catch (err) {
+                console.warn("D1 image fallback warning:", err);
+            }
+        }
+
+        if (!body) {
+            return errorResponse('Image not found', 404);
+        }
+
+        if (!contentType || contentType === 'application/octet-stream') {
+            contentType = getImageMimeType(key);
+        }
+
         const headers = new Headers();
-        object.writeHttpMetadata(headers);
-        headers.set('etag', object.httpEtag);
-        headers.set('Cache-Control', 'public, max-age=31536000');
-        Object.entries(corsHeaders).forEach(([k,v]) => headers.set(k, v));
-        return new Response(object.body, { headers });
+        headers.set('Content-Type', contentType);
+        if (etag) headers.set('ETag', etag);
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+        return new Response(body, { headers });
     }
 
     if (request.method === 'POST') {
@@ -575,15 +742,41 @@ async function handleImages(request: Request, env: Env) {
             const hashArray = Array.from(new Uint8Array(digest));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
-            let extension = file.name.split('.').pop();
-            if (!extension || extension === file.name || extension === 'blob') extension = file.type === 'image/png' ? 'png' : 'jpg';
-            const uniqueKey = `${hashHex}.${extension}`;
-            
-            const existing = await env.IMAGES.head(uniqueKey);
-            if (!existing) {
-                await env.IMAGES.put(uniqueKey, arrayBuffer, { httpMetadata: { contentType: file.type } });
+            let extension = file.name.split('.').pop()?.toLowerCase();
+            if (!extension || extension === file.name || extension === 'blob') {
+                extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
             }
-            return jsonResponse({ url: `/api/images?key=${uniqueKey}` });
+            const uniqueKey = `${hashHex}.${extension}`;
+            const mimeType = getImageMimeType(uniqueKey, file.type);
+
+            // Store in R2 if available
+            if (env.IMAGES) {
+                try {
+                    const existing = await env.IMAGES.head(uniqueKey);
+                    if (!existing) {
+                        await env.IMAGES.put(uniqueKey, arrayBuffer, { httpMetadata: { contentType: mimeType } });
+                    }
+                } catch (r2Err) {
+                    console.warn("R2 image put warning:", r2Err);
+                }
+            }
+
+            // Also persist in D1 images table for universal sync and backup
+            if (env.DB) {
+                try {
+                    await env.DB.prepare(
+                        "INSERT OR REPLACE INTO images (key, content_type, data, size, created_at) VALUES (?, ?, ?, ?, ?)"
+                    ).bind(uniqueKey, mimeType, arrayBuffer, arrayBuffer.byteLength, Date.now()).run();
+                } catch (d1Err) {
+                    console.warn("D1 image store warning:", d1Err);
+                }
+            }
+
+            return jsonResponse({
+                success: true,
+                url: `/api/images?key=${uniqueKey}`,
+                key: uniqueKey
+            });
         } catch (e: any) {
             return errorResponse(`Upload failed: ${e.message}`, 500);
         }
@@ -810,6 +1003,16 @@ export default {
 
             if (request.method === "OPTIONS") {
                 return new Response(null, { headers: corsHeaders });
+            }
+
+            // Health check route
+            if (url.pathname === '/api/health' || url.pathname === '/health') {
+                return jsonResponse({
+                    status: "ok",
+                    service: "MyKitchen API",
+                    db: !!env.DB,
+                    timestamp: Date.now()
+                });
             }
 
             // New Routes

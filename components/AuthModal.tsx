@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff, Link as LinkIcon, Settings, Share2, ChevronDown } from 'lucide-react';
+import { Lock, Loader, UserPlus, Users, X, ShieldAlert, LogOut, CheckCircle, Plus, Eye, EyeOff, Link as LinkIcon, Settings, Share2, ChevronDown, KeyRound, Globe, Link2 } from 'lucide-react';
 import * as db from '../services/db';
 import { sanitize, isNotEmpty } from '../utils/validation';
 
 interface AuthModalProps {
     onClose: () => void;
     onSuccess: () => void;
-    initialView?: 'login' | 'register' | 'switch' | 'admin';
+    initialView?: 'login' | 'register' | 'switch' | 'admin' | 'invite';
     initialFamilyName?: string;
     showToast?: (message: string, type?: 'success' | 'error') => void;
     showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
@@ -21,16 +21,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const INPUT_CLASS = "w-full p-3 rounded-xl border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark/50 text-text-main dark:text-text-main-dark font-sans outline-none focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb transition-all placeholder:text-text-secondary/50";
     const LABEL_CLASS = "block text-xs font-bold text-text-secondary uppercase mb-1";
 
-    const [mode, setMode] = useState<'login' | 'register' | 'admin' | 'switch'>(initialView);
+    const [mode, setMode] = useState<'login' | 'register' | 'admin' | 'switch' | 'invite'>(initialView);
     const [familyName, setFamilyName] = useState(initialFamilyName);
     const [password, setPassword] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
+    const [inviteCodeInput, setInviteCodeInput] = useState('');
     
     // Admin Actions State
-    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'|'backup'>('update');
+    const [adminAction, setAdminAction] = useState<'update'|'delete'|'rename'|'view_password'|'links'|'backup'|'images'>('update');
     const [isAdminActionOpen, setIsAdminActionOpen] = useState(false);
     const adminActionDropdownRef = React.useRef<HTMLDivElement>(null);
-    const submitTypeRef = React.useRef<'backup'|'restore'|null>(null);
+    const submitTypeRef = React.useRef<'backup'|'restore'|'scan_images'|'clean_images'|null>(null);
+    const [imageStats, setImageStats] = useState<{ total: number; orphaned: number; totalSizeBytes: number } | null>(null);
+    const [imageCleanupResult, setImageCleanupResult] = useState<string | null>(null);
 
     const [newFamilyPassword, setNewFamilyPassword] = useState('');
     const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -45,12 +48,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     
+    
     // UI Drawer State (Mutually Exclusive)
     const [activeDrawer, setActiveDrawer] = useState<'password' | 'share' | 'admin' | null>(null);
     const [drawerFamilyId, setDrawerFamilyId] = useState<string | null>(null);
     
-    // Turnstile
-    const [turnstileToken, setTurnstileToken] = useState('');
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [confirmLeaveFamily, setConfirmLeaveFamily] = useState<{ id: string, name: string } | null>(null);
 
@@ -73,32 +75,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    useEffect(() => {
-        // Initialize Turnstile if available
-        let widgetId: string | undefined;
-        if ((window as any).turnstile) {
-            try {
-                // Clear container first to be safe
-                const container = document.getElementById('turnstile-container');
-                if (container) container.innerHTML = '';
-                
-                widgetId = (window as any).turnstile.render('#turnstile-container', {
-                    sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAAzyj7W1jX7W1jX7', // Use env or fallback to demo
-                    callback: (token: string) => setTurnstileToken(token),
-                });
-            } catch(e) {
-                console.warn("Turnstile render error", e);
-            }
-        }
-        return () => {
-            if (widgetId && (window as any).turnstile) {
-                try {
-                    (window as any).turnstile.remove(widgetId);
-                } catch (e) {}
-            }
-        };
-    }, [mode]);
-
     function parsePotentialInvite(input: string): { token: string; origin?: string; type?: 'join' | 'view' } | null {
         const trimmed = input.trim();
         if (!trimmed) return null;
@@ -112,7 +88,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                 const urlObj = new URL(urlString);
                 const token = urlObj.searchParams.get('temp_join') || urlObj.searchParams.get('join_family') || urlObj.searchParams.get('view_family');
                 const type = urlObj.searchParams.get('view_family') ? 'view' : 'join';
-                const origin = urlObj.origin;
+                const origin = (!urlObj.origin.includes('localhost') && !urlObj.origin.includes('127.0.0.1')) ? urlObj.origin : undefined;
                 if (token) {
                     return { token, origin, type };
                 }
@@ -123,8 +99,57 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                     return { token: match[1], type };
                 }
             }
+        } else if (/^[a-zA-Z0-9_-]{16,64}$/.test(trimmed)) {
+            // Direct token code
+            return { token: trimmed, type: 'join' };
         }
         return null;
+    }
+
+    async function handleJoinInvite(e?: React.FormEvent) {
+        if (e) e.preventDefault();
+        const trimmed = inviteCodeInput.trim();
+        if (!trimmed) {
+            setError('Please enter an invite link or code');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        try {
+            const parsed = parsePotentialInvite(trimmed);
+            const token = parsed?.token || trimmed;
+
+            if (parsed?.origin && !parsed.origin.includes('localhost')) {
+                db.setCustomServerUrl(parsed.origin);
+            }
+
+            if (parsed?.type === 'view') {
+                const data = await db.fetchPublicFamily(token);
+                setLoading(false);
+                if (data) {
+                    onSuccess();
+                    onClose();
+                    window.history.replaceState({}, '', `${window.location.pathname}?view_family=${token}`);
+                } else {
+                    setError('Public view link is invalid or expired');
+                }
+                return;
+            }
+
+            const res = await db.useFamilyJoinLink(token);
+            setLoading(false);
+            if (res.success) {
+                if (showToast) showToast('Joined family kitchen successfully!', 'success');
+                onSuccess();
+                onClose();
+            } else {
+                setError(res.error || 'Failed to join family. Please check the code.');
+            }
+        } catch (err: any) {
+            setLoading(false);
+            setError(err.message || 'An error occurred while joining');
+        }
     }
 
     async function handleLogin(e: React.FormEvent) {
@@ -138,8 +163,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
             setLoading(true);
             setError('');
             try {
-                if (inviteInfo.origin && inviteInfo.origin.startsWith('http')) {
-                    window.localStorage.setItem('backend_server_url', inviteInfo.origin);
+                if (inviteInfo.origin && inviteInfo.origin.startsWith('http') && !inviteInfo.origin.includes('localhost')) {
+                    db.setCustomServerUrl(inviteInfo.origin);
                 }
                 
                 if (inviteInfo.type === 'view') {
@@ -148,7 +173,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                     if (data) {
                         onSuccess();
                         onClose();
-                        window.location.replace(`${window.location.pathname}?view_family=${inviteInfo.token}`);
+                        window.history.replaceState({}, '', `${window.location.pathname}?view_family=${inviteInfo.token}`);
                     } else {
                         setError('Public view link is invalid or expired');
                     }
@@ -161,7 +186,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                     if (showToast) showToast('Joined family successfully!', 'success');
                     onSuccess();
                     onClose();
-                    window.location.replace(window.location.pathname);
                 } else {
                     setError(res.error || 'Failed to join family link');
                 }
@@ -179,13 +203,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
         setLoading(true);
         setError('');
-        const res = await db.authenticate(cleanFamilyName, password, turnstileToken); // db.authenticate handles token storage safely
-        setLoading(false);
-        if (res.success) {
-            onSuccess();
-            onClose();
-        } else {
-            setError(res.error || 'Login failed');
+        try {
+            const res = await db.authenticate(cleanFamilyName, password); // db.authenticate handles token storage safely
+            setLoading(false);
+            if (res.success) {
+                onSuccess();
+                onClose();
+            } else {
+                setError(res.error || 'Login failed');
+            }
+        } catch (err: any) {
+            setLoading(false);
+            setError(err.message || 'Login failed. Could not connect to database.');
         }
     }
 
@@ -200,13 +229,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
 
         setLoading(true);
         setError('');
-        const res = await db.registerFamily(cleanFamilyName, password, adminPassword, turnstileToken);
-        setLoading(false);
-        if (res.success) {
-            onSuccess();
-            onClose();
-        } else {
-            setError(res.error || 'Registration failed');
+        try {
+            const res = await db.registerFamily(cleanFamilyName, password, adminPassword);
+            setLoading(false);
+            if (res.success) {
+                onSuccess();
+                onClose();
+            } else {
+                setError(res.error || 'Registration failed');
+            }
+        } catch (err: any) {
+            setLoading(false);
+            setError(err.message || 'Registration failed');
         }
     };
 
@@ -222,7 +256,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         setLoading(false);
         if (res.success) {
             const queryParam = type === 'view' ? 'view_family' : 'temp_join';
-            const link = `${window.location.origin}/?${queryParam}=${res.token}`;
+            let baseOrigin = window.location.origin;
+            if (db.isCapacitorActive() || baseOrigin.includes('localhost')) {
+                const custom = db.getCustomServerUrl();
+                const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+                if (custom && !custom.includes('localhost')) {
+                    baseOrigin = custom;
+                } else if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('ais-pre-')) {
+                    baseOrigin = envUrl.trim().replace(/\/+$/, '');
+                }
+            }
+            const link = `${baseOrigin}/?${queryParam}=${res.token}`;
             copyToClipboard(link);
         } else {
             setError(res.error || `Failed to generate ${type} link`);
@@ -249,7 +293,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
         setLoading(true);
         setError('');
 
-        let actionType: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify' = 'update_passwords';
+        let actionType: any = 'update_passwords';
         const payload: any = { adminPassword };
 
         if (adminAction === 'update') {
@@ -263,13 +307,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
             payload.newFamilyName = newFamilyName;
         } else if (adminAction === 'backup') {
             actionType = 'verify';
+        } else if (adminAction === 'images') {
+            actionType = submitTypeRef.current === 'clean_images' ? 'cleanup_images' : 'image_stats';
         }
 
         const res = await db.adminAction(actionType, payload, targetSession.token);
         
         setLoading(false);
         if (res.success) {
-            if (adminAction === 'backup') {
+            if (adminAction === 'images') {
+                if (actionType === 'cleanup_images') {
+                    setImageCleanupResult(`Cleaned ${res.deletedCount || 0} orphaned images, freed ${((res.freedBytes || 0) / 1024).toFixed(1)} KB.`);
+                    setImageStats({ total: res.remainingTotal || 0, orphaned: 0, totalSizeBytes: 0 });
+                    if (showToast) showToast(`Purged ${res.deletedCount || 0} orphaned images.`);
+                } else {
+                    setImageStats({ total: res.totalImages || 0, orphaned: res.orphanedImages || 0, totalSizeBytes: res.totalSizeBytes || 0 });
+                    setImageCleanupResult(null);
+                }
+            } else if (adminAction === 'backup') {
                 if (submitTypeRef.current === 'backup' && onBackup) {
                     onBackup();
                 } else if (submitTypeRef.current === 'restore' && onRestore) {
@@ -304,24 +359,47 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                     <div className="p-6 flex justify-between items-center pb-2">
                         <h2 className="text-xl font-bold text-text-main dark:text-white flex items-center gap-2">
                             {mode === 'login' && <Lock size={20} className="text-forest-green dark:text-accent-herb"/>}
+                            {mode === 'invite' && <Link2 size={20} className="text-forest-green dark:text-accent-herb"/>}
                             {mode === 'register' && <UserPlus size={20} className="text-forest-green dark:text-accent-herb"/>}
                             {mode === 'admin' && <ShieldAlert size={20} className="text-red-500"/>}
                             {mode === 'switch' && <Users size={20} className="text-blue-500"/>}
                             
-                            {mode === 'login' && 'Login'}
+                            {mode === 'login' && 'Enter Kitchen'}
+                            {mode === 'invite' && 'Join with Invite'}
                             {mode === 'register' && 'New Family'}
                             {mode === 'admin' && 'Family Management'}
                             {mode === 'switch' && 'Family Accounts'}
                         </h2>
                         <button onClick={onClose} aria-label="Close modal"><X size={20} className="text-text-secondary hover:text-text-main dark:hover:text-white"/></button>
                     </div>
+
+                    {/* Quick Mode Switcher for Join/Login */}
+                    {(mode === 'login' || mode === 'invite') && (
+                        <div className="flex border-t border-border-thin dark:border-border-dark px-6 pt-2 pb-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => { setMode('login'); setError(''); }}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${mode === 'login' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black shadow-sm' : 'text-text-secondary hover:text-text-main dark:hover:text-white bg-black/5 dark:bg-white/5'}`}
+                            >
+                                <Lock size={14} /> Password Login
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setMode('invite'); setError(''); }}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${mode === 'invite' ? 'bg-forest-green dark:bg-accent-herb text-white dark:text-black shadow-sm' : 'text-text-secondary hover:text-text-main dark:hover:text-white bg-black/5 dark:bg-white/5'}`}
+                            >
+                                <Link2 size={14} /> Invite Link / Code
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}
                 <div className="p-6 overflow-y-auto custom-scrollbar bg-bg-subtle dark:bg-bg-dark">
                     {error && (
                         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center gap-2 border border-red-100 dark:border-red-900/30">
-                            <ShieldAlert size={16} /> {error}
+                            <ShieldAlert size={16} className="shrink-0" /> 
+                            <div className="flex-1 text-xs leading-relaxed">{error}</div>
                         </div>
                     )}
 
@@ -513,6 +591,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                             <div className="flex gap-2 border-b border-border-thin dark:border-border-dark mb-4 overflow-x-auto no-scrollbar">
                                                 <button type="button" onClick={() => setAdminAction('update')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'update' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Update Passwords</button>
                                                 <button type="button" onClick={() => setAdminAction('rename')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'rename' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Rename Family</button>
+                                                <button type="button" onClick={() => setAdminAction('images')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'images' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Image Clean-up</button>
                                                 <button type="button" onClick={() => setAdminAction('backup')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'backup' ? 'text-forest-green dark:text-accent-herb border-b-2 border-forest-green dark:border-accent-herb' : 'text-text-secondary hover:text-text-main dark:hover:text-white'}`}>Backup & Restore</button>
                                                 <button type="button" onClick={() => setAdminAction('delete')} className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition-colors ${adminAction === 'delete' ? 'text-red-500 border-b-2 border-red-500' : 'text-text-secondary hover:text-red-500'}`}>Delete Family</button>
                                             </div>
@@ -542,6 +621,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                     </div>
                                                 )}
 
+                                                {adminAction === 'images' && (
+                                                    <div className="space-y-3">
+                                                        <div className="p-3 bg-bg-subtle dark:bg-card-dark text-text-secondary text-xs rounded-lg border border-border-thin dark:border-border-dark">
+                                                            Check database images and purge orphaned files that are no longer referenced in any recipe or step.
+                                                        </div>
+
+                                                        {imageStats && (
+                                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                <div className="p-2.5 rounded-lg border border-border-thin dark:border-border-dark bg-white dark:bg-card-dark text-center">
+                                                                    <div className="text-[10px] text-text-secondary uppercase font-bold">Total Stored</div>
+                                                                    <div className="text-base font-bold text-text-main dark:text-white">{imageStats.total}</div>
+                                                                </div>
+                                                                <div className="p-2.5 rounded-lg border border-border-thin dark:border-border-dark bg-white dark:bg-card-dark text-center">
+                                                                    <div className="text-[10px] text-text-secondary uppercase font-bold">Orphaned Files</div>
+                                                                    <div className={`text-base font-bold ${imageStats.orphaned > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                                                        {imageStats.orphaned}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {imageCleanupResult && (
+                                                            <div className="p-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 rounded border border-emerald-200 dark:border-emerald-800">
+                                                                {imageCleanupResult}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 {adminAction === 'backup' && (
                                                     <div className="p-3 bg-blue-50 dark:bg-blue-900/10 text-blue-800 dark:text-blue-300 text-xs rounded-lg border border-blue-200 dark:border-blue-900/30">
                                                         Export all your data to a JSON file, or import an existing data file.
@@ -561,6 +669,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                                             <button type="submit" disabled={loading} onClick={() => submitTypeRef.current = 'restore'} className="w-full py-2 bg-text-main text-white dark:bg-white dark:text-black font-bold rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-black dark:hover:bg-gray-200">
                                                                 {loading && submitTypeRef.current === 'restore' && <Loader size={14} className="animate-spin" />}
                                                                 Restore Data
+                                                            </button>
+                                                        </div>
+                                                    ) : adminAction === 'images' ? (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button type="submit" disabled={loading} onClick={() => submitTypeRef.current = 'scan_images'} className="w-full py-2 bg-text-main text-white dark:bg-white dark:text-black font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 hover:bg-black dark:hover:bg-gray-200">
+                                                                {loading && submitTypeRef.current === 'scan_images' && <Loader size={14} className="animate-spin" />}
+                                                                Scan Images
+                                                            </button>
+                                                            <button type="submit" disabled={loading} onClick={() => submitTypeRef.current = 'clean_images'} className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5">
+                                                                {loading && submitTypeRef.current === 'clean_images' && <Loader size={14} className="animate-spin" />}
+                                                                Clean Orphaned
                                                             </button>
                                                         </div>
                                                     ) : (
@@ -620,7 +739,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             
                             <div className="pt-4 border-t border-border-thin dark:border-border-dark flex flex-col gap-2">
                                 <button onClick={() => setMode('login')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
-                                    <Plus size={18} /> Join Family
+                                    <Lock size={18} /> Join with Family Password
+                                </button>
+                                <button onClick={() => setMode('invite')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
+                                    <Link2 size={18} /> Join with Invite Link / Code
                                 </button>
                                 <button onClick={() => setMode('register')} className="w-full py-3 rounded-xl border border-dashed border-border-thin dark:border-border-dark text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:border-forest-green/50 dark:hover:border-accent-herb/50 transition-colors flex items-center justify-center gap-2 font-medium hover:bg-white dark:hover:bg-white/5">
                                     <UserPlus size={18} /> Create New Family
@@ -632,6 +754,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                         </div>
                     )}
 
+                    {mode === 'invite' && (
+                        <form onSubmit={handleJoinInvite} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Invite Link or Code</label>
+                                <textarea
+                                    required
+                                    rows={3}
+                                    value={inviteCodeInput}
+                                    onChange={e => {
+                                        setInviteCodeInput(e.target.value);
+                                        const parsed = parsePotentialInvite(e.target.value);
+                                        if (parsed?.origin) {
+                                            db.setCustomServerUrl(parsed.origin);
+                                        }
+                                    }}
+                                    className="w-full p-3 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all font-mono text-xs"
+                                    placeholder="Paste full invite link or 32-character code (e.g. https://mykitchen.workers.dev/?temp_join=...)"
+                                />
+                                <p className="text-[11px] text-text-secondary mt-1.5">
+                                    Invite links automatically configure the database server and connect your family kitchen immediately.
+                                </p>
+                            </div>
+
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                                {loading && <Loader size={18} className="animate-spin" />}
+                                <Link2 size={18} /> Join Kitchen with Invite
+                            </button>
+
+                            <div className="text-center pt-2">
+                                <button type="button" onClick={() => setMode('login')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">
+                                    Or log in with Family Name & Password
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
                     {(mode === 'login' || mode === 'register') && (
                         <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
                             <div>
@@ -641,7 +799,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                             <div>
                                 <label className="block text-xs font-bold text-text-secondary uppercase mb-1">Access Password</label>
                                 <div className="relative">
-                                    <input required type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Shared family password or paste invite link" />
+                                    <input required type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 pr-10 rounded-xl bg-bg-subtle dark:bg-white/5 border border-border-thin dark:border-border-dark focus:ring-2 focus:ring-forest-green dark:focus:ring-accent-herb outline-none text-text-main dark:text-white placeholder:text-gray-400 transition-all" placeholder="Enter family password" />
                                     <button type="button" tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-main dark:hover:text-white transition-colors" onClick={() => setShowPassword(!showPassword)}>
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -661,17 +819,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, initialView =
                                 </div>
                             )}
 
-                            {/* Turnstile Container */}
-                            <div id="turnstile-container" className="my-2 min-h-[65px]"></div>
-
                             <button type="submit" disabled={loading} className="w-full py-3 bg-forest-green dark:bg-accent-herb hover:bg-gray-800 dark:hover:bg-herb-hover text-white dark:text-black rounded-xl font-bold shadow-lg shadow-forest-green/20 dark:shadow-accent-herb/20 transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
                                 {loading && <Loader size={18} className="animate-spin" />}
                                 {mode === 'login' ? 'Enter Kitchen' : 'Create Family'}
                             </button>
 
-                            <div className="text-center pt-2">
+                            <div className="text-center pt-2 flex flex-col gap-2">
                                 {mode === 'login' ? (
-                                    <button type="button" onClick={() => setMode('register')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">Need a new family account?</button>
+                                    <>
+                                        <button type="button" onClick={() => setMode('register')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">Need a new family account?</button>
+                                        <button type="button" onClick={() => setMode('invite')} className="text-xs font-semibold text-forest-green dark:text-accent-herb hover:underline transition-colors flex items-center justify-center gap-1.5 py-1">
+                                            <Link2 size={13} /> Have an invite link or code? Join here
+                                        </button>
+                                    </>
                                 ) : (
                                     <button type="button" onClick={() => setMode('login')} className="text-sm text-text-secondary hover:text-forest-green dark:hover:text-accent-herb hover:underline transition-colors">Already have an account?</button>
                                 )}

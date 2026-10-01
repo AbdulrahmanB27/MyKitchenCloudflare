@@ -4,6 +4,7 @@ import { Recipe, Instruction, Ingredient } from '../types';
 import { Lightbulb, Edit, Save, Timer, Play, Pause, RotateCcw, Plus, ChevronUp, ChevronDown, Bell, Square, CookingPot, Mic, MicOff } from 'lucide-react';
 import { formatFraction } from '../utils/format';
 import * as db from '../services/db';
+import { syncTimerNotification, cancelTimerNotification, requestTimerNotificationPermission, notifyTimerFinished } from '../services/timerNotification';
 import Checkbox from './Checkbox';
 
 interface CookModeProps {
@@ -132,6 +133,9 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
       });
       return steps;
   }, [recipe]);
+
+  const isFinished = currentStep >= allSteps.length;
+  const currentStepData = !isFinished ? allSteps[currentStep] : null;
 
   // --- Effects ---
 
@@ -346,35 +350,61 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
     
   }, [currentStep, allSteps]);
 
-  // Main Timer Interval
+  // Main Timer Interval & Notification Sync
   useEffect(() => {
     let interval: number;
+    const timerId = `cookmode-${recipe.id}`;
+
     if (isTimerRunning) {
+      requestTimerNotificationPermission();
+
       interval = window.setInterval(() => {
         setTimerSeconds(prev => {
+           let remaining = 0;
+           let isDone = false;
+
            if (isCountdown) {
                // Countdown Logic
                const next = prev - 1;
+               remaining = Math.max(0, next);
                if (next <= 0 && !hasAlerted) {
-                   notifyUser();
-                   setHasAlerted(true);
-                   return 0;
+                   isDone = true;
                }
-               return Math.max(0, next);
            } else {
                // Stopwatch Logic
                const next = prev + 1;
+               remaining = timerTarget ? Math.max(0, timerTarget - next) : next;
                if (timerTarget && next >= timerTarget && !hasAlerted) {
-                   notifyUser();
-                   setHasAlerted(true);
+                   isDone = true;
                }
-               return next;
            }
+
+           if (isDone) {
+               notifyUser();
+               setHasAlerted(true);
+           }
+
+           // Sync native & web mobile notifications
+           syncTimerNotification({
+               timerId,
+               recipeTitle: recipe.name,
+               stepName: currentStepData?.title || `Step ${currentStep + 1}`,
+               remainingSeconds: isCountdown ? Math.max(0, prev - 1) : (timerTarget ? Math.max(0, timerTarget - (prev + 1)) : prev + 1),
+               totalSeconds: timerTarget || undefined,
+               isRunning: true
+           });
+
+           return isCountdown ? Math.max(0, prev - 1) : prev + 1;
         });
       }, 1000);
+    } else {
+      cancelTimerNotification(timerId);
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, isCountdown, timerTarget, hasAlerted]);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isTimerRunning, isCountdown, timerTarget, hasAlerted, recipe.id, currentStep, currentStepData]);
 
   // Manual Timers Interval
   useEffect(() => {
@@ -407,19 +437,11 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
       audio.play().catch(e => { /* ignored */ });
 
-      if (Notification.permission === 'granted') {
-          new Notification('Timer Done!', { body: `Step ${currentStep + 1} completed.` });
-      } else if (Notification.permission !== 'denied') {
-          Notification.requestPermission().then(perm => {
-              if (perm === 'granted') new Notification('Timer Done!', { body: `Step ${currentStep + 1} completed.` });
-          });
-      }
+      notifyTimerFinished(recipe.name, currentStepData?.title || `Step ${currentStep + 1}`);
   };
 
   const requestNotificationPermission = () => {
-      if ('Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission();
-      }
+      requestTimerNotificationPermission();
   };
 
   const formatTime = (seconds: number) => {
@@ -493,8 +515,6 @@ const CookMode: React.FC<CookModeProps> = ({ recipe, onClose, scalingFactor = 1,
 
   // --- Render ---
 
-  const isFinished = currentStep >= allSteps.length;
-  const currentStepData = !isFinished ? allSteps[currentStep] : null;
   const progress = isFinished ? 100 : ((currentStep + 1) / allSteps.length) * 100;
 
   // Filter lists for sidebar

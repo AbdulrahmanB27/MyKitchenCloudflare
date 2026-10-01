@@ -134,6 +134,7 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register' | 'switch'>('login');
   const [authModalFamilyName, setAuthModalFamilyName] = useState('');
+  const [authVersion, setAuthVersion] = useState(0);
   
   // Public Link State
   const [publicFamilyView, setPublicFamilyView] = useState<{ familyName: string, recipes: Recipe[] } | null>(null);
@@ -614,10 +615,17 @@ const App: React.FC = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    const handleAuthChange = () => {
+        setAuthVersion(v => v + 1);
+        loadData();
+    };
+    window.addEventListener('auth-changed', handleAuthChange);
+
     return () => {
         window.removeEventListener('recipes-updated', handleUpdates);
         window.removeEventListener('queue-updated', handleQueueUpdate);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('auth-changed', handleAuthChange);
     };
   }, []);
 
@@ -627,6 +635,11 @@ const App: React.FC = () => {
     const sharedIdParam = params.get('shared_recipe') || params.get('recipeId');
     const shareTokenParam = params.get('share');
     
+    const backendServerParam = params.get('backend_url') || params.get('server');
+    if (backendServerParam && !backendServerParam.includes('localhost')) {
+        db.setCustomServerUrl(backendServerParam);
+    }
+
     const joinFamilyNameParam = params.get('join_family');
     const tempJoinToken = params.get('temp_join');
     const viewFamilyToken = params.get('view_family');
@@ -739,7 +752,8 @@ const App: React.FC = () => {
 
   // --- Computed ---
 
-  const currentFamilyId = db.getCurrentFamilyId();
+  const currentFamilyId = useMemo(() => db.getCurrentFamilyId(), [authVersion]);
+  const isUserLoggedIn = useMemo(() => db.isUserLoggedIn(), [authVersion]);
 
   const joinedFamilies = useMemo(() => {
     const sessions = db.getSavedSessions();
@@ -747,7 +761,7 @@ const App: React.FC = () => {
       ...s,
       recipeCount: recipes.filter(r => r.shareToFamily && (r.familyId === s.id || (r.tenantIds && r.tenantIds?.includes(s.id)))).length
     })).sort((a, b) => b.recipeCount - a.recipeCount);
-  }, [recipes]);
+  }, [recipes, authVersion]);
 
   const filteredRecipes = useMemo(() => {
     let result = recipes;
@@ -1418,10 +1432,102 @@ const App: React.FC = () => {
                                 </div>
 
                                 {filteredRecipes.length === 0 ? (
-                                    <div className="text-center py-20 text-text-secondary rounded-2xl bg-white/50 dark:bg-card-dark/30">
-                                        <p className="text-lg">No recipes found.</p>
-                                        <p className="text-sm mt-2 opacity-70">Try adjusting your search or filters.</p>
-                                    </div>
+                                    (() => {
+                                        const isSearching = searchQuery.trim().length > 0;
+                                        const isFiltered = selectedCategory !== 'All' || selectedTags.size > 0 || filterFavorites || (familyFilter !== 'all' && recipes.length > 0);
+
+                                        // Searches or active filters always retain "No recipes found"
+                                        if (isSearching || (recipes.length > 0 && isFiltered)) {
+                                            return (
+                                                <div className="text-center py-20 text-text-secondary rounded-2xl bg-white/50 dark:bg-card-dark/30">
+                                                    <p className="text-lg font-medium text-text-main dark:text-white">No recipes found.</p>
+                                                    <p className="text-sm mt-2 opacity-70">Try adjusting your search or filters.</p>
+                                                    {(searchQuery || selectedCategory !== 'All' || selectedTags.size > 0 || filterFavorites || familyFilter !== 'all') && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSearchQuery('');
+                                                                setSelectedCategory('All');
+                                                                setSelectedTags(new Set());
+                                                                setFilterFavorites(false);
+                                                                setFamilyFilter('all');
+                                                            }}
+                                                            className="mt-4 px-4 py-2 text-xs font-semibold text-forest-green dark:text-accent-herb hover:underline"
+                                                        >
+                                                            Clear search & filters
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
+                                        // No recipes and NOT logged in: Give reminder that they might be logged out (does NOT say they need to log in)
+                                        if (!isUserLoggedIn) {
+                                            return (
+                                                <div className="max-w-md mx-auto text-center py-12 px-6 sm:px-8 my-6 rounded-3xl bg-white/70 dark:bg-card-dark/50 border border-border-thin dark:border-border-dark shadow-sm">
+                                                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-forest-green/10 dark:bg-accent-herb/15 text-forest-green dark:text-accent-herb flex items-center justify-center">
+                                                        <UtensilsCrossed size={28} />
+                                                    </div>
+
+                                                    <h3 className="text-xl font-bold text-text-main dark:text-white mb-2">
+                                                        No recipes yet
+                                                    </h3>
+
+                                                    <div className="p-3.5 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs sm:text-sm text-left flex items-start gap-2.5">
+                                                        <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                                                        <p className="leading-relaxed">
+                                                            <strong>Reminder:</strong> You might be logged out. If you have recipes saved in a family kitchen, they will appear once you log back in.
+                                                        </p>
+                                                    </div>
+
+                                                    <p className="text-xs sm:text-sm text-text-secondary dark:text-text-secondary-dark mb-6 leading-relaxed">
+                                                        MyKitchen works great on its own without logging in! You can add your personal recipes right now, or log in anytime if you're part of a family.
+                                                    </p>
+
+                                                    <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                                                        <button
+                                                            onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }}
+                                                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-forest-green dark:bg-accent-herb text-white font-semibold text-sm shadow-md hover:bg-forest-green/90 dark:hover:bg-herb-hover transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            <Plus size={18} />
+                                                            Add a Recipe
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setAuthModalView('login'); setShowAuthModal(true); }}
+                                                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border-thin dark:border-border-dark text-text-main dark:text-text-main-dark hover:bg-white dark:hover:bg-white/5 font-medium text-sm transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            <Users size={16} />
+                                                            Log In or Switch Family
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        // Logged in, but 0 recipes in this family
+                                        return (
+                                            <div className="max-w-md mx-auto text-center py-12 px-6 sm:px-8 my-6 rounded-3xl bg-white/70 dark:bg-card-dark/50 border border-border-thin dark:border-border-dark shadow-sm">
+                                                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-forest-green/10 dark:bg-accent-herb/15 text-forest-green dark:text-accent-herb flex items-center justify-center">
+                                                    <BookOpen size={28} />
+                                                </div>
+
+                                                <h3 className="text-xl font-bold text-text-main dark:text-white mb-2">
+                                                    Your kitchen has no recipes yet
+                                                </h3>
+
+                                                <p className="text-xs sm:text-sm text-text-secondary dark:text-text-secondary-dark mb-6 leading-relaxed">
+                                                    Start building your family recipe collection! Tap below to add your first recipe and share it with your family.
+                                                </p>
+
+                                                <button
+                                                    onClick={() => { setEditingRecipe(null); setIsFormOpen(true); }}
+                                                    className="px-6 py-2.5 rounded-xl bg-forest-green dark:bg-accent-herb text-white font-semibold text-sm shadow-md hover:bg-forest-green/90 dark:hover:bg-herb-hover transition-all inline-flex items-center gap-2"
+                                                >
+                                                    <Plus size={18} />
+                                                    Add Your First Recipe
+                                                </button>
+                                            </div>
+                                        );
+                                    })()
                                 ) : (
                                     <div className={`grid ${settings.compactMobileView ? 'grid-cols-2' : 'grid-cols-1'} sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-20`}>
                                         {filteredRecipes.map(recipe => (

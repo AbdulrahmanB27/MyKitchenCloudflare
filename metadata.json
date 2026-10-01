@@ -1,5 +1,6 @@
 {
   "name": "MyKitchen",
   "description": "A single-page, offline-first recipe manager for meal preppers. Features IndexedDB storage, portable JSON data, and a clean, responsive UI., now with Voice Commands",
-  "requestFramePermissions": ["microphone"]
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

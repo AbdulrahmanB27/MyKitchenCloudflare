@@ -5,4 +5,27 @@ include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
+// Check if Capacitor native modules exist in node_modules
+def capacitorAndroidDir = new File(rootDir, '../node_modules/@capacitor/android/capacitor')
+if (!capacitorAndroidDir.exists()) {
+    throw new GradleException(
+        "\n================================================================================\n" +
+        "[MyKitchen Android Build Error: Missing node_modules]\n" +
+        "Capacitor Android library was not found at:\n" +
+        "  " + capacitorAndroidDir.canonicalPath + "\n\n" +
+        "WHY THIS HAPPENED:\n" +
+        "When downloading this project, 'node_modules' is excluded to keep the archive small.\n" +
+        "Android Studio requires the Capacitor native dependencies in order to compile.\n\n" +
+        "HOW TO FIX (Quick setup):\n" +
+        "1. Open Command Prompt or PowerShell in your project folder:\n" +
+        "     cd \"" + new File(rootDir, '..').canonicalPath + "\"\n" +
+        "2. Run:\n" +
+        "     npm install\n" +
+        "     npx cap sync android\n" +
+        "   (Or on Windows, simply double-click 'setup-android.bat' in the project folder)\n" +
+        "3. In Android Studio, click: File -> Sync Project with Gradle Files\n" +
+        "================================================================================\n"
+    )
+}
+
 apply from: 'capacitor.settings.gradle'

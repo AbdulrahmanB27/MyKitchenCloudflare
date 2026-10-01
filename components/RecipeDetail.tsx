@@ -7,6 +7,7 @@ import CookMode from './CookMode';
 import { Play, Square, RotateCcw, Lightbulb, Bell, Clock, CookingPot, AlertCircle, ExternalLink, User, Share, Users, Check, X, Link as LinkIcon, FileText, Heart } from 'lucide-react';
 import Checkbox from './Checkbox';
 import { formatFraction } from '../utils/format';
+import { syncTimerNotification, cancelTimerNotification, requestTimerNotificationPermission, notifyTimerFinished } from '../services/timerNotification';
 
 interface RecipeDetailProps {
   recipeId: string;
@@ -89,11 +90,22 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
         Object.keys(next).forEach(key => {
             const timer = next[key];
             const elapsed = Math.floor((currentTime - timer.startTime) / 1000);
+            const remaining = Math.max(0, timer.duration - elapsed);
+
+            // Sync persistent mobile notification
+            syncTimerNotification({
+                timerId: `step-${key}`,
+                recipeTitle: recipe?.name || 'Recipe',
+                stepName: `Timer (${Math.ceil(timer.duration / 60)} min)`,
+                remainingSeconds: remaining,
+                totalSeconds: timer.duration,
+                isRunning: remaining > 0
+            });
 
             // Check for notification trigger (once)
             if (timer.duration > 0 && elapsed >= timer.duration && !timer.notified) {
                 audioRef.current?.play().catch(() => {});
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                notifyTimerFinished(recipe?.name || 'Recipe Timer Done');
                 timer.notified = true;
                 hasChanges = true;
             }
@@ -104,7 +116,7 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [recipe]);
 
   // Escape key listener for modals
   useEffect(() => {
@@ -424,11 +436,15 @@ const RecipeDetail: React.FC<RecipeDetailProps> = ({ recipeId, mergedTenantIds, 
   };
 
   const toggleTimer = (stepId: string, minutes: number) => {
+      requestTimerNotificationPermission();
+      const timerKey = `step-${stepId}`;
+
       setActiveTimers(prev => {
           const next = { ...prev };
           if (next[stepId] !== undefined) {
               // Stop/Remove timer
               delete next[stepId];
+              cancelTimerNotification(timerKey);
           } else {
               // Start timer
               next[stepId] = {

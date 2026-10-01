@@ -14,6 +14,13 @@ export default defineConfig({
     strictPort: true,
     hmr: {
       clientPort: 443, // Run on 443 because the environment is behind HTTPS proxy
+    },
+    proxy: {
+      '/api': {
+        target: 'https://ais-pre-wcezktn6y3u7ylhpagfte7-108186802350.us-east1.run.app',
+        changeOrigin: true,
+        secure: false,
+      }
     }
   }
 });

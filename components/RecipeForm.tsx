@@ -89,6 +89,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Staged image blobs for committing on recipe save (prevents uncommitted/orphaned images)
+  const pendingMainImageBlobRef = useRef<Blob | null>(null);
+  const pendingStepImageBlobsRef = useRef<Map<string, Blob>>(new Map());
+
   // JSON Import State
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [jsonText, setJsonText] = useState('');
@@ -727,22 +731,42 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
             recipe.tenantIds = Array.from(newTenantIds);
         }
 
-        // NEW: Upload any base64 images to the server if we are saving to a shared family
-        if (targetFamilyId !== 'private') {
-            if (recipe.image && recipe.image.startsWith('data:')) {
-                try {
-                    const blob = await (await fetch(recipe.image)).blob();
-                    recipe.image = await db.uploadImage(blob);
-                } catch (e) { console.warn("Failed to upload base64 main image", e); }
+        // Upload staged or base64 images when saving
+        if (pendingMainImageBlobRef.current && (targetFamilyId !== 'private' || db.hasAuthToken())) {
+            try {
+                const uploadedUrl = await db.uploadImage(pendingMainImageBlobRef.current);
+                recipe.image = uploadedUrl;
+                pendingMainImageBlobRef.current = null;
+            } catch (e: any) {
+                console.warn("Main image upload warning, preserving preview:", e);
             }
-            
-            if (recipe.instructions) {
-                for (const step of recipe.instructions) {
-                    if (step.image && step.image.startsWith('data:')) {
+        } else if (recipe.image && recipe.image.startsWith('data:') && (targetFamilyId !== 'private' || db.hasAuthToken())) {
+            try {
+                const blob = await (await fetch(recipe.image)).blob();
+                recipe.image = await db.uploadImage(blob);
+            } catch (e) {
+                console.warn("Failed to upload base64 main image:", e);
+            }
+        }
+
+        if (recipe.instructions) {
+            for (const step of recipe.instructions) {
+                if (step.id && pendingStepImageBlobsRef.current.has(step.id) && (targetFamilyId !== 'private' || db.hasAuthToken())) {
+                    const blob = pendingStepImageBlobsRef.current.get(step.id);
+                    if (blob) {
                         try {
-                            const blob = await (await fetch(step.image)).blob();
                             step.image = await db.uploadImage(blob);
-                        } catch (e) { console.warn("Failed to upload base64 step image", e); }
+                            pendingStepImageBlobsRef.current.delete(step.id);
+                        } catch (e) {
+                            console.warn("Failed to upload pending step image:", e);
+                        }
+                    }
+                } else if (step.image && step.image.startsWith('data:') && (targetFamilyId !== 'private' || db.hasAuthToken())) {
+                    try {
+                        const blob = await (await fetch(step.image)).blob();
+                        step.image = await db.uploadImage(blob);
+                    } catch (e) {
+                        console.warn("Failed to upload base64 step image:", e);
                     }
                 }
             }
@@ -854,26 +878,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
               let height = img.height;
               const MAX_SIZE = 1200; 
               if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
-              canvas.width = width; canvas.height = height;
+              canvas.width = Math.round(width);
+              canvas.height = Math.round(height);
               const ctx = canvas.getContext('2d');
               if (ctx) { 
-                  ctx.drawImage(img, 0, 0, width, height); 
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height); 
                   
-                  canvas.toBlob(async (blob) => {
+                  canvas.toBlob((blob) => {
                       if (blob) {
-                          try {
-                              const url = await db.uploadImage(blob);
-                              handleChange('image', url);
-                          } catch (e) {
-                              console.error(e);
-                              showToast("Failed to upload image. Ensure you are logged in.", 'error');
-                          } finally {
-                              setIsUploading(false);
-                          }
-                      } else {
-                          setIsUploading(false);
+                          pendingMainImageBlobRef.current = blob;
+                          const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
+                          handleChange('image', previewUrl);
                       }
-                  }, 'image/jpeg', 0.8);
+                      setIsUploading(false);
+                  }, 'image/jpeg', 0.85);
               } else {
                   setIsUploading(false);
               }
@@ -899,26 +917,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
               let height = img.height;
               const MAX_SIZE = 1200; 
               if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
-              canvas.width = width; canvas.height = height;
+              canvas.width = Math.round(width);
+              canvas.height = Math.round(height);
               const ctx = canvas.getContext('2d');
               if (ctx) { 
-                  ctx.drawImage(img, 0, 0, width, height); 
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height); 
                   
-                  canvas.toBlob(async (blob) => {
+                  canvas.toBlob((blob) => {
                       if (blob) {
-                          try {
-                              const url = await db.uploadImage(blob);
-                              updateStepInBlock(blockId, stepId, 'image', url);
-                          } catch (e) {
-                              console.error(e);
-                              showToast("Failed to upload step image. Ensure you are logged in.", 'error');
-                          } finally {
-                              setIsUploading(false);
-                          }
-                      } else {
-                          setIsUploading(false);
+                          pendingStepImageBlobsRef.current.set(stepId, blob);
+                          const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
+                          updateStepInBlock(blockId, stepId, 'image', previewUrl);
                       }
-                  }, 'image/jpeg', 0.8);
+                      setIsUploading(false);
+                  }, 'image/jpeg', 0.85);
               } else {
                   setIsUploading(false);
               }
@@ -1288,7 +1300,43 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ initialData, mergedSiblings = [
                 </div>
              </div>
              <div className="pt-2">
-                 <label className={LABEL_CLASS}>Image</label>
+                 <div className="flex items-center justify-between mb-1.5">
+                     <label className={LABEL_CLASS}>Cover Image</label>
+                     {formData.image && (
+                         <button
+                             type="button"
+                             onClick={() => {
+                                 handleChange('image', '');
+                                 pendingMainImageBlobRef.current = null;
+                             }}
+                             className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 font-medium transition-colors"
+                         >
+                             <X size={14} /> Remove Image
+                         </button>
+                     )}
+                 </div>
+
+                 {formData.image ? (
+                     <div className="relative w-full rounded-xl overflow-hidden border border-border-thin dark:border-border-dark bg-bg-subtle dark:bg-card-dark mb-2 max-h-[220px] flex items-center justify-center group shadow-sm">
+                         <img
+                             src={db.resolveImageUrl(formData.image)}
+                             alt="Recipe preview"
+                             className="w-full h-full max-h-[220px] object-cover"
+                             referrerPolicy="no-referrer"
+                         />
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                             <label className="px-3 py-1.5 bg-white text-black text-xs font-semibold rounded-lg cursor-pointer hover:bg-gray-100 flex items-center gap-1.5 shadow">
+                                 <Upload size={14} /> Change Photo
+                                 <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                             </label>
+                             <label className="px-3 py-1.5 bg-white text-black text-xs font-semibold rounded-lg cursor-pointer hover:bg-gray-100 flex items-center gap-1.5 shadow">
+                                 <Camera size={14} /> Retake
+                                 <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" disabled={isUploading} />
+                             </label>
+                         </div>
+                     </div>
+                 ) : null}
+
                  <div className="flex gap-2">
                      <input type="text" value={formData.image || ''} onChange={e => handleChange('image', e.target.value)} className={INPUT_CLASS} placeholder="https://..." disabled={isUploading} />
                      <label className={`p-2 border border-border-thin dark:border-border-dark rounded cursor-pointer transition-colors flex items-center justify-center ${isUploading ? 'bg-bg-subtle dark:bg-white/10 cursor-not-allowed' : 'hover:bg-bg-subtle dark:hover:bg-white/5 bg-white dark:bg-card-dark'}`} title="Upload Image">

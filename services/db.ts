@@ -2,7 +2,9 @@
 import { Recipe, AppSettings, ShoppingItem, MealPlan, SyncQueueItem, Restaurant, VoteSession, Vote, Review } from '../types';
 import * as idb from './idb';
 import { STORE_RECIPES, STORE_SHOPPING, STORE_PLANS, STORE_SETTINGS, STORE_RESTAURANTS, ENABLE_RESTAURANTS, ENABLE_RECIPE_SWIPE, STORE_REVIEWS } from '../constants';
+import { config } from '../config';
 import { v4 as uuidv4 } from 'uuid';
+import { Capacitor } from '@capacitor/core';
 
 const TEST_FAMILY_NAME = 'test';
 const TEST_PASSWORD = 'test';
@@ -13,62 +15,185 @@ const TEST_TOKEN = 'mock-test-token-isolated';
 // Detect Capacitor environments / localhost non-web hosts
 export const isCapacitorActive = (): boolean => {
     if (typeof window === 'undefined' || !window.location) return false;
-    // Check for native Capacitor global variable or if protocol is native webview (capacitor:// or app://)
-    const isCap = !!(window as any).Capacitor || window.location.protocol === 'capacitor:' || window.location.protocol === 'app:';
+    try {
+        if (Capacitor.isNativePlatform()) return true;
+    } catch (e) {}
+
+    // Check for native Capacitor global variable, custom protocols, or localhost without dev server port
+    const isCap = !!(window as any).Capacitor 
+        || window.location.protocol === 'capacitor:' 
+        || window.location.protocol === 'app:'
+        || window.location.protocol === 'file:'
+        || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '');
     return isCap;
 };
 
-// Returns the live backend URL base for standard requests
-const getApiBase = (): string => {
-    if (isCapacitorActive()) {
-        try {
+// Custom Backend Server URL configuration
+export const getCustomServerUrl = (): string => {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
             const saved = window.localStorage.getItem('backend_server_url');
-            if (saved) {
-                return `${saved.replace(/\/+$/, '')}/api`;
+            if (saved && saved.trim()) {
+                return saved.trim().replace(/\/+$/, '');
             }
-        } catch (e) {}
-        // Fallback production URL of the deployed app
-        return 'https://ais-pre-wcezktn6y3u7ylhpagfte7-108186802350.us-east1.run.app/api';
+        }
+    } catch (e) {}
+    return '';
+};
+
+export const setCustomServerUrl = (url: string): void => {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            const clean = url ? url.trim().replace(/\/+$/, '') : '';
+            if (clean) {
+                window.localStorage.setItem('backend_server_url', clean);
+            } else {
+                window.localStorage.removeItem('backend_server_url');
+            }
+            window.dispatchEvent(new CustomEvent('server-url-changed', { detail: clean }));
+        }
+    } catch (e) {}
+};
+
+// Returns the live backend URL base dynamically for standard requests
+export const getApiBase = (): string => {
+    // 1. Explicitly saved backend URL from user / invite link / settings
+    const custom = getCustomServerUrl();
+    if (custom) {
+        return `${custom}/api`;
     }
+
+    // 2. Build-time environment variable (e.g. VITE_API_BASE_URL)
+    const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+        return `${envUrl.trim().replace(/\/+$/, '')}/api`;
+    }
+
+    // 3. Config default backend URL (configured in config.ts)
+    if (config.defaultBackendUrl && config.defaultBackendUrl.trim()) {
+        return `${config.defaultBackendUrl.trim().replace(/\/+$/, '')}/api`;
+    }
+
+    // 4. Standard relative /api for web browser
     return '/api';
 };
 
-const API_BASE = getApiBase();
+// Test connectivity to the database server
+export const checkServerHealth = async (customUrl?: string): Promise<{ ok: boolean; message: string; db?: boolean }> => {
+    let base = customUrl ? customUrl.trim().replace(/\/+$/, '') : '';
+    if (!base) {
+        const custom = getCustomServerUrl();
+        const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+        if (custom) {
+            base = custom;
+        } else if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+            base = envUrl.trim().replace(/\/+$/, '');
+        } else if (config.defaultBackendUrl && config.defaultBackendUrl.trim()) {
+            base = config.defaultBackendUrl.trim().replace(/\/+$/, '');
+        } else if (!isCapacitorActive() && typeof window !== 'undefined' && window.location) {
+            base = window.location.origin;
+        }
+    }
+
+    if (!base || (isCapacitorActive() && base === '/api')) {
+        return { ok: false, message: 'No backend database server address configured.' };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+        let res = await fetch(`${base}/api/health`, { signal: controller.signal });
+        if (!res.ok && res.status === 404) {
+            // Fallback for deployed workers where /api/health has not yet been deployed
+            res = await fetch(`${base}/api/recipes`, { signal: controller.signal });
+        }
+        clearTimeout(timeoutId);
+        if (res.ok || res.status === 401) {
+            const data = await res.json().catch(() => ({}));
+            return { ok: true, message: 'Database server connected and responsive', db: data.db ?? true };
+        } else {
+            return { ok: false, message: `Server returned HTTP ${res.status}: ${res.statusText}` };
+        }
+    } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+            return { ok: false, message: 'Connection timed out (8s). Check server URL or network.' };
+        }
+        return { ok: false, message: `Cannot connect: ${e.message || 'Network error'}` };
+    }
+};
 
 // Function to resolve relative URL or relative image URL (like /api/images?key=...) to an absolute URL
 export const resolveImageUrl = (url?: string): string => {
-    if (!url) return '';
-    // Already absolute or base64 URL
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-        return url;
-    }
-    
-    let host = '';
-    if (isCapacitorActive()) {
-        try {
-            const saved = window.localStorage.getItem('backend_server_url');
-            if (saved) {
-                host = saved;
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+
+    // Data URLs
+    if (trimmed.startsWith('data:')) return trimmed;
+
+    // Blob URLs (current session)
+    if (trimmed.startsWith('blob:')) return trimmed;
+
+    // Backend Image key or endpoint resolution: rewrite any legacy or localhost host to current active host
+    if (trimmed.includes('/api/images')) {
+        const match = trimmed.match(/\/api\/images(?:\?[^#\s]*)?/);
+        if (match) {
+            const pathWithQuery = match[0];
+            const base = getApiBase(); // e.g. "https://workers.dev/api" or "/api"
+            if (base.startsWith('http://') || base.startsWith('https://')) {
+                const serverOrigin = base.replace(/\/api\/?$/, '');
+                return `${serverOrigin}${pathWithQuery}`;
             }
-        } catch (e) {}
-        if (!host) {
-            host = 'https://ais-pre-wcezktn6y3u7ylhpagfte7-108186802350.us-east1.run.app';
+            if (!isCapacitorActive() && typeof window !== 'undefined' && window.location) {
+                return `${window.location.origin}${pathWithQuery}`;
+            }
+            return pathWithQuery;
         }
-    } else {
-        host = typeof window !== 'undefined' && window.location ? window.location.origin : '';
     }
-    
+
+    // Direct image hash key (e.g. "a1b2c3d4...jpg")
+    if (/^[a-f0-9]{32,64}\.[a-z0-9]+$/i.test(trimmed)) {
+        const pathWithQuery = `/api/images?key=${trimmed}`;
+        const base = getApiBase();
+        if (base.startsWith('http://') || base.startsWith('https://')) {
+            const serverOrigin = base.replace(/\/api\/?$/, '');
+            return `${serverOrigin}${pathWithQuery}`;
+        }
+        if (!isCapacitorActive() && typeof window !== 'undefined' && window.location) {
+            return `${window.location.origin}${pathWithQuery}`;
+        }
+        return pathWithQuery;
+    }
+
+    // Upgrade insecure http:// on https pages (avoids browser Mixed Content blocking)
+    if (trimmed.startsWith('http://') && typeof window !== 'undefined' && window.location.protocol === 'https:' && !trimmed.includes('localhost')) {
+        return trimmed.replace(/^http:\/\//i, 'https://');
+    }
+
+    // External absolute URL
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+    }
+
+    // Standard relative URL
+    let host = '';
+    const custom = getCustomServerUrl();
+    if (custom) {
+        host = custom;
+    } else {
+        const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+        if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+            host = envUrl.trim().replace(/\/+$/, '');
+        } else if (!isCapacitorActive() && typeof window !== 'undefined' && window.location) {
+            host = window.location.origin;
+        }
+    }
     host = host.replace(/\/+$/, '');
-    const cleanPath = url.startsWith('/') ? url : '/' + url;
-    return `${host}${cleanPath}`;
+    const cleanPath = trimmed.startsWith('/') ? trimmed : '/' + trimmed;
+    return host ? `${host}${cleanPath}` : cleanPath;
 };
 
-// Proactively record the current production origin if we are accessed via a standard, non-localhost Web URL
-if (typeof window !== 'undefined' && window.location && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !isCapacitorActive()) {
-    try {
-        window.localStorage.setItem('backend_server_url', window.location.origin);
-    } catch (e) {}
-}
 const STORAGE_KEY_TOKEN = 'family_auth_token';
 const STORAGE_KEY_SESSIONS = 'family_sessions';
 const STORAGE_KEY_DEVICE_ID = 'device_id';
@@ -149,8 +274,64 @@ export function getDeviceId(): string {
     return id;
 }
 
+// Ensure once a device or browser is logged in, it does not lose its session or auto log out
+export function ensureActiveSession(): void {
+    try {
+        const token = safeGetItem(STORAGE_KEY_TOKEN);
+        const currentFamilyId = safeGetItem(STORAGE_KEY_FAMILY_ID);
+        const sessions = getSavedSessions();
+        if (sessions.length > 0) {
+            const active = (currentFamilyId && currentFamilyId !== 'private')
+                ? sessions.find(s => s.id === currentFamilyId)
+                : sessions[0];
+
+            if (active && active.token) {
+                if (!token || token !== active.token) {
+                    safeSetItem(STORAGE_KEY_TOKEN, active.token);
+                }
+                if (!currentFamilyId || currentFamilyId === 'private') {
+                    safeSetItem(STORAGE_KEY_FAMILY_ID, active.id);
+                    safeSetItem(STORAGE_KEY_FAMILY_NAME, active.name);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Could not ensure active session", e);
+    }
+}
+
+// Initialize active session immediately on script load
+ensureActiveSession();
+
 export function hasAuthToken(): boolean {
-    return !!safeGetItem(STORAGE_KEY_TOKEN);
+    const token = safeGetItem(STORAGE_KEY_TOKEN);
+    if (token) return true;
+
+    // Check if there is an existing saved session to recover the token
+    const sessions = getSavedSessions();
+    const familyId = getCurrentFamilyId();
+    if (familyId && familyId !== 'private') {
+        const session = sessions.find(s => s.id === familyId);
+        if (session?.token) {
+            safeSetItem(STORAGE_KEY_TOKEN, session.token);
+            return true;
+        }
+    } else if (sessions.length > 0 && familyId !== 'private') {
+        const session = sessions[0];
+        if (session?.token) {
+            safeSetItem(STORAGE_KEY_TOKEN, session.token);
+            safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
+            safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
+            return true;
+        }
+    }
+    return false;
+}
+
+export function isUserLoggedIn(): boolean {
+    const familyId = getCurrentFamilyId();
+    if (familyId === 'private') return false;
+    return hasAuthToken();
 }
 
 export function getCurrentFamilyId(): string | null {
@@ -217,7 +398,7 @@ export const setAuthCallback = (cb: () => void) => {
 
 // --- API Helper ---
 
-export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean, customToken?: string }) => {
+export const apiCall = async (endpoint: string, method: string = 'GET', body?: any, options?: { skipAuthRedirect?: boolean, customToken?: string, isRetry?: boolean }) => {
     const token = options?.customToken || safeGetItem(STORAGE_KEY_TOKEN);
 
     // Isolated test family bypass
@@ -237,8 +418,15 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout to prevent stuck loading
 
+    const apiBase = getApiBase();
+    if (isCapacitorActive() && (apiBase === '/api')) {
+        const err: any = new Error("No backend database server configured. Please connect via an invite link.");
+        err.isConfigError = true;
+        throw err;
+    }
+
     try {
-        const res = await fetch(`${API_BASE}${endpoint}`, {
+        const res = await fetch(`${apiBase}${endpoint}`, {
             method,
             headers,
             body: body ? JSON.stringify(body) : undefined,
@@ -247,13 +435,52 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
         clearTimeout(timeoutId);
 
         if (res.status === 401) {
-            // Token expired or invalid
-            // If it's a background request (skipAuthRedirect), we just clear the invalid token and fail silently.
-            safeRemoveItem(STORAGE_KEY_TOKEN);
-            
-            if (!options?.skipAuthRedirect && authCallback) {
-                authCallback();
+            // Once a device or browser is logged in, it must NEVER auto log out!
+            // First check if we have saved credentials to silently re-authenticate in the background
+            if (!options?.isRetry) {
+                const currentFamId = getCurrentFamilyId();
+                const sessions = getSavedSessions();
+                const currentSession = (currentFamId && currentFamId !== 'private')
+                    ? sessions.find(s => s.id === currentFamId)
+                    : sessions[0];
+
+                if (currentSession && currentSession.name && currentSession.password) {
+                    try {
+                        const refreshRes = await fetch(`${apiBase}/auth/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                familyName: currentSession.name,
+                                password: currentSession.password
+                            })
+                        });
+                        if (refreshRes.ok) {
+                            const refreshData = await refreshRes.json();
+                            if (refreshData.token) {
+                                handleLoginSuccess(
+                                    refreshData.token,
+                                    refreshData.familyId || currentSession.id,
+                                    refreshData.name || currentSession.name,
+                                    currentSession.password,
+                                    refreshData.isAdmin ?? currentSession.isAdmin
+                                );
+                                // Retry the original request seamlessly with the refreshed token
+                                return await apiCall(endpoint, method, body, {
+                                    ...options,
+                                    isRetry: true,
+                                    customToken: refreshData.token
+                                });
+                            }
+                        }
+                    } catch (silentErr) {
+                        console.warn("Silent re-authentication failed, keeping session intact:", silentErr);
+                    }
+                }
             }
+
+            // CRITICAL: NEVER auto-logout on 401!
+            // Do NOT remove STORAGE_KEY_TOKEN or evict sessions.
+            // The user stays logged in until they explicitly click "Log Out".
             const err: any = new Error("Unauthorized");
             err.status = 401;
             throw err;
@@ -284,7 +511,13 @@ export const apiCall = async (endpoint: string, method: string = 'GET', body?: a
     } catch (e: any) {
         clearTimeout(timeoutId);
         if (e.name === 'AbortError') {
-             throw new Error("Request timed out");
+             throw new Error("Request timed out (server unreachable)");
+        }
+        if (e.message && (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'))) {
+            const configured = getCustomServerUrl();
+            if (isCapacitorActive() || configured) {
+                throw new Error(`Unable to connect to database server (${configured || 'unconfigured'}). Please check your network and server URL in Settings.`);
+            }
         }
         throw e;
     }
@@ -322,7 +555,7 @@ export const retrySync = async () => {
             // Helper to make the call with custom headers if needed
             const doApiCall = async (endpoint: string, method: string, data?: any) => {
                 if (customHeaders) {
-                    const res = await fetch(`${API_BASE}${endpoint}`, {
+                    const res = await fetch(`${getApiBase()}${endpoint}`, {
                         method,
                         headers: { 'Content-Type': 'application/json', ...customHeaders },
                         body: data ? JSON.stringify(data) : undefined
@@ -386,7 +619,7 @@ export const syncDown = async () => {
                     'Authorization': `Bearer ${session.token}` 
                 };
                 // Fetch all recipes (no 'since' for now to ensure full merge consistency)
-                const res = await fetch(`${API_BASE}/recipes?_t=${Date.now()}`, { headers });
+                const res = await fetch(`${getApiBase()}/recipes?_t=${Date.now()}`, { headers });
                 if (res.ok) {
                     const recipes = await res.json();
                     allFetchedRecipes.push(...recipes);
@@ -631,7 +864,7 @@ export const shareRecipe = async (recipeId: string): Promise<string> => {
 
 export const getSharedRecipe = async (recipeId: string, token: string): Promise<Recipe> => {
     try {
-        const res = await fetch(`${API_BASE}/share/recipe?recipeId=${recipeId}&token=${token}`);
+        const res = await fetch(`${getApiBase()}/share/recipe?recipeId=${recipeId}&token=${token}`);
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ error: 'Recipe link is invalid or removed' }));
             throw new Error(errorData.error || `Server responded with ${res.status}`);
@@ -646,7 +879,7 @@ export const getSharedRecipe = async (recipeId: string, token: string): Promise<
 export const publishRecipe = async (recipe: Recipe) => {
     // This uploads the recipe to the public endpoint without requiring family auth.
     // It makes the recipe accessible via ID but does not add it to family sync lists.
-    const res = await fetch(`${API_BASE}/share`, {
+    const res = await fetch(`${getApiBase()}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(recipe)
@@ -658,7 +891,32 @@ export const publishRecipe = async (recipe: Recipe) => {
     }
 };
 
+export const normalizeRecipeImages = (recipe: Recipe): Recipe => {
+    const cleaned = { ...recipe };
+    if (cleaned.image && typeof cleaned.image === 'string') {
+        const m = cleaned.image.match(/\/api\/images\?key=([a-zA-Z0-9._-]+)/);
+        if (m) {
+            cleaned.image = `/api/images?key=${m[1]}`;
+        }
+    }
+    if (Array.isArray(cleaned.instructions)) {
+        cleaned.instructions = cleaned.instructions.map(step => {
+            if (step && step.image && typeof step.image === 'string') {
+                const m = step.image.match(/\/api\/images\?key=([a-zA-Z0-9._-]+)/);
+                if (m) {
+                    return { ...step, image: `/api/images?key=${m[1]}` };
+                }
+            }
+            return step;
+        });
+    }
+    return cleaned;
+};
+
 export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boolean }) => {
+    // Normalize image URLs to portable canonical paths
+    recipe = normalizeRecipeImages(recipe);
+
     // If sharing to family, tag with current family ID locally immediately so it shows up in "Family" tab
     const currentFamilyId = getCurrentFamilyId();
     if (recipe.shareToFamily && currentFamilyId && !recipe.familyId && !options?.localOnly) {
@@ -684,7 +942,7 @@ export const upsertRecipe = async (recipe: Recipe, options?: { localOnly?: boole
 
         try {
             if (customHeaders) {
-                const res = await fetch(`${API_BASE}/recipes`, {
+                const res = await fetch(`${getApiBase()}/recipes`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...customHeaders },
                     body: JSON.stringify(recipe)
@@ -721,7 +979,7 @@ export const deleteRecipe = async (id: string, options?: { keepReviews?: boolean
 
         try {
             if (customHeaders) {
-                const res = await fetch(`${API_BASE}/recipes?id=${id}`, {
+                const res = await fetch(`${getApiBase()}/recipes?id=${id}`, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json', ...customHeaders }
                 });
@@ -750,7 +1008,7 @@ export const crossPostRecipe = async (recipe: Recipe, targetFamilyId: string) =>
     try {
         // Manual fetch with different token
         const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-        const res = await fetch(`${API_BASE}/recipes`, {
+        const res = await fetch(`${getApiBase()}/recipes`, {
             method: 'POST',
             headers,
             body: JSON.stringify(sharedRecipe)
@@ -774,7 +1032,7 @@ export const crossDeleteRecipe = async (recipeId: string, targetFamilyId: string
 
     try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-        const res = await fetch(`${API_BASE}/recipes?id=${recipeId}`, {
+        const res = await fetch(`${getApiBase()}/recipes?id=${recipeId}`, {
             method: 'DELETE',
             headers
         });
@@ -849,8 +1107,9 @@ export const removeFromSyncQueue = async (id: string) => {
 // --- Images ---
 
 export const uploadImage = async (blob: Blob): Promise<string> => {
-    // Isolated test family bypass
-    if (safeGetItem(STORAGE_KEY_TOKEN) === TEST_TOKEN) {
+    const token = safeGetItem(STORAGE_KEY_TOKEN);
+    // Isolated test family or offline unauthenticated user: fallback to base64 data URL
+    if (!token || token === TEST_TOKEN) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
@@ -860,26 +1119,37 @@ export const uploadImage = async (blob: Blob): Promise<string> => {
 
     const formData = new FormData();
     formData.append('file', blob);
-    
-    const token = safeGetItem(STORAGE_KEY_TOKEN);
+
     const headers: any = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    
-    const res = await fetch(`${API_BASE}/images`, {
+
+    const res = await fetch(`${getApiBase()}/images`, {
         method: 'POST',
         headers,
         body: formData
     });
-    
-    if (!res.ok) throw new Error("Upload failed");
+
+    if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Upload failed (${res.status}): ${errText || res.statusText}`);
+    }
     const data = await res.json();
     
-    return data.url;
+    // Return canonical relative path
+    if (data.key) {
+        return `/api/images?key=${data.key}`;
+    }
+    if (data.url && typeof data.url === 'string') {
+        const m = data.url.match(/\/api\/images\?key=([a-zA-Z0-9._-]+)/);
+        if (m) return `/api/images?key=${m[1]}`;
+        return data.url;
+    }
+    throw new Error("Invalid server image response");
 };
 
 // --- Auth ---
 
-export const authenticate = async (familyName: string, password: string, turnstileToken?: string): Promise<{ success: boolean, error?: string }> => {
+export const authenticate = async (familyName: string, password: string): Promise<{ success: boolean, error?: string }> => {
     // --- Isolated Test Family Logic ---
     if (familyName.toLowerCase() === TEST_FAMILY_NAME) {
         if (password === TEST_PASSWORD || password === TEST_ADMIN_PASSWORD) {
@@ -891,7 +1161,7 @@ export const authenticate = async (familyName: string, password: string, turnsti
     }
 
     try {
-        const res = await apiCall('/auth/login', 'POST', { familyName, password, turnstileToken });
+        const res = await apiCall('/auth/login', 'POST', { familyName, password });
         if (res.token) {
             handleLoginSuccess(res.token, res.familyId, res.name, password, res.isAdmin);
             return { success: true };
@@ -902,9 +1172,9 @@ export const authenticate = async (familyName: string, password: string, turnsti
     }
 };
 
-export const registerFamily = async (familyName: string, password: string, adminPassword: string, turnstileToken?: string): Promise<{ success: boolean, error?: string }> => {
+export const registerFamily = async (familyName: string, password: string, adminPassword: string): Promise<{ success: boolean, error?: string }> => {
     try {
-        const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword, turnstileToken });
+        const res = await apiCall('/auth/register', 'POST', { familyName, password, adminPassword });
         if (res.token) {
             handleLoginSuccess(res.token, res.familyId, res.name, password, res.isAdmin);
             return { success: true };
@@ -940,7 +1210,7 @@ export const useFamilyJoinLink = async (token: string): Promise<{ success: boole
 export const fetchPublicFamily = async (token: string): Promise<{ familyName: string, recipes: Recipe[] } | null> => {
     try {
         // Unauthenticated fetch, avoiding apiCall
-        const res = await fetch(`${API_BASE}/family-links/view/${token}`);
+        const res = await fetch(`${getApiBase()}/family-links/view/${token}`);
         if (!res.ok) throw new Error("Link invalid or expired");
         return await res.json();
     } catch (e) {
@@ -965,6 +1235,8 @@ const handleLoginSuccess = (token: string, familyId: string, name: string, passw
         safeSetItem(STORAGE_KEY_SESSIONS, JSON.stringify(updated));
     }
     
+    window.dispatchEvent(new CustomEvent('auth-changed'));
+
     // Trigger sync
     retrySync();
     syncDown();
@@ -989,6 +1261,7 @@ export const switchFamily = (familyId: string) => {
         safeRemoveItem(STORAGE_KEY_TOKEN);
         safeRemoveItem(STORAGE_KEY_FAMILY_ID);
         safeRemoveItem(STORAGE_KEY_FAMILY_NAME);
+        window.dispatchEvent(new CustomEvent('auth-changed'));
         return;
     }
 
@@ -999,6 +1272,7 @@ export const switchFamily = (familyId: string) => {
         safeSetItem(STORAGE_KEY_FAMILY_ID, session.id);
         safeSetItem(STORAGE_KEY_FAMILY_NAME, session.name);
     }
+    window.dispatchEvent(new CustomEvent('auth-changed'));
 };
 
 export const logout = (familyId?: string) => {
@@ -1015,6 +1289,7 @@ export const logout = (familyId?: string) => {
                 switchFamily(sessions[0].id);
             }
         }
+        window.dispatchEvent(new CustomEvent('auth-changed'));
     } else {
         safeClear(); 
         idb.clearAllStores();
@@ -1023,7 +1298,7 @@ export const logout = (familyId?: string) => {
 };
 
 // Generic admin action handler
-export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify', data: any, customToken?: string) => {
+export const adminAction = async (action: 'update_passwords' | 'delete_family' | 'rename_family' | 'verify' | 'image_stats' | 'cleanup_images' | string, data: any, customToken?: string) => {
     // Isolated test family bypass
     const token = customToken || safeGetItem(STORAGE_KEY_TOKEN);
     if (token === TEST_TOKEN) {
@@ -1088,7 +1363,7 @@ export const crossPostRestaurant = async (restaurant: Restaurant, targetFamilyId
     try {
         // Manual fetch with different token
         const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-        const res = await fetch(`${API_BASE}/restaurants`, {
+        const res = await fetch(`${getApiBase()}/restaurants`, {
             method: 'POST',
             headers,
             body: JSON.stringify(sharedRestaurant)
@@ -1108,7 +1383,7 @@ export const crossDeleteRestaurant = async (restaurantId: string, targetFamilyId
     if (!targetSession) throw new Error("Not authenticated with target family");
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${targetSession.token}` };
-    const res = await fetch(`${API_BASE}/restaurants?id=${restaurantId}`, {
+    const res = await fetch(`${getApiBase()}/restaurants?id=${restaurantId}`, {
         method: 'DELETE',
         headers
     });

@@ -1,8 +1,0 @@
-{
-	"appId": "com.bahjat.mykitchen",
-	"appName": "MyKitchen",
-	"webDir": "dist",
-	"server": {
-		"androidScheme": "https"
-	}
-}

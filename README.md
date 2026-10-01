@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# MyKitchen
 
-# Run and deploy your AI Studio app
+## Android Build Instructions
 
-This contains everything you need to run your app locally.
+To build the Android project from a fresh clone, run the automated bootstrap script:
 
-View your app in AI Studio: https://ai.studio/apps/80ae10e5-c69f-4816-91bf-00ca93e5f909
+```bash
+bun run android:build
+# or
+npm run android:build
+# or
+bash scripts/setup-android.sh
+```
 
-## Run Locally
+### Dependency Chain
 
-**Prerequisites:**  Node.js
+The `android:build` script automatically executes the required build pipeline:
 
+1. **Dependencies Installation**: Runs `bun install` (or `npm install`) to ensure all npm packages and `@capacitor/*` CLI dependencies are present.
+2. **Web Assets Compilation**: Runs `bun run build` to build production web assets into `dist/`.
+3. **Capacitor Sync**: Runs `bunx cap sync android` to copy the web assets into `android/app/src/main/assets/public/` and synchronize Capacitor plugins.
+4. **Android Gradle Build**: Runs `cd android && ./gradlew assembleDebug` to compile the debug APK (`app-debug.apk`).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Prerequisites
+- Java JDK 17 or higher (`JAVA_HOME` configured)
+- Android SDK (for building APKs via Gradle)
